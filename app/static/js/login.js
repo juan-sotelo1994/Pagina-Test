@@ -12,7 +12,7 @@ const togglePassword = document.getElementById('toggle-password');
 // Mueve los ojos y la cabeza según cuánto se ha escrito
 const mirar = (x, y) => {
     pupilas.forEach((p) => p.style.transform = `translate(${x}px, ${y}px)`);
-    head.style.transform = `rotate(${x * 0.6}deg)`;
+    head.style.transform = `rotate(${x * 0.6}deg)`;//
 };
 
 const seguirCorreo = () => {
