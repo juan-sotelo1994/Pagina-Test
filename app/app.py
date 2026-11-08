@@ -1,8 +1,13 @@
 from flask import Flask, render_template, request
+from dotenv import load_dotenv
 import os
 
 
+# Variables secretas desde el archivo .env (no se sube a GitHub)
+load_dotenv()
+
 app = Flask(__name__)
+app.secret_key = os.environ['SECRET_KEY']
 
 
 # resgistro de las importaciones y configuraciones

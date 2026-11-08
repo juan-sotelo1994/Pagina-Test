@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel | {{ empresa.nombre }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/web.css') }}">
+</head>
+
+<body>
+    <!-- Página provisional del panel: se reemplaza cuando hagamos el dashboard -->
+    <main class="section">
+        <div class="container">
+            <p class="eyebrow"><span class="dot"></span> Panel administrativo</p>
+            <h1 class="section-title">Hola, {{ usuario }}</h1>
+            <p style="color: var(--muted); margin: 16px 0 32px;">Iniciaste sesión correctamente. El panel está en construcción.</p>
+            <a href="{{ url_for('autenticar.logout') }}" class="btn btn-outline">Cerrar sesión</a>
+        </div>
+    </main>
+</body>
+
+</html>
