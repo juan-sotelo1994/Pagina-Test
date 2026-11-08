@@ -6,11 +6,12 @@ web_bp = Blueprint('web', __name__)
 
 # Datos de la empresa: se editan aquí y se usan en todas las plantillas
 EMPRESA = {
-    'nombre': 'ASTECNOLOGÍA',
+    'nombre': 'Test-Lab',
     'lema': 'Asesoría y soluciones',
-    'telefono': '(+57) 301 222 3632',
-    'telefono_link': '+573012223632',
-    'correo': 'contacto@astecnologia.com.co',
+    # Pendiente: reemplazar por el teléfono y correo reales de Test-Lab
+    'telefono': '(+57) 300 000 0000',
+    'telefono_link': '+573000000000',
+    'correo': 'contacto@test-lab.com',
 }
 
 # Palabras de la franja animada debajo del hero
