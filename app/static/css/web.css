@@ -220,6 +220,7 @@ a {
     font-family: var(--font-mono);
     font-size: 14px;
     color: var(--muted);
+    white-space: nowrap;
 }
 
 .nav-phone svg {
@@ -228,8 +229,17 @@ a {
     stroke-width: 2;
 }
 
-.nav-phone-mobile {
+.nav-phone-mobile,
+.nav-login-mobile {
     display: none;
+}
+
+.btn-login svg {
+    fill: none;
+    stroke: var(--lime);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .nav-toggle {
@@ -645,10 +655,13 @@ a {
    Adaptable (tablet y móvil)
    ========================================================= */
 
-@media (max-width: 1100px) {
+@media (max-width: 1360px) {
     .nav-phone:not(.nav-phone-mobile) {
         display: none;
     }
+}
+
+@media (max-width: 1100px) {
 
     .hero-grid {
         grid-template-columns: 1fr;
@@ -660,7 +673,7 @@ a {
     }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1100px) {
     :root {
         --header-h: 72px;
     }
@@ -685,7 +698,7 @@ a {
         flex-direction: column;
         gap: 0;
         padding: 8px 16px 24px;
-        background: rgba(10, 15, 26, 0.97);
+        background: var(--bg);
         border-bottom: 1px solid var(--line);
         transform: translateY(-120%);
         transition: transform .3s;
@@ -703,6 +716,11 @@ a {
     .nav-phone-mobile {
         display: block;
         color: var(--lime);
+    }
+
+    .nav-login-mobile {
+        display: block;
+        color: var(--text);
     }
 
     .header-inner {
