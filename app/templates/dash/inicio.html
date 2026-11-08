@@ -1,27 +1,104 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends 'dash/base_dash.html' %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel | {{ empresa.nombre }}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-    <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/web.css') }}">
-</head>
+{% block title %}Vista general{% endblock %}
+{% block page_title %}Vista general{% endblock %}
 
-<body>
-    <!-- Página provisional del panel: se reemplaza cuando hagamos el dashboard -->
-    <main class="section">
-        <div class="container">
-            <p class="eyebrow"><span class="dot"></span> Panel administrativo</p>
-            <h1 class="section-title">Hola, {{ usuario }}</h1>
-            <p style="color: var(--muted); margin: 16px 0 32px;">Iniciaste sesión correctamente. El panel está en construcción.</p>
-            <a href="{{ url_for('autenticar.logout') }}" class="btn btn-outline">Cerrar sesión</a>
+{% block content %}
+
+<!-- Gráficos de dona -->
+<section class="widgets">
+    {% for g in graficos %}
+    <article class="widget">
+        <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="{{ g.titulo }}: {{ g.total }} en total">
+            <circle cx="21" cy="21" r="15.915" class="donut-track"/>
+            {% set ns = namespace(acumulado=0) %}
+            {% for p in g.partes %}
+            <circle cx="21" cy="21" r="15.915" class="donut-part" stroke="{{ p.color }}"
+                    stroke-dasharray="{{ p.porcentaje }} {{ 100 - p.porcentaje }}"
+                    stroke-dashoffset="{{ 25 - ns.acumulado }}">
+                <title>{{ p.nombre }}: {{ p.cantidad }}</title>
+            </circle>
+            {% set ns.acumulado = ns.acumulado + p.porcentaje %}
+            {% endfor %}
+            <text x="21" y="21" class="donut-total">{{ g.total }}</text>
+            <text x="21" y="26.5" class="donut-label">Total</text>
+        </svg>
+
+        <div class="legend">
+            <h2>{{ g.titulo }}</h2>
+            <ul>
+                {% for p in g.partes %}
+                <li>
+                    <span class="swatch" style="background: {{ p.color }}"></span>
+                    <span class="legend-name">{{ p.nombre }}</span>
+                    <span class="pill">{{ p.cantidad }}</span>
+                </li>
+                {% endfor %}
+            </ul>
         </div>
-    </main>
-</body>
+    </article>
+    {% endfor %}
+</section>
 
-</html>
+<!-- Barra de herramientas -->
+<div class="toolbar">
+    <button class="tool-btn" onclick="location.reload()">
+        <i class="fa-solid fa-rotate"></i> Actualizar
+    </button>
+    <a class="tool-btn" href="{{ url_for('dashboard.seccion', nombre='facturas') }}">
+        <i class="fa-solid fa-plus"></i> Nueva factura
+    </a>
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar" aria-label="Buscar en la tabla">
+    </label>
+</div>
+
+<!-- Tabla -->
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">N° factura</th>
+                <th data-sort="text">Cliente</th>
+                <th data-sort="text">NIT</th>
+                <th data-sort="text">Servicio</th>
+                <th data-sort="text">Fecha</th>
+                <th data-sort="text">Vendedor</th>
+                <th data-sort="number">Valor</th>
+                <th data-sort="text">Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in facturas %}
+            <tr>
+                <td><a href="#" class="link">{{ f.numero }}</a></td>
+                <td>{{ f.cliente }}</td>
+                <td class="mono">{{ f.nit }}</td>
+                <td>{{ f.servicio }}</td>
+                <td class="mono">{{ f.fecha }}</td>
+                <td><i class="fa-solid fa-user-tie muted"></i> {{ f.vendedor }}</td>
+                <td data-value="{{ f.valor }}">
+                    <span class="value-cell">
+                        <span class="value-text">{{ f.valor | pesos }}</span>
+                        <span class="bar"><span style="width: {{ (f.valor * 100 / valor_max) | round(1) }}%"></span></span>
+                    </span>
+                </td>
+                <td>
+                    <span class="status"><span class="status-dot" style="background: {{ colores_estado[f.estado] }}"></span>{{ f.estado }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" hidden>No hay resultados para esa búsqueda.</p>
+</div>
+
+<p class="note"><i class="fa-solid fa-circle-info"></i> Datos de ejemplo. Se reemplazarán cuando conectemos la base de datos.</p>
+
+{% endblock %}
+
+{% block status %}
+{{ super() }}
+<span class="status-right" id="row-count">{{ facturas | length }}</span>
+{% endblock %}

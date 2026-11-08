@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Panel{% endblock %} | {{ empresa.nombre }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}">
+</head>
+
+{% macro enlace(clave) -%}
+{%- if clave == 'inicio' -%}{{ url_for('dashboard.dash_view') }}{%- else -%}{{ url_for('dashboard.seccion', nombre=clave) }}{%- endif -%}
+{%- endmacro %}
+
+<body>
+    <div class="panel" id="panel">
+
+        <!-- Menú lateral -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-head">
+                <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="26" height="26">
+                <span class="label">{{ empresa.nombre }}</span>
+            </div>
+
+            <nav class="sidebar-nav" aria-label="Panel">
+                <details class="group group-fav" open>
+                    <summary>
+                        <i class="fa-solid fa-star icon-fav"></i>
+                        <span class="label">Favoritos</span>
+                        <i class="fa-solid fa-chevron-right chevron"></i>
+                    </summary>
+                    {% for clave, texto, icono in favoritos %}
+                    <a href="{{ enlace(clave) }}" class="item {% if activo == clave %}active{% endif %}" title="{{ texto }}">
+                        <i class="fa-solid {{ icono }} item-icon"></i>
+                        <span class="label">{{ texto }}</span>
+                        <i class="fa-solid fa-star star"></i>
+                    </a>
+                    {% endfor %}
+                </details>
+
+                {% for g in menu %}
+                {% set abierto = activo in g['items'] | map('first') | list %}
+                <details class="group" {% if abierto %}open{% endif %}>
+                    <summary title="{{ g.grupo }}">
+                        <i class="fa-solid {{ g.icono }}"></i>
+                        <span class="label">{{ g.grupo }}</span>
+                        {% if g.grupo == 'Facturación' and alertas %}<span class="badge">{{ alertas }}</span>{% endif %}
+                        <i class="fa-solid fa-chevron-right chevron"></i>
+                    </summary>
+                    {% for clave, texto, icono in g['items'] %}
+                    <a href="{{ enlace(clave) }}" class="item {% if activo == clave %}active{% endif %}" title="{{ texto }}">
+                        <i class="fa-solid {{ icono }} item-icon"></i>
+                        <span class="label">{{ texto }}</span>
+                    </a>
+                    {% endfor %}
+                </details>
+                {% endfor %}
+            </nav>
+
+            <div class="sidebar-foot">
+                <span class="foot-brand label">{{ empresa.nombre | upper }}</span>
+                <span class="foot-version label">v0.1.0</span>
+            </div>
+        </aside>
+
+        <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+        <!-- Columna principal -->
+        <div class="main">
+            <header class="topbar">
+                <button class="icon-btn" id="sidebar-toggle" aria-label="Mostrar u ocultar menú">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <button class="icon-btn" id="search-focus" aria-label="Buscar">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+                <h1 class="topbar-title">{% block page_title %}{% endblock %}</h1>
+
+                <div class="topbar-right">
+                    <a href="{{ url_for('web.inicio') }}" class="icon-btn" title="Ver sitio público" target="_blank">
+                        <i class="fa-solid fa-globe"></i>
+                    </a>
+                    <a href="{{ url_for('dashboard.seccion', nombre='facturas') }}" class="icon-btn" title="Facturas vencidas">
+                        <i class="fa-regular fa-bell"></i>
+                        {% if alertas %}<span class="badge badge-top">{{ alertas }}</span>{% endif %}
+                    </a>
+
+                    <div class="user-menu">
+                        <button class="user-btn" id="user-btn" aria-expanded="false" aria-controls="user-dropdown">
+                            <i class="fa-solid fa-circle-user"></i>
+                            <span class="user-name">admin</span>
+                            <i class="fa-solid fa-caret-down"></i>
+                        </button>
+                        <div class="user-dropdown" id="user-dropdown" hidden>
+                            <div class="user-email">{{ usuario }}</div>
+                            <a href="{{ url_for('dashboard.seccion', nombre='configuracion') }}"><i class="fa-solid fa-sliders"></i> Configuración</a>
+                            <a href="{{ url_for('autenticar.logout') }}"><i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="content">
+                {% block content %}{% endblock %}
+            </main>
+
+            <footer class="statusbar">
+                {% block status %}
+                <span><span class="status-count {% if alertas %}warn{% endif %}">{{ alertas }}</span> Facturas vencidas</span>
+                {% endblock %}
+            </footer>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>
+</body>
+
+</html>
