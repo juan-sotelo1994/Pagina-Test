@@ -1,0 +1,14 @@
+# Entorno virtual
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Variables de entorno y secretos
+.env
+
+# Editor / sistema
+.vscode/
+.DS_Store
+Thumbs.db
