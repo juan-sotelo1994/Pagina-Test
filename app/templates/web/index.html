@@ -1,0 +1,107 @@
+{% extends 'web/base_web.html' %}
+
+{% block content %}
+
+<!-- Hero -->
+<section class="hero">
+    <canvas class="hero-network" id="hero-network" aria-hidden="true"></canvas>
+
+    <div class="container hero-grid">
+        <div class="hero-copy">
+            <p class="eyebrow"><span class="dot"></span> Consultoría · Infraestructura · Soporte</p>
+            <h1>Impulsa tu negocio con <span class="accent">tecnología.</span></h1>
+            <p class="hero-lead">Consultoría tecnológica, infraestructura robusta y soporte estratégico para tu empresa.</p>
+            <p class="hero-sub">Nube e infraestructura on‑premise, mesa de ayuda N1, N2 y N3, redes y ciberseguridad, con ingenieros especializados en las tecnologías líderes del mercado.</p>
+
+            <div class="hero-actions">
+                <a href="#contacto" class="btn btn-primary">Solicitar asesoría</a>
+                <a href="#servicios" class="btn btn-outline">Ver servicios</a>
+            </div>
+
+            <ul class="hero-points">
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+                    Ingenieros certificados en tecnologías líderes
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                    Sistema de Gestión de Calidad
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    Acompañamiento del diagnóstico al soporte
+                </li>
+            </ul>
+        </div>
+
+        <!-- Diagrama orbital de frentes -->
+        <div class="hero-visual" aria-hidden="true">
+            <div class="orbit">
+                <div class="orbit-sweep"></div>
+                <svg class="orbit-lines" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="49" class="ring-outer"/>
+                    <circle cx="50" cy="50" r="33" class="ring-inner"/>
+                    {% for angulo in [0, 60, 120, 180, 240, 300] %}
+                    <line x1="50" y1="50" x2="50" y2="12" transform="rotate({{ angulo }} 50 50)"/>
+                    {% endfor %}
+                </svg>
+
+                <div class="orbit-core">
+                    <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="54" height="54">
+                </div>
+
+                {% set nodos = [
+                    ('Nube', 0, '<path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9z"/>'),
+                    ('Usuarios', 60, '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/>'),
+                    ('Servidores', 120, '<rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/>'),
+                    ('Datos', 180, '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>'),
+                    ('Red', 240, '<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-2h14v2"/>'),
+                    ('Asesoría', 300, '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/>'),
+                ] %}
+                {% for nombre, angulo, icono in nodos %}
+                <div class="orbit-node" style="--a: {{ angulo }}deg">
+                    <span class="node-icon"><svg viewBox="0 0 24 24">{{ icono | safe }}</svg></span>
+                    <span class="node-label">{{ nombre }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <p class="orbit-caption"><span class="dot"></span> Elige un frente · te contamos cómo lo resolvemos</p>
+        </div>
+    </div>
+</section>
+
+<!-- Franja animada -->
+<section class="marquee" aria-label="Frentes de servicio">
+    <div class="marquee-track">
+        {% for _ in range(2) %}
+        <div class="marquee-group" {% if loop.index == 2 %}aria-hidden="true"{% endif %}>
+            {% for frente in frentes %}
+            <span class="marquee-item">{{ frente }}</span>
+            <svg class="marquee-sep" viewBox="0 0 60 20" aria-hidden="true"><path d="M2 4l9 12 9-12 9 12 9-12 9 12 9-12"/></svg>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Próximos pasos: servicios, nosotros, contacto -->
+<section class="section" id="servicios">
+    <div class="container">
+        <p class="eyebrow"><span class="dot"></span> Servicios</p>
+        <h2 class="section-title">Próximamente: selector de frentes y servicios.</h2>
+    </div>
+</section>
+<section class="section section-alt" id="nosotros">
+    <div class="container">
+        <p class="eyebrow"><span class="dot"></span> Nosotros</p>
+        <h2 class="section-title">Próximamente: por qué elegirnos.</h2>
+    </div>
+</section>
+<section class="section" id="contacto">
+    <div class="container">
+        <p class="eyebrow"><span class="dot"></span> Contacto</p>
+        <h2 class="section-title">Próximamente: formulario de asesoría.</h2>
+    </div>
+</section>
+
+{% endblock %}

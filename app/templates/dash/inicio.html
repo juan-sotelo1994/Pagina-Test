@@ -1,0 +1,115 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Vista general{% endblock %}
+{% block page_title %}Vista general{% endblock %}
+
+{% block content %}
+
+{% if not puede('facturas') %}
+<div class="placeholder">
+    <i class="fa-solid fa-hand"></i>
+    <h2>Hola, {{ usuario }}</h2>
+    <p>Usa el menú de la izquierda para ir a tus secciones.</p>
+</div>
+{% else %}
+
+<!-- Gráficos de dona -->
+<section class="widgets">
+    {% for g in graficos %}
+    <article class="widget">
+        <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="{{ g.titulo }}: {{ g.total }} en total">
+            <circle cx="21" cy="21" r="15.915" class="donut-track"/>
+            {% set ns = namespace(acumulado=0) %}
+            {% for p in g.partes %}
+            <circle cx="21" cy="21" r="15.915" class="donut-part" stroke="{{ p.color }}"
+                    stroke-dasharray="{{ p.porcentaje }} {{ 100 - p.porcentaje }}"
+                    stroke-dashoffset="{{ 25 - ns.acumulado }}">
+                <title>{{ p.nombre }}: {{ p.cantidad }}</title>
+            </circle>
+            {% set ns.acumulado = ns.acumulado + p.porcentaje %}
+            {% endfor %}
+            <text x="21" y="21" class="donut-total">{{ g.total }}</text>
+            <text x="21" y="26.5" class="donut-label">Total</text>
+        </svg>
+
+        <div class="legend">
+            <h2>{{ g.titulo }}</h2>
+            <ul>
+                {% for p in g.partes %}
+                <li>
+                    <span class="swatch" style="background: {{ p.color }}"></span>
+                    <span class="legend-name">{{ p.nombre }}</span>
+                    <span class="pill">{{ p.cantidad }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </article>
+    {% endfor %}
+</section>
+
+<!-- Barra de herramientas -->
+<div class="toolbar">
+    <button class="tool-btn" onclick="location.reload()">
+        <i class="fa-solid fa-rotate"></i> Actualizar
+    </button>
+    {% if puede('facturas', 'crear') %}
+    <a class="tool-btn" href="{{ url_for('dashboard.seccion', nombre='facturas') }}">
+        <i class="fa-solid fa-plus"></i> Nueva factura
+    </a>
+    {% endif %}
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar" aria-label="Buscar en la tabla">
+    </label>
+</div>
+
+<!-- Tabla -->
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">N° factura</th>
+                <th data-sort="text">Cliente</th>
+                <th data-sort="text">NIT</th>
+                <th data-sort="text">Servicio</th>
+                <th data-sort="text">Fecha</th>
+                <th data-sort="text">Vendedor</th>
+                <th data-sort="number">Valor</th>
+                <th data-sort="text">Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in facturas %}
+            <tr>
+                <td><a href="#" class="link">{{ f.numero }}</a></td>
+                <td>{{ f.cliente }}</td>
+                <td class="mono">{{ f.nit }}</td>
+                <td>{{ f.servicio }}</td>
+                <td class="mono">{{ f.fecha }}</td>
+                <td><i class="fa-solid fa-user-tie muted"></i> {{ f.vendedor }}</td>
+                <td data-value="{{ f.valor }}">
+                    <span class="value-cell">
+                        <span class="value-text">{{ f.valor | pesos }}</span>
+                        <span class="bar"><span style="width: {{ (f.valor * 100 / valor_max) | round(1) }}%"></span></span>
+                    </span>
+                </td>
+                <td>
+                    <span class="status"><span class="status-dot" style="background: {{ colores_estado[f.estado] }}"></span>{{ f.estado }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" hidden>No hay resultados para esa búsqueda.</p>
+</div>
+
+<p class="note"><i class="fa-solid fa-circle-info"></i> Datos de ejemplo. Se reemplazarán cuando conectemos la base de datos.</p>
+
+{% endif %}
+{% endblock %}
+
+{% block status %}
+{{ super() }}
+{% if puede('facturas') %}<span class="status-right" id="row-count">{{ facturas | length }}</span>{% endif %}
+{% endblock %}

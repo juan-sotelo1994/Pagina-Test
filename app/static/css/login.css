@@ -1,0 +1,352 @@
+/* =========================================================
+   Login con personaje interactivo
+   ========================================================= */
+
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 32px 16px;
+    background:
+        radial-gradient(ellipse 50% 40% at 50% 30%, rgba(43, 179, 163, 0.14), transparent 70%),
+        var(--bg);
+}
+
+.login-brand {
+    margin-bottom: 4px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
+.login-card.has-error {
+    animation: shake .45s;
+}
+
+/* ---------- Encabezado verde ---------- */
+
+.login-hero {
+    position: relative;
+    height: 190px;
+    background: linear-gradient(160deg, #31d779, var(--teal));
+}
+
+.speed-line {
+    position: absolute;
+    top: var(--y);
+    left: var(--x);
+    width: var(--w);
+    height: 7px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.35);
+    animation: drift 3s ease-in-out infinite alternate;
+}
+
+.speed-line:nth-child(even) {
+    animation-delay: -1.5s;
+}
+
+/* ---------- Personaje ---------- */
+
+.avatar {
+    position: absolute;
+    left: 50%;
+    bottom: -72px;
+    width: 250px;
+    transform: translateX(-50%);
+    overflow: visible;
+    stroke: #3b2a33;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.avatar .shirt {
+    fill: #e24a6e;
+}
+
+.avatar .skin {
+    fill: #f4b88f;
+}
+
+.avatar .nose {
+    fill: #e89a6f;
+}
+
+.avatar .hair {
+    fill: #8a6f7e;
+}
+
+.avatar .beard {
+    fill: #8f7d85;
+}
+
+.avatar .beard-line {
+    fill: none;
+    stroke: #6e5c64;
+    stroke-width: 2;
+}
+
+.avatar .brow,
+.avatar .mouth-smile,
+.avatar .eyes-closed,
+.avatar .eye-wink {
+    fill: none;
+}
+
+.avatar .pupil,
+.avatar .mouth-whistle {
+    fill: #2b2230;
+    stroke: none;
+}
+
+.avatar .head {
+    transform-box: view-box;
+    transform-origin: 100px 160px;
+    transition: transform .25s ease-out;
+}
+
+.avatar .eyes-open g {
+    transition: transform .15s ease-out;
+}
+
+.avatar .brow {
+    transition: transform .25s;
+}
+
+/* Estados que no se ven al inicio */
+.avatar .eyes-closed,
+.avatar .eye-wink,
+.avatar .mouth-whistle,
+.avatar .notes {
+    opacity: 0;
+}
+
+/* Escribiendo la contraseña: cierra los ojos y silba */
+.avatar.is-whistling .eyes-open,
+.avatar.is-whistling .mouth-smile {
+    opacity: 0;
+}
+
+.avatar.is-whistling .eyes-closed,
+.avatar.is-whistling .mouth-whistle,
+.avatar.is-whistling .notes {
+    opacity: 1;
+}
+
+.avatar.is-whistling .brow {
+    transform: translateY(-3px);
+}
+
+/* Mostrando la contraseña: un ojo se abre para mirar */
+.avatar.is-whistling.is-peeking .eyes-closed {
+    opacity: 0;
+}
+
+.avatar.is-whistling.is-peeking .eyes-open {
+    opacity: 1;
+}
+
+.avatar.is-whistling.is-peeking .eye-left {
+    opacity: 0;
+}
+
+.avatar.is-whistling.is-peeking .eye-wink {
+    opacity: 1;
+}
+
+.avatar .note {
+    font-size: 26px;
+    fill: #0e5d55;
+    stroke: none;
+    font-family: system-ui, sans-serif;
+}
+
+.avatar.is-whistling .note {
+    animation: float-note 1.6s ease-in-out infinite;
+}
+
+.avatar.is-whistling .note-2 {
+    animation-delay: -.8s;
+}
+
+/* ---------- Formulario ---------- */
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 96px 32px 32px;
+}
+
+.login-form h1 {
+    margin: 0 0 4px;
+    text-align: center;
+    font-family: var(--font-title);
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.login-error {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(239, 99, 81, 0.4);
+    background: rgba(239, 99, 81, 0.1);
+    color: #ffb4a8;
+    font-size: 14px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.field input {
+    width: 100%;
+    padding: 12px 0;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    outline: none;
+    transition: border-color .2s;
+}
+
+.field input::placeholder {
+    color: rgba(154, 168, 184, 0.5);
+}
+
+.field input:focus {
+    border-bottom-color: var(--lime);
+}
+
+.field-password {
+    position: relative;
+}
+
+.field-password input {
+    padding-right: 40px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.toggle-password svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.8;
+}
+
+.toggle-password[aria-pressed="true"] svg {
+    stroke: var(--lime);
+}
+
+.forgot {
+    align-self: flex-end;
+    margin-top: -6px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.forgot:hover {
+    color: var(--lime);
+}
+
+.login-submit {
+    width: 100%;
+    margin-top: 6px;
+    cursor: pointer;
+}
+
+.login-submit svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.login-back {
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.login-back:hover {
+    color: var(--text);
+}
+
+/* ---------- Animaciones ---------- */
+
+@keyframes drift {
+    to {
+        transform: translateX(14px);
+    }
+}
+
+@keyframes float-note {
+    0% {
+        transform: translate(0, 6px);
+        opacity: 0;
+    }
+
+    30% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(10px, -18px);
+        opacity: 0;
+    }
+}
+
+@keyframes shake {
+    20%, 60% {
+        transform: translateX(-8px);
+    }
+
+    40%, 80% {
+        transform: translateX(8px);
+    }
+}
+
+@media (max-width: 420px) {
+    .login-form {
+        padding: 84px 20px 24px;
+    }
+}
