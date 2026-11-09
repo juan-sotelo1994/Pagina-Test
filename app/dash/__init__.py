@@ -1,9 +1,9 @@
 from collections import Counter
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
-from auth import login_requerido
-from . import permisos
+from auth import correo_admin, login_requerido, usuarios
+from . import glpi, permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -33,6 +33,9 @@ MENU = [
         ('productos', 'Productos', 'fa-box-open'),
         ('servicios', 'Servicios', 'fa-layer-group'),
         ('proveedores', 'Proveedores', 'fa-truck-field'),
+    ]},
+    {'grupo': 'Soporte', 'icono': 'fa-headset', 'items': [
+        ('tickets', 'Tickets (GLPI)', 'fa-ticket'),
     ]},
     {'grupo': 'Usuarios y accesos', 'icono': 'fa-user-shield', 'items': [
         ('usuarios', 'Usuarios', 'fa-user-gear'),
@@ -94,6 +97,9 @@ def formato_pesos(valor):
 def datos_panel():
     rol = session.get('rol')
     menu, favoritos = menu_visible(rol)
+    alertas_tickets = 0
+    if permisos.puede(rol, 'tickets', 'ver'):
+        alertas_tickets = glpi.resumen(glpi.obtener()[0])['alertas']
     return {
         'menu': menu,
         'favoritos': favoritos,
@@ -101,6 +107,7 @@ def datos_panel():
         'rol_nombre': permisos.NOMBRES_ROL.get(rol, ''),
         'puede': lambda modulo, accion='ver': permisos.puede(rol, modulo, accion),
         'alertas': sum(1 for f in FACTURAS if f['estado'] == 'Vencida'),
+        'alertas_tickets': alertas_tickets,
     }
 
 
@@ -159,6 +166,69 @@ def roles():
                            seleccionado=seleccionado, permisos_rol=resumen_roles[seleccionado],
                            resumen_roles=resumen_roles,
                            puede_editar=permisos.puede(rol_actual, 'roles', 'editar') and seleccionado != 'superadmin')
+
+
+@dashboard_bp.route('/usuarios', methods=['GET', 'POST'])
+@login_requerido
+def usuarios_view():
+    rol_actual = session['rol']
+    if not permisos.puede(rol_actual, 'usuarios', 'ver'):
+        abort(403)
+    puede_crear = permisos.puede(rol_actual, 'usuarios', 'crear')
+
+    # Solo el superadministrador puede crear otros superadministradores
+    roles_asignables = [r for r in permisos.ROLES if r[0] != 'superadmin' or rol_actual == 'superadmin']
+    errores, formulario = {}, {}
+
+    if request.method == 'POST':
+        if not puede_crear:
+            abort(403)
+        formulario = {k: request.form.get(k, '') for k in ('nombre', 'correo', 'rol')}
+        errores = usuarios.validar(
+            formulario['nombre'], formulario['correo'], formulario['rol'],
+            request.form.get('contrasena', ''), request.form.get('confirmacion', ''),
+            roles_validos={r[0] for r in roles_asignables},
+            correos_reservados={correo_admin()},
+        )
+        if not errores:
+            nuevo = usuarios.crear(formulario['nombre'], formulario['correo'], formulario['rol'],
+                                   request.form['contrasena'])
+            flash(f"Usuario {nuevo['nombre']} creado como {permisos.NOMBRES_ROL[nuevo['rol']]}.", 'ok')
+            return redirect(url_for('dashboard.usuarios_view'))
+
+    return render_template('dash/usuarios.html', activo='usuarios', lista=usuarios.listar(),
+                           admin_correo=correo_admin(), nombres_rol=permisos.NOMBRES_ROL,
+                           roles_asignables=roles_asignables, puede_crear=puede_crear,
+                           errores=errores, formulario=formulario, largo_minimo=usuarios.LARGO_MINIMO)
+
+
+@dashboard_bp.route('/tickets')
+@login_requerido
+def tickets():
+    if not permisos.puede(session['rol'], 'tickets', 'ver'):
+        abort(403)
+    lista, origen, error = glpi.obtener()
+    filtro = request.args.get('estado', 'alertas')
+    filtros = {
+        'alertas': lambda t: t['estado'] in (glpi.NUEVO, glpi.PENDIENTE),
+        'nuevos': lambda t: t['estado'] == glpi.NUEVO,
+        'pendientes': lambda t: t['estado'] == glpi.PENDIENTE,
+        'en_curso': lambda t: t['estado'] in (glpi.ASIGNADO, glpi.PLANIFICADO),
+        'todos': lambda t: True,
+    }
+    visibles = [t for t in lista if filtros.get(filtro, filtros['alertas'])(t)]
+    return render_template('dash/tickets.html', activo='tickets', tickets=visibles,
+                           resumen=glpi.resumen(lista), origen=origen, error=error, filtro=filtro,
+                           estados=glpi.ESTADOS, prioridades=glpi.PRIORIDADES, url_ticket=glpi.url_ticket)
+
+
+@dashboard_bp.route('/tickets/resumen.json')
+@login_requerido
+def tickets_resumen():
+    # Lo consulta el navegador cada minuto para mostrar alertas nuevas
+    if not permisos.puede(session['rol'], 'tickets', 'ver'):
+        abort(403)
+    return jsonify(glpi.resumen(glpi.obtener()[0]))
 
 
 @dashboard_bp.route('/<nombre>')

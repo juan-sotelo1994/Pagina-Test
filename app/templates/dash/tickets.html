@@ -1,0 +1,91 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Tickets{% endblock %}
+{% block page_title %}Soporte › Tickets (GLPI){% endblock %}
+
+{% set colores_estado = {1: '#3b82f6', 2: '#2bb3a3', 3: '#2bb3a3', 4: '#f59e0b', 5: '#4caf6e', 6: '#6b6f75'} %}
+{% set colores_prioridad = {1: 'tag-none', 2: 'tag-read', 3: 'tag-read', 4: 'tag-part', 5: 'tag-danger', 6: 'tag-danger'} %}
+
+{% block content %}
+
+{% if origen == 'ejemplo' %}
+<div class="flash flash-info">
+    <i class="fa-solid fa-circle-info"></i>
+    Mostrando tickets de ejemplo. Para ver los reales, configura GLPI_URL, GLPI_APP_TOKEN y GLPI_USER_TOKEN en el archivo .env.
+</div>
+{% endif %}
+{% if error %}
+<div class="flash flash-error"><i class="fa-solid fa-plug-circle-xmark"></i> {{ error }}</div>
+{% endif %}
+
+<!-- Contadores -->
+<section class="stats">
+    <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}" class="stat stat-new {% if filtro == 'nuevos' %}active{% endif %}">
+        <i class="fa-solid fa-bell"></i>
+        <span class="stat-num">{{ resumen.nuevos }}</span>
+        <span class="stat-label">Nuevos</span>
+    </a>
+    <a href="{{ url_for('dashboard.tickets', estado='pendientes') }}" class="stat stat-pending {% if filtro == 'pendientes' %}active{% endif %}">
+        <i class="fa-solid fa-hourglass-half"></i>
+        <span class="stat-num">{{ resumen.pendientes }}</span>
+        <span class="stat-label">Pendientes</span>
+    </a>
+    <a href="{{ url_for('dashboard.tickets', estado='en_curso') }}" class="stat stat-progress {% if filtro == 'en_curso' %}active{% endif %}">
+        <i class="fa-solid fa-gears"></i>
+        <span class="stat-num">{{ resumen.en_curso }}</span>
+        <span class="stat-label">En curso</span>
+    </a>
+</section>
+
+<div class="toolbar">
+    <button class="tool-btn" onclick="location.reload()"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+    <nav class="filter-tabs" aria-label="Filtrar tickets">
+        {% for clave, texto in [('alertas', 'Nuevos y pendientes'), ('todos', 'Todos los abiertos')] %}
+        <a href="{{ url_for('dashboard.tickets', estado=clave) }}" class="{% if filtro == clave %}active{% endif %}">{{ texto }}</a>
+        {% endfor %}
+    </nav>
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar" aria-label="Buscar tickets">
+    </label>
+</div>
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table" data-tickets-vistos="{{ tickets | selectattr('estado', 'equalto', 1) | map(attribute='id') | max if tickets | selectattr('estado', 'equalto', 1) | list else '' }}">
+        <thead>
+            <tr>
+                <th data-sort="number">ID</th>
+                <th data-sort="text">Título</th>
+                <th data-sort="text">Solicitante</th>
+                <th data-sort="text">Técnico</th>
+                <th data-sort="number">Prioridad</th>
+                <th data-sort="text">Estado</th>
+                <th data-sort="text">Apertura</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tickets %}
+            <tr>
+                <td data-value="{{ t.id }}">
+                    {% set enlace = url_ticket(t.id) %}
+                    {% if enlace %}<a href="{{ enlace }}" target="_blank" rel="noopener" class="link">#{{ t.id }}</a>{% else %}#{{ t.id }}{% endif %}
+                </td>
+                <td>{{ t.titulo }}</td>
+                <td>{{ t.solicitante or '—' }}</td>
+                <td>{% if t.tecnico %}<i class="fa-solid fa-user-gear muted"></i> {{ t.tecnico }}{% else %}<span class="muted-text">Sin asignar</span>{% endif %}</td>
+                <td data-value="{{ t.prioridad }}"><span class="tag {{ colores_prioridad.get(t.prioridad, 'tag-none') }}">{{ prioridades.get(t.prioridad, '—') }}</span></td>
+                <td><span class="status"><span class="status-dot" style="background: {{ colores_estado.get(t.estado, '#6b6f75') }}"></span>{{ estados.get(t.estado, t.estado) }}</span></td>
+                <td class="mono">{{ t.fecha }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if tickets %}hidden{% endif %}>No hay tickets en esta vista.</p>
+</div>
+
+{% endblock %}
+
+{% block status %}
+<span><span class="status-count {% if resumen.alertas %}warn{% endif %}">{{ resumen.alertas }}</span> Tickets nuevos y pendientes · {{ 'Conectado a GLPI' if origen == 'glpi' and not error else 'Datos de ejemplo' if origen == 'ejemplo' else 'Sin conexión a GLPI' }}</span>
+<span class="status-right" id="row-count">{{ tickets | length }}</span>
+{% endblock %}

@@ -4,13 +4,19 @@ from functools import wraps
 from flask import Blueprint, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
+from . import usuarios
+
 # Blueprint de autenticación (login del panel administrativo)
 autenticar = Blueprint('autenticar', __name__)
 
 
+def correo_admin():
+    return os.environ.get('ADMIN_EMAIL', '').strip().lower()
+
+
 def credenciales_validas(correo, contrasena):
     # Usuario administrador definido en .env (la contraseña se guarda cifrada)
-    admin_correo = os.environ.get('ADMIN_EMAIL', '')
+    admin_correo = correo_admin()
     admin_hash = os.environ.get('ADMIN_PASSWORD_HASH', '')
     if not admin_correo or not admin_hash:
         return False
@@ -47,6 +53,11 @@ def login():
             session['usuario'] = correo.lower()
             # El administrador del .env es el superadministrador del sistema
             session['rol'] = 'superadmin'
+            return redirect(url_for('dashboard.dash_view'))
+        elif (usuario := usuarios.autenticar(correo, contrasena)):
+            session.clear()
+            session['usuario'] = usuario['correo']
+            session['rol'] = usuario['rol']
             return redirect(url_for('dashboard.dash_view'))
         else:
             error = 'Correo o contraseña incorrectos.'

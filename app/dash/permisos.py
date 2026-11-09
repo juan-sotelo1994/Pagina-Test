@@ -4,11 +4,9 @@ Por ahora los permisos se guardan en app/data/roles.json. Cuando conectemos
 la base de datos, solo hay que cambiar cargar() y guardar() por consultas;
 el resto del panel usa puede() y no necesita cambios.
 """
-import json
-import os
-from pathlib import Path
+import almacen
 
-ARCHIVO = Path(__file__).resolve().parent.parent / 'data' / 'roles.json'
+ARCHIVO = 'roles.json'
 
 # (clave, nombre, descripción)
 ROLES = [
@@ -34,6 +32,7 @@ MODULOS = [
     ('productos', 'Productos', 'Inventario'),
     ('servicios', 'Servicios', 'Inventario'),
     ('proveedores', 'Proveedores', 'Inventario'),
+    ('tickets', 'Tickets (GLPI)', 'Soporte'),
     ('usuarios', 'Usuarios', 'Usuarios y accesos'),
     ('roles', 'Roles y permisos', 'Configuración'),
     ('configuracion', 'General', 'Configuración'),
@@ -49,14 +48,15 @@ PERMISOS_INICIALES = {
     },
     'preventa': {
         'clientes': VCE, 'cotizaciones': VCE, 'productos': ['ver'],
-        'servicios': ['ver'], 'proveedores': ['ver'],
+        'servicios': ['ver'], 'proveedores': ['ver'], 'tickets': ['ver'],
     },
     'tecnico': {
         'clientes': ['ver'], 'servicios': ['ver', 'editar'], 'productos': ['ver'],
+        'tickets': VCE,
     },
     'auxiliar': {
         'clientes': VCE, 'cotizaciones': ['ver'], 'facturas': VCE,
-        'productos': VCE, 'proveedores': VCE,
+        'productos': VCE, 'proveedores': VCE, 'tickets': ['ver'],
     },
 }
 
@@ -67,20 +67,20 @@ def cargar():
     global _cache
     if _cache is None:
         datos = {rol: dict(p) for rol, p in PERMISOS_INICIALES.items()}
-        if ARCHIVO.exists():
-            datos.update(json.loads(ARCHIVO.read_text(encoding='utf-8')))
+        guardados = almacen.leer(ARCHIVO, {})
+        # Módulos que existían cuando se guardó el archivo. Si después se
+        # agrega un módulo nuevo, cada rol recibe su permiso inicial para él
+        conocidos = set(guardados.pop('_modulos', [m for p in guardados.values() for m in p]))
+        for rol, permisos_rol in guardados.items():
+            nuevos = {m: a for m, a in PERMISOS_INICIALES.get(rol, {}).items() if m not in conocidos}
+            datos[rol] = {**permisos_rol, **nuevos}
         _cache = datos
     return _cache
 
 
 def guardar(datos):
-    # Escribe en un archivo temporal y luego lo reemplaza: si algo falla
-    # a mitad de camino, el archivo anterior queda intacto
     global _cache
-    ARCHIVO.parent.mkdir(parents=True, exist_ok=True)
-    temporal = ARCHIVO.with_suffix('.tmp')
-    temporal.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding='utf-8')
-    os.replace(temporal, ARCHIVO)
+    almacen.escribir(ARCHIVO, {'_modulos': [m for m, _, _ in MODULOS], **datos})
     _cache = datos
 
 

@@ -50,6 +50,7 @@
                         <i class="fa-solid {{ g.icono }}"></i>
                         <span class="label">{{ g.grupo }}</span>
                         {% if g.grupo == 'Facturación' and alertas %}<span class="badge">{{ alertas }}</span>{% endif %}
+                        {% if g.grupo == 'Soporte' %}<span class="badge" data-tickets-badge {% if not alertas_tickets %}hidden{% endif %}>{{ alertas_tickets }}</span>{% endif %}
                         <i class="fa-solid fa-chevron-right chevron"></i>
                     </summary>
                     {% for clave, texto, icono in g['items'] %}
@@ -85,10 +86,12 @@
                     <a href="{{ url_for('web.inicio') }}" class="icon-btn" title="Ver sitio público" target="_blank">
                         <i class="fa-solid fa-globe"></i>
                     </a>
-                    {% if puede('facturas') %}
-                    <a href="{{ url_for('dashboard.seccion', nombre='facturas') }}" class="icon-btn" title="Facturas vencidas">
+                    {% if puede('tickets') %}
+                    <a href="{{ url_for('dashboard.tickets') }}" class="icon-btn" title="Tickets nuevos y pendientes"
+                       id="tickets-bell" data-resumen="{{ url_for('dashboard.tickets_resumen') }}"
+                       data-ver="{{ url_for('dashboard.tickets', estado='nuevos') }}">
                         <i class="fa-regular fa-bell"></i>
-                        {% if alertas %}<span class="badge badge-top">{{ alertas }}</span>{% endif %}
+                        <span class="badge badge-top" data-tickets-badge {% if not alertas_tickets %}hidden{% endif %}>{{ alertas_tickets }}</span>
                     </a>
                     {% endif %}
 
@@ -132,6 +135,9 @@
             </footer>
         </div>
     </div>
+
+    <!-- Avisos emergentes (tickets nuevos) -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
 
     <script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>
 </body>
