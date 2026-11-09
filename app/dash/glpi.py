@@ -134,5 +134,6 @@ def resumen(tickets):
         'pendientes': len(pendientes),
         'en_curso': len(en_curso),
         'alertas': len(nuevos) + len(pendientes),
-        'ultimos_nuevos': [{'id': t['id'], 'titulo': t['titulo']} for t in nuevos[:5]],
+        'ultimos_nuevos': [{'id': t['id'], 'titulo': t['titulo']}
+                           for t in sorted(nuevos, key=lambda t: t['id'], reverse=True)[:5]],
     }

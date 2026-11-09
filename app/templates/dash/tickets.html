@@ -51,7 +51,7 @@
 </div>
 
 <div class="table-wrap">
-    <table class="data-table" id="data-table" data-tickets-vistos="{{ tickets | selectattr('estado', 'equalto', 1) | map(attribute='id') | max if tickets | selectattr('estado', 'equalto', 1) | list else '' }}">
+    <table class="data-table" id="data-table" data-tickets-vistos="{{ ultimo_nuevo }}">
         <thead>
             <tr>
                 <th data-sort="number">ID</th>

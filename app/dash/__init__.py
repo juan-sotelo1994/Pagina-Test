@@ -219,6 +219,7 @@ def tickets():
     visibles = [t for t in lista if filtros.get(filtro, filtros['alertas'])(t)]
     return render_template('dash/tickets.html', activo='tickets', tickets=visibles,
                            resumen=glpi.resumen(lista), origen=origen, error=error, filtro=filtro,
+                           ultimo_nuevo=max((t['id'] for t in lista if t['estado'] == glpi.NUEVO), default=0),
                            estados=glpi.ESTADOS, prioridades=glpi.PRIORIDADES, url_ticket=glpi.url_ticket)
 
 
