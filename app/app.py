@@ -24,3 +24,4 @@ app.register_blueprint(dashboard_bp)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5711)
+    
