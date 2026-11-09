@@ -5,6 +5,14 @@
 
 {% block content %}
 
+{% if not puede('facturas') %}
+<div class="placeholder">
+    <i class="fa-solid fa-hand"></i>
+    <h2>Hola, {{ usuario }}</h2>
+    <p>Usa el menú de la izquierda para ir a tus secciones.</p>
+</div>
+{% else %}
+
 <!-- Gráficos de dona -->
 <section class="widgets">
     {% for g in graficos %}
@@ -45,9 +53,11 @@
     <button class="tool-btn" onclick="location.reload()">
         <i class="fa-solid fa-rotate"></i> Actualizar
     </button>
+    {% if puede('facturas', 'crear') %}
     <a class="tool-btn" href="{{ url_for('dashboard.seccion', nombre='facturas') }}">
         <i class="fa-solid fa-plus"></i> Nueva factura
     </a>
+    {% endif %}
     <label class="search">
         <i class="fa-solid fa-magnifying-glass"></i>
         <input type="search" id="table-search" placeholder="Buscar" aria-label="Buscar en la tabla">
@@ -96,9 +106,10 @@
 
 <p class="note"><i class="fa-solid fa-circle-info"></i> Datos de ejemplo. Se reemplazarán cuando conectemos la base de datos.</p>
 
+{% endif %}
 {% endblock %}
 
 {% block status %}
 {{ super() }}
-<span class="status-right" id="row-count">{{ facturas | length }}</span>
+{% if puede('facturas') %}<span class="status-right" id="row-count">{{ facturas | length }}</span>{% endif %}
 {% endblock %}

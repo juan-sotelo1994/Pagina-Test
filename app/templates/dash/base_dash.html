@@ -85,20 +85,24 @@
                     <a href="{{ url_for('web.inicio') }}" class="icon-btn" title="Ver sitio público" target="_blank">
                         <i class="fa-solid fa-globe"></i>
                     </a>
+                    {% if puede('facturas') %}
                     <a href="{{ url_for('dashboard.seccion', nombre='facturas') }}" class="icon-btn" title="Facturas vencidas">
                         <i class="fa-regular fa-bell"></i>
                         {% if alertas %}<span class="badge badge-top">{{ alertas }}</span>{% endif %}
                     </a>
+                    {% endif %}
 
                     <div class="user-menu">
                         <button class="user-btn" id="user-btn" aria-expanded="false" aria-controls="user-dropdown">
                             <i class="fa-solid fa-circle-user"></i>
-                            <span class="user-name">admin</span>
+                            <span class="user-name">{{ rol_nombre }}</span>
                             <i class="fa-solid fa-caret-down"></i>
                         </button>
                         <div class="user-dropdown" id="user-dropdown" hidden>
                             <div class="user-email">{{ usuario }}</div>
-                            <a href="{{ url_for('dashboard.seccion', nombre='configuracion') }}"><i class="fa-solid fa-sliders"></i> Configuración</a>
+                            {% if puede('roles') %}
+                            <a href="{{ url_for('dashboard.roles') }}"><i class="fa-solid fa-user-lock"></i> Roles y permisos</a>
+                            {% endif %}
                             <a href="{{ url_for('autenticar.logout') }}"><i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión</a>
                         </div>
                     </div>
@@ -106,12 +110,24 @@
             </header>
 
             <main class="content">
+                {% with mensajes = get_flashed_messages(with_categories=true) %}
+                {% for tipo, texto in mensajes %}
+                <div class="flash flash-{{ tipo }}" role="status">
+                    <i class="fa-solid {% if tipo == 'ok' %}fa-circle-check{% else %}fa-circle-exclamation{% endif %}"></i>
+                    {{ texto }}
+                </div>
+                {% endfor %}
+                {% endwith %}
                 {% block content %}{% endblock %}
             </main>
 
             <footer class="statusbar">
                 {% block status %}
+                {% if puede('facturas') %}
                 <span><span class="status-count {% if alertas %}warn{% endif %}">{{ alertas }}</span> Facturas vencidas</span>
+                {% else %}
+                <span><i class="fa-solid fa-user-lock"></i> {{ rol_nombre }}</span>
+                {% endif %}
                 {% endblock %}
             </footer>
         </div>

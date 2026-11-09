@@ -5,8 +5,8 @@
 
 {% block content %}
 <div class="placeholder">
-    <i class="fa-solid fa-person-digging"></i>
+    <i class="fa-solid {{ icono or 'fa-person-digging' }}"></i>
     <h2>{{ titulo }}</h2>
-    <p>Esta sección está en construcción.</p>
+    <p>{{ mensaje or 'Esta sección está en construcción.' }}</p>
 </div>
 {% endblock %}

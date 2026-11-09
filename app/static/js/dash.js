@@ -50,6 +50,25 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// Roles y permisos: reglas entre los interruptores de cada fila
+document.querySelectorAll('.perm-table tr[data-row]').forEach((fila) => {
+    const switches = [...fila.querySelectorAll('input[data-accion]')];
+    const ver = switches.find((s) => s.dataset.accion === 'ver');
+    const todo = fila.querySelector('.row-all');
+    const actualizarTodo = () => { todo.checked = switches.every((s) => s.checked); };
+
+    switches.forEach((s) => s.addEventListener('change', () => {
+        // Crear, editar o eliminar exigen poder ver; sin ver, se apaga todo
+        if (s !== ver && s.checked) ver.checked = true;
+        if (s === ver && !s.checked) switches.forEach((x) => { x.checked = false; });
+        actualizarTodo();
+    }));
+
+    todo.addEventListener('change', () => {
+        switches.forEach((s) => { s.checked = todo.checked; });
+    });
+});
+
 // Búsqueda en la tabla
 const search = document.getElementById('table-search');
 const table = document.getElementById('data-table');

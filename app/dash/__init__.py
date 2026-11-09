@@ -1,8 +1,9 @@
 from collections import Counter
 
-from flask import Blueprint, abort, render_template, session
+from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
 from auth import login_requerido
+from . import permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -36,12 +37,24 @@ MENU = [
     {'grupo': 'Usuarios y accesos', 'icono': 'fa-user-shield', 'items': [
         ('usuarios', 'Usuarios', 'fa-user-gear'),
     ]},
-    {'grupo': 'Sistema', 'icono': 'fa-gear', 'items': [
-        ('configuracion', 'Configuración', 'fa-sliders'),
+    {'grupo': 'Configuración', 'icono': 'fa-gear', 'items': [
+        ('roles', 'Roles y permisos', 'fa-user-lock'),
+        ('configuracion', 'General', 'fa-sliders'),
     ]},
 ]
 
 SECCIONES = {clave: texto for g in MENU for clave, texto, _ in g['items']}
+
+
+def menu_visible(rol):
+    # Solo muestra las opciones que el rol puede ver ('inicio' siempre se ve)
+    visible = lambda clave: clave == 'inicio' or permisos.puede(rol, clave, 'ver')
+    grupos = []
+    for g in MENU:
+        items = [i for i in g['items'] if visible(i[0])]
+        if items:
+            grupos.append({**g, 'items': items})
+    return grupos, [f for f in FAVORITOS if visible(f[0])]
 
 
 # Datos de ejemplo mientras no exista la base de datos
@@ -79,12 +92,22 @@ def formato_pesos(valor):
 
 @dashboard_bp.context_processor
 def datos_panel():
+    rol = session.get('rol')
+    menu, favoritos = menu_visible(rol)
     return {
-        'menu': MENU,
-        'favoritos': FAVORITOS,
+        'menu': menu,
+        'favoritos': favoritos,
         'usuario': session.get('usuario'),
+        'rol_nombre': permisos.NOMBRES_ROL.get(rol, ''),
+        'puede': lambda modulo, accion='ver': permisos.puede(rol, modulo, accion),
         'alertas': sum(1 for f in FACTURAS if f['estado'] == 'Vencida'),
     }
+
+
+@dashboard_bp.errorhandler(403)
+def sin_permiso(error):
+    return render_template('dash/seccion.html', activo=None, titulo='Acceso denegado',
+                           icono='fa-lock', mensaje='Tu rol no tiene permiso para ver esta sección.'), 403
 
 
 @dashboard_bp.route('/')
@@ -100,9 +123,49 @@ def dash_view():
                            facturas=FACTURAS, valor_max=valor_max, colores_estado=COLORES_ESTADO)
 
 
+@dashboard_bp.route('/roles', methods=['GET', 'POST'])
+@login_requerido
+def roles():
+    rol_actual = session['rol']
+    if not permisos.puede(rol_actual, 'roles', 'ver'):
+        abort(403)
+
+    seleccionado = request.values.get('rol', 'admin')
+    if seleccionado not in permisos.NOMBRES_ROL:
+        seleccionado = 'admin'
+
+    if request.method == 'POST':
+        if not permisos.puede(rol_actual, 'roles', 'editar'):
+            abort(403)
+        nombre = permisos.NOMBRES_ROL[seleccionado]
+        if seleccionado == 'superadmin':
+            flash('Los permisos del Superadministrador no se pueden modificar.', 'error')
+        elif request.form.get('accion') == 'restablecer':
+            permisos.restablecer_rol(seleccionado)
+            flash(f'Se restablecieron los permisos iniciales de {nombre}.', 'ok')
+        else:
+            # Los checkbox llegan como "modulo:accion"
+            nuevos = {}
+            for valor in request.form.getlist('permiso'):
+                modulo, _, accion = valor.partition(':')
+                nuevos.setdefault(modulo, []).append(accion)
+            permisos.actualizar_rol(seleccionado, nuevos)
+            flash(f'Permisos de {nombre} guardados.', 'ok')
+        return redirect(url_for('dashboard.roles', rol=seleccionado))
+
+    resumen_roles = {clave: permisos.permisos_de(clave) for clave, _, _ in permisos.ROLES}
+    return render_template('dash/roles.html', activo='roles',
+                           roles=permisos.ROLES, acciones=permisos.ACCIONES, modulos=permisos.MODULOS,
+                           seleccionado=seleccionado, permisos_rol=resumen_roles[seleccionado],
+                           resumen_roles=resumen_roles,
+                           puede_editar=permisos.puede(rol_actual, 'roles', 'editar') and seleccionado != 'superadmin')
+
+
 @dashboard_bp.route('/<nombre>')
 @login_requerido
 def seccion(nombre):
     if nombre not in SECCIONES:
         abort(404)
+    if not permisos.puede(session['rol'], nombre, 'ver'):
+        abort(403)
     return render_template('dash/seccion.html', activo=nombre, titulo=SECCIONES[nombre])

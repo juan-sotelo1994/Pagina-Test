@@ -21,7 +21,8 @@ def login_requerido(vista):
     # Decorador para proteger las vistas del panel
     @wraps(vista)
     def envoltura(*args, **kwargs):
-        if 'usuario' not in session:
+        if 'usuario' not in session or 'rol' not in session:
+            session.clear()
             return redirect(url_for('autenticar.login'))
         return vista(*args, **kwargs)
     return envoltura
@@ -29,7 +30,7 @@ def login_requerido(vista):
 
 @autenticar.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'usuario' in session:
+    if 'usuario' in session and 'rol' in session:
         return redirect(url_for('dashboard.dash_view'))
 
     error = None
@@ -44,6 +45,8 @@ def login():
         elif credenciales_validas(correo, contrasena):
             session.clear()
             session['usuario'] = correo.lower()
+            # El administrador del .env es el superadministrador del sistema
+            session['rol'] = 'superadmin'
             return redirect(url_for('dashboard.dash_view'))
         else:
             error = 'Correo o contraseña incorrectos.'

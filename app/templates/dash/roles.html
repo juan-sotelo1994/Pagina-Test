@@ -1,0 +1,128 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Roles y permisos{% endblock %}
+{% block page_title %}Configuración › Roles y permisos{% endblock %}
+
+{% set iconos_rol = {
+    'superadmin': 'fa-crown', 'admin': 'fa-user-shield', 'vendedor': 'fa-handshake',
+    'preventa': 'fa-clipboard-list', 'tecnico': 'fa-screwdriver-wrench', 'auxiliar': 'fa-folder-open'
+} %}
+
+{% block content %}
+
+<!-- Selector de rol -->
+<nav class="role-tabs" aria-label="Roles">
+    {% for clave, nombre, _ in roles %}
+    <a href="{{ url_for('dashboard.roles', rol=clave) }}" class="role-tab {% if clave == seleccionado %}active{% endif %}">
+        <i class="fa-solid {{ iconos_rol[clave] }}"></i> {{ nombre }}
+    </a>
+    {% endfor %}
+</nav>
+
+{% for clave, nombre, descripcion in roles if clave == seleccionado %}
+<form method="post" class="card" id="roles-form">
+    <input type="hidden" name="rol" value="{{ clave }}">
+
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid {{ iconos_rol[clave] }}"></i></div>
+        <div>
+            <h2>{{ nombre }}</h2>
+            <p>{{ descripcion }}</p>
+        </div>
+        {% if not puede_editar %}
+        <span class="tag tag-lock"><i class="fa-solid fa-lock"></i> Solo lectura</span>
+        {% endif %}
+    </header>
+
+    <div class="table-wrap">
+        <table class="data-table perm-table">
+            <thead>
+                <tr>
+                    <th>Módulo</th>
+                    {% for _, texto in acciones %}<th class="center">{{ texto }}</th>{% endfor %}
+                    <th class="center">Todo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for modulo, texto, grupo in modulos %}
+                {% if loop.changed(grupo) %}
+                <tr class="group-row"><td colspan="{{ acciones | length + 2 }}">{{ grupo }}</td></tr>
+                {% endif %}
+                {% set actuales = permisos_rol.get(modulo, []) %}
+                <tr data-row>
+                    <td>{{ texto }}</td>
+                    {% for accion, nombre_accion in acciones %}
+                    <td class="center">
+                        <label class="switch">
+                            <input type="checkbox" name="permiso" value="{{ modulo }}:{{ accion }}" data-accion="{{ accion }}"
+                                   aria-label="{{ nombre_accion }} {{ texto }}"
+                                   {% if accion in actuales %}checked{% endif %} {% if not puede_editar %}disabled{% endif %}>
+                            <span></span>
+                        </label>
+                    </td>
+                    {% endfor %}
+                    <td class="center">
+                        <input type="checkbox" class="row-all" aria-label="Todos los permisos de {{ texto }}"
+                               {% if actuales | length == acciones | length %}checked{% endif %} {% if not puede_editar %}disabled{% endif %}>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if puede_editar %}
+    <footer class="card-foot">
+        <button type="submit" name="accion" value="restablecer" class="tool-btn" formnovalidate>
+            <i class="fa-solid fa-rotate-left"></i> Restablecer
+        </button>
+        <button type="submit" name="accion" value="guardar" class="tool-btn btn-save">
+            <i class="fa-solid fa-floppy-disk"></i> Guardar cambios
+        </button>
+    </footer>
+    {% elif clave == 'superadmin' %}
+    <p class="note"><i class="fa-solid fa-circle-info"></i> El Superadministrador siempre tiene todos los permisos, así nadie puede quedar sin acceso a la configuración.</p>
+    {% else %}
+    <p class="note"><i class="fa-solid fa-circle-info"></i> Tu rol puede ver los permisos, pero no modificarlos.</p>
+    {% endif %}
+</form>
+{% endfor %}
+
+<!-- Resumen de todos los roles -->
+<section class="card">
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid fa-table-cells"></i></div>
+        <div>
+            <h2>Resumen de acceso</h2>
+            <p>Qué puede hacer cada rol en cada módulo.</p>
+        </div>
+    </header>
+    <div class="table-wrap">
+        <table class="data-table summary-table">
+            <thead>
+                <tr>
+                    <th>Módulo</th>
+                    {% for clave, nombre, _ in roles %}<th class="center">{{ nombre }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for modulo, texto, _ in modulos %}
+                <tr>
+                    <td>{{ texto }}</td>
+                    {% for clave, _, _ in roles %}
+                    {% set n = resumen_roles[clave].get(modulo, []) | length %}
+                    <td class="center">
+                        {% if n == acciones | length %}<span class="tag tag-full">Total</span>
+                        {% elif n == 1 %}<span class="tag tag-read">Lectura</span>
+                        {% elif n > 1 %}<span class="tag tag-part">Parcial</span>
+                        {% else %}<span class="tag tag-none">—</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% endblock %}

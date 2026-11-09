@@ -698,6 +698,249 @@ button {
     display: none;
 }
 
+/* ---------- Mensajes ---------- */
+
+.flash {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 12px 16px;
+    border: 1px solid;
+    font-size: 15px;
+}
+
+.flash-ok {
+    border-color: rgba(76, 175, 110, .5);
+    background: rgba(76, 175, 110, .12);
+    color: #9fe3b5;
+}
+
+.flash-error {
+    border-color: rgba(239, 99, 81, .5);
+    background: rgba(239, 99, 81, .12);
+    color: #ffb4a8;
+}
+
+/* ---------- Roles y permisos ---------- */
+
+.role-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    overflow-x: auto;
+}
+
+.role-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+    color: var(--muted);
+}
+
+.role-tab:hover {
+    color: var(--text);
+}
+
+.role-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.card {
+    margin-bottom: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+}
+
+.card .table-wrap {
+    border: 0;
+    border-top: 1px solid var(--line);
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+}
+
+.card-head h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.card-head p {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.card-head .tag {
+    margin-left: auto;
+}
+
+.role-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(43, 179, 163, .15);
+    color: var(--accent);
+    font-size: 18px;
+}
+
+.card-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--line);
+}
+
+.btn-save {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.btn-save:hover {
+    background: var(--accent-dark);
+}
+
+.center {
+    text-align: center !important;
+}
+
+.perm-table th::after,
+.summary-table th::after {
+    content: none;
+}
+
+.perm-table th,
+.summary-table th {
+    cursor: default;
+}
+
+.group-row td {
+    padding: 8px 14px;
+    background: #222326;
+    color: var(--lime);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.row-all {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 24px;
+    vertical-align: middle;
+}
+
+.switch input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.switch span {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: #44464b;
+    transition: background .2s;
+}
+
+.switch span::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform .2s;
+}
+
+.switch input:checked + span {
+    background: var(--accent);
+}
+
+.switch input:checked + span::after {
+    transform: translateX(18px);
+}
+
+.switch input:focus-visible + span {
+    outline: 2px solid var(--lime);
+    outline-offset: 2px;
+}
+
+.switch input:disabled {
+    cursor: not-allowed;
+}
+
+.switch input:disabled + span {
+    opacity: .55;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tag-full {
+    background: rgba(76, 175, 110, .18);
+    color: #7fd99d;
+}
+
+.tag-read {
+    background: rgba(59, 130, 246, .18);
+    color: #93bbfb;
+}
+
+.tag-part {
+    background: rgba(245, 158, 11, .18);
+    color: #fbc66b;
+}
+
+.tag-none {
+    color: #6b6f75;
+}
+
+.tag-lock {
+    background: #3a3b3f;
+    color: var(--muted);
+}
+
 /* ---------- Celular: el menú se abre encima ---------- */
 
 @media (max-width: 900px) {

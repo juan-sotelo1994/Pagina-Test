@@ -12,3 +12,6 @@ __pycache__/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Datos guardados por la app (permisos, etc.) hasta tener base de datos
+app/data/
