@@ -3,7 +3,7 @@ from collections import Counter
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from auth import correo_admin, login_requerido, usuarios
-from . import glpi, permisos
+from . import agentes, glpi, permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -125,9 +125,18 @@ def dash_view():
         resumen('Servicios facturados', Counter(f['servicio'] for f in FACTURAS)),
         resumen('Facturas por vendedor', Counter(f['vendedor'] for f in FACTURAS)),
     ]
-    valor_max = max(f['valor'] for f in FACTURAS)
-    return render_template('dash/inicio.html', activo='inicio', graficos=graficos,
-                           facturas=FACTURAS, valor_max=valor_max, colores_estado=COLORES_ESTADO)
+    datos = {
+        'activo': 'inicio', 'graficos': graficos, 'facturas': FACTURAS,
+        'valor_max': max(f['valor'] for f in FACTURAS), 'colores_estado': COLORES_ESTADO,
+    }
+
+    # Cada rol puede tener su propio inicio en templates/dash/inicio/<rol>.html
+    rol = session['rol']
+    if rol == 'superadmin':
+        tickets_glpi, origen, _ = glpi.obtener()
+        datos['oficina'] = agentes.construir(tickets_glpi, origen)
+        datos['accesos'] = MENU
+    return render_template([f'dash/inicio/{rol}.html', 'dash/inicio/general.html'], **datos)
 
 
 @dashboard_bp.route('/roles', methods=['GET', 'POST'])

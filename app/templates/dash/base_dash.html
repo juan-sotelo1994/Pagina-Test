@@ -140,6 +140,7 @@
     <div class="toasts" id="toasts" aria-live="polite"></div>
 
     <script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>

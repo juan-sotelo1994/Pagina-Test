@@ -1147,6 +1147,316 @@ button {
     color: #fff;
 }
 
+/* ---------- Oficina de agentes 3D ---------- */
+
+.office-legend {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.chip span {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--c);
+    box-shadow: 0 0 8px var(--c);
+}
+
+.chip-libre,
+.dot-libre {
+    --c: #4caf6e;
+}
+
+.chip-ocupado,
+.dot-ocupado {
+    --c: #f59e0b;
+}
+
+.chip-saturado,
+.dot-saturado {
+    --c: #ef6351;
+}
+
+.office-body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    border-top: 1px solid var(--line);
+}
+
+.office-stage {
+    position: relative;
+    height: 500px;
+    overflow: hidden;
+    background: #1b1c1f;
+}
+
+.office-stage canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+}
+
+.office-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.office-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(17, 18, 20, .82);
+    border: 1px solid var(--c, var(--line));
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background .15s, transform 0s;
+}
+
+.office-label.label-libre {
+    --c: rgba(76, 175, 110, .6);
+}
+
+.office-label.label-ocupado {
+    --c: rgba(245, 158, 11, .6);
+}
+
+.office-label.label-saturado {
+    --c: rgba(239, 99, 81, .7);
+}
+
+.office-label.hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    z-index: 2;
+}
+
+.office-tooltip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 5;
+    max-width: 280px;
+    padding: 12px 14px;
+    background: var(--side);
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+    pointer-events: none;
+}
+
+.office-tooltip strong {
+    display: block;
+    font-size: 15px;
+}
+
+.office-tooltip p {
+    margin: 6px 0;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.office-tooltip small {
+    display: block;
+    font-size: 12px;
+    color: #c9cdd2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tip-state {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #111;
+}
+
+.tip-libre {
+    background: #4caf6e;
+}
+
+.tip-ocupado {
+    background: #f59e0b;
+}
+
+.tip-saturado {
+    background: #ef6351;
+}
+
+.office-hint {
+    position: absolute;
+    left: 12px;
+    bottom: 10px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.office-fallback {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: 10px;
+    margin: 0;
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.office-fallback[hidden] {
+    display: none;
+}
+
+.office-side {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--line);
+    min-height: 0;
+}
+
+.office-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-bottom: 1px solid var(--line);
+}
+
+.office-stats a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 4px;
+    border-right: 1px solid var(--line);
+}
+
+.office-stats a:last-child {
+    border-right: 0;
+}
+
+.office-stats a:hover {
+    background: #2e3034;
+}
+
+.office-stats strong {
+    font-size: 24px;
+}
+
+.office-stats span {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.agent-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+    overflow-y: auto;
+    max-height: 430px;
+}
+
+.agent-list li.muted-text {
+    padding: 14px 16px;
+    font-size: 14px;
+}
+
+.agent-list a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+}
+
+.agent-list a:hover {
+    background: #2e3034;
+}
+
+.agent-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--c);
+    box-shadow: 0 0 8px var(--c);
+    flex-shrink: 0;
+}
+
+.agent-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.agent-load {
+    min-width: 24px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #3a3b3f;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* ---------- Accesos rápidos ---------- */
+
+.quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+}
+
+.quick-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px;
+    background: var(--panel);
+    transition: background .15s;
+}
+
+.quick-tile:hover {
+    background: #2e3034;
+}
+
+.quick-tile i {
+    font-size: 20px;
+    color: var(--accent);
+    margin-bottom: 6px;
+}
+
+.quick-tile span {
+    font-weight: 600;
+}
+
+.quick-tile small {
+    font-size: 12px;
+    color: var(--muted);
+}
+
 /* ---------- Avisos emergentes ---------- */
 
 .toasts {
@@ -1270,6 +1580,32 @@ button {
 
     .stats {
         grid-template-columns: 1fr;
+    }
+
+    .office-body {
+        grid-template-columns: 1fr;
+    }
+
+    .office-stage {
+        height: 360px;
+    }
+
+    .office-side {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+    }
+
+    .office-legend {
+        margin-left: 0;
+        flex-basis: 100%;
+    }
+
+    .office-card .card-head {
+        flex-wrap: wrap;
+    }
+
+    .office-hint {
+        display: none;
     }
 
     .form-row {

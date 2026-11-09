@@ -164,6 +164,13 @@ if (search && table) {
         if (contador) contador.textContent = visibles;
     });
 
+    // ?q=texto en la dirección llega con la búsqueda ya escrita
+    const consulta = new URLSearchParams(location.search).get('q');
+    if (consulta) {
+        search.value = consulta;
+        search.dispatchEvent(new Event('input'));
+    }
+
     // Ordenar al hacer clic en el encabezado
     table.querySelectorAll('th').forEach((th, columna) => {
         th.addEventListener('click', () => {

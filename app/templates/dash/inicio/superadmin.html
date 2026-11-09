@@ -1,0 +1,99 @@
+{% extends 'dash/base_dash.html' %}
+
+{# Inicio del Superadministrador: oficina 3D de agentes, accesos a todo el panel y facturas #}
+
+{% block title %}Centro de control{% endblock %}
+{% block page_title %}Centro de control{% endblock %}
+
+{% set textos_estado = {'libre': 'Libre', 'ocupado': 'Ocupado', 'saturado': 'Saturado'} %}
+
+{% block content %}
+
+<!-- Oficina de agentes en 3D -->
+<section class="card office-card">
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid fa-building-user"></i></div>
+        <div>
+            <h2>Oficina de agentes</h2>
+            <p>
+                Mesa de ayuda en vivo ·
+                {% if oficina.origen == 'glpi' %}datos de GLPI{% else %}datos de ejemplo (GLPI sin configurar){% endif %}
+            </p>
+        </div>
+        <div class="office-legend">
+            <span class="chip chip-libre"><span></span> Libres {{ oficina.conteo.libre }}</span>
+            <span class="chip chip-ocupado"><span></span> Ocupados {{ oficina.conteo.ocupado }}</span>
+            <span class="chip chip-saturado"><span></span> Saturados {{ oficina.conteo.saturado }}</span>
+        </div>
+    </header>
+
+    <div class="office-body">
+        <div class="office-stage" id="oficina">
+            <div class="office-labels" id="oficina-etiquetas" aria-hidden="true"></div>
+            <div class="office-tooltip" id="oficina-tooltip" hidden></div>
+            <p class="office-hint"><i class="fa-solid fa-computer-mouse"></i> Arrastra para girar · rueda para acercar · clic en un agente para ver sus tickets</p>
+            <p class="office-fallback" id="oficina-fallback" hidden>
+                <i class="fa-solid fa-cube"></i> Tu navegador no puede mostrar la vista 3D. Consulta la lista de agentes a la derecha.
+            </p>
+        </div>
+
+        <aside class="office-side">
+            <div class="office-stats">
+                <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}"><strong>{{ oficina.resumen.nuevos }}</strong><span>Nuevos</span></a>
+                <a href="{{ url_for('dashboard.tickets', estado='pendientes') }}"><strong>{{ oficina.resumen.pendientes }}</strong><span>Pendientes</span></a>
+                <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}"><strong>{{ oficina.sin_asignar }}</strong><span>Sin asignar</span></a>
+            </div>
+            <ul class="agent-list">
+                {% for a in oficina.agentes %}
+                <li>
+                    <a href="{{ url_for('dashboard.tickets', estado='todos', q=a.nombre) }}" data-agente="{{ loop.index0 }}">
+                        <span class="agent-dot dot-{{ a.estado }}"></span>
+                        <span class="agent-name">{{ a.nombre }}</span>
+                        <span class="agent-load" title="Tickets asignados">{{ a.asignados }}</span>
+                    </a>
+                </li>
+                {% else %}
+                <li class="muted-text">No hay técnicos todavía. Crea usuarios con rol Técnico.</li>
+                {% endfor %}
+            </ul>
+        </aside>
+    </div>
+</section>
+
+<!-- Accesos rápidos: el superadministrador puede ir a todas las secciones -->
+<section class="card">
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid fa-table-cells-large"></i></div>
+        <div>
+            <h2>Accesos rápidos</h2>
+            <p>Todas las secciones del panel.</p>
+        </div>
+    </header>
+    <div class="quick-grid">
+        {% for g in accesos %}
+        {% for clave, texto, icono in g['items'] if clave != 'inicio' %}
+        <a href="{{ url_for('dashboard.seccion', nombre=clave) }}" class="quick-tile">
+            <i class="fa-solid {{ icono }}"></i>
+            <span>{{ texto }}</span>
+            <small>{{ g.grupo }}</small>
+        </a>
+        {% endfor %}
+        {% endfor %}
+    </div>
+</section>
+
+{% include 'dash/parciales/facturas.html' %}
+
+<script type="application/json" id="oficina-datos">{{ oficina | tojson }}</script>
+{% endblock %}
+
+{% block status %}
+<span><span class="status-count {% if oficina.resumen.alertas %}warn{% endif %}">{{ oficina.resumen.alertas }}</span> Tickets nuevos y pendientes · {{ oficina.agentes | length }} agentes</span>
+<span class="status-right" id="row-count">{{ facturas | length }}</span>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
+<script src="{{ url_for('static', filename='js/oficina3d.js') }}" data-tickets="{{ url_for('dashboard.tickets', estado='todos') }}" defer></script>
+{% endblock %}
