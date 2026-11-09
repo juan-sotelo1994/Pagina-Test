@@ -38,6 +38,11 @@
 </section>
 
 <div class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="nuevo-ticket">
+        <i class="fa-solid fa-plus"></i> Nuevo ticket
+    </button>
+    {% endif %}
     <button class="tool-btn" onclick="location.reload()"><i class="fa-solid fa-rotate"></i> Actualizar</button>
     <nav class="filter-tabs" aria-label="Filtrar tickets">
         {% for clave, texto in [('alertas', 'Nuevos y pendientes'), ('todos', 'Todos los abiertos')] %}
@@ -82,6 +87,69 @@
     </table>
     <p class="empty" id="table-empty" {% if tickets %}hidden{% endif %}>No hay tickets en esta vista.</p>
 </div>
+
+{% if puede_crear %}
+<!-- Formulario de nuevo ticket -->
+<dialog class="dialog" id="nuevo-ticket" {% if errores %}data-open-on-load{% endif %} aria-labelledby="nuevo-ticket-titulo">
+    <form method="post" class="dialog-form" novalidate>
+        <header class="dialog-head">
+            <h2 id="nuevo-ticket-titulo"><i class="fa-solid fa-ticket"></i> Nuevo ticket en GLPI</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+
+        <div class="dialog-body">
+            {% if errores.general %}
+            <div class="flash flash-error"><i class="fa-solid fa-circle-exclamation"></i> {{ errores.general }}</div>
+            {% elif not glpi_configurado %}
+            <div class="flash flash-info"><i class="fa-solid fa-circle-info"></i> GLPI aún no está configurado en el .env, así que el ticket no se podrá enviar.</div>
+            {% endif %}
+
+            <label class="form-field {% if errores.titulo %}invalid{% endif %}">
+                <span>Título</span>
+                <input type="text" name="titulo" value="{{ formulario.titulo }}" maxlength="250" required placeholder="Ej.: No hay internet en la sede norte">
+                {% if errores.titulo %}<small>{{ errores.titulo }}</small>{% endif %}
+            </label>
+
+            <div class="form-row">
+                <label class="form-field {% if errores.tipo %}invalid{% endif %}">
+                    <span>Tipo</span>
+                    <select name="tipo" required>
+                        {% for valor, texto in tipos.items() %}
+                        <option value="{{ valor }}" {% if formulario.tipo == valor | string %}selected{% endif %}>{{ texto }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if errores.tipo %}<small>{{ errores.tipo }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.urgencia %}invalid{% endif %}">
+                    <span>Urgencia</span>
+                    <select name="urgencia" required>
+                        {% for valor, texto in urgencias.items() %}
+                        <option value="{{ valor }}" {% if formulario.urgencia == valor | string or (not formulario and valor == 3) %}selected{% endif %}>{{ texto }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if errores.urgencia %}<small>{{ errores.urgencia }}</small>{% endif %}
+                </label>
+            </div>
+
+            <label class="form-field">
+                <span>Cliente <small class="hint">(opcional)</small></span>
+                <input type="text" name="cliente" value="{{ formulario.cliente }}" maxlength="150" placeholder="Empresa o persona que reporta">
+            </label>
+
+            <label class="form-field {% if errores.descripcion %}invalid{% endif %}">
+                <span>Descripción</span>
+                <textarea name="descripcion" rows="5" required placeholder="¿Qué pasa, desde cuándo y a quién afecta?">{{ formulario.descripcion }}</textarea>
+                {% if errores.descripcion %}<small>{{ errores.descripcion }}</small>{% endif %}
+            </label>
+        </div>
+
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-paper-plane"></i> Enviar a GLPI</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
 
 {% endblock %}
 

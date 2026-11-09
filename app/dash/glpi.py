@@ -7,11 +7,14 @@ Configuración en .env:
 
 Si GLPI no está configurado o no responde, se muestran datos de ejemplo.
 """
+import html
 import json
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 
 # Estados de ticket en GLPI
 NUEVO, ASIGNADO, PLANIFICADO, PENDIENTE, RESUELTO, CERRADO = 1, 2, 3, 4, 5, 6
@@ -20,6 +23,8 @@ ESTADOS = {
     PENDIENTE: 'Pendiente', RESUELTO: 'Resuelto', CERRADO: 'Cerrado',
 }
 PRIORIDADES = {1: 'Muy baja', 2: 'Baja', 3: 'Media', 4: 'Alta', 5: 'Muy alta', 6: 'Mayor'}
+URGENCIAS = {1: 'Muy baja', 2: 'Baja', 3: 'Media', 4: 'Alta', 5: 'Muy alta'}
+TIPOS = {1: 'Incidencia', 2: 'Solicitud'}
 
 # Campos de la búsqueda de tickets en GLPI
 CAMPOS = {'id': 2, 'titulo': 1, 'prioridad': 3, 'solicitante': 4, 'tecnico': 5, 'estado': 12, 'fecha': 15}
@@ -49,14 +54,31 @@ def url_ticket(ticket_id):
     return f"{os.environ['GLPI_URL'].rstrip('/')}/front/ticket.form.php?id={ticket_id}"
 
 
-def _pedir(ruta, encabezados, parametros=None):
+def _pedir(ruta, encabezados, parametros=None, datos=None):
     url = f"{os.environ['GLPI_URL'].rstrip('/')}/apirest.php/{ruta}"
     if parametros:
         url += '?' + urllib.parse.urlencode(parametros)
-    peticion = urllib.request.Request(url, headers=encabezados)
+    cuerpo_envio = json.dumps(datos).encode('utf-8') if datos is not None else None
+    peticion = urllib.request.Request(url, data=cuerpo_envio, headers=encabezados,
+                                      method='POST' if datos is not None else 'GET')
     with urllib.request.urlopen(peticion, timeout=TIEMPO_ESPERA) as respuesta:
         cuerpo = respuesta.read().decode('utf-8')
     return json.loads(cuerpo) if cuerpo else None
+
+
+@contextmanager
+def _sesion():
+    # Abre una sesión en la API de GLPI y la cierra al terminar
+    base = {'App-Token': os.environ['GLPI_APP_TOKEN'], 'Content-Type': 'application/json'}
+    sesion = _pedir('initSession', {**base, 'Authorization': f"user_token {os.environ['GLPI_USER_TOKEN']}"})
+    encabezados = {**base, 'Session-Token': sesion['session_token']}
+    try:
+        yield encabezados
+    finally:
+        try:
+            _pedir('killSession', encabezados)
+        except Exception:
+            pass
 
 
 def _texto(valor):
@@ -69,27 +91,19 @@ def _texto(valor):
 
 
 def _consultar():
-    base = {'App-Token': os.environ['GLPI_APP_TOKEN'], 'Content-Type': 'application/json'}
-    sesion = _pedir('initSession', {**base, 'Authorization': f"user_token {os.environ['GLPI_USER_TOKEN']}"})
-    encabezados = {**base, 'Session-Token': sesion['session_token']}
-    try:
-        parametros = {
-            # 'notold' = todos los tickets que no están resueltos ni cerrados
-            'criteria[0][field]': CAMPOS['estado'],
-            'criteria[0][searchtype]': 'equals',
-            'criteria[0][value]': 'notold',
-            'sort': CAMPOS['id'],
-            'order': 'DESC',
-            'range': '0-199',
-        }
-        for i, campo in enumerate(CAMPOS.values()):
-            parametros[f'forcedisplay[{i}]'] = campo
+    parametros = {
+        # 'notold' = todos los tickets que no están resueltos ni cerrados
+        'criteria[0][field]': CAMPOS['estado'],
+        'criteria[0][searchtype]': 'equals',
+        'criteria[0][value]': 'notold',
+        'sort': CAMPOS['id'],
+        'order': 'DESC',
+        'range': '0-199',
+    }
+    for i, campo in enumerate(CAMPOS.values()):
+        parametros[f'forcedisplay[{i}]'] = campo
+    with _sesion() as encabezados:
         resultado = _pedir('search/Ticket', encabezados, parametros) or {}
-    finally:
-        try:
-            _pedir('killSession', encabezados)
-        except Exception:
-            pass
 
     tickets = []
     for fila in resultado.get('data', []):
@@ -103,6 +117,50 @@ def _consultar():
             'fecha': _texto(fila.get(str(CAMPOS['fecha'])))[:16],
         })
     return tickets
+
+
+def validar_ticket(titulo, descripcion, tipo, urgencia):
+    errores = {}
+    if len(titulo.strip()) < 5:
+        errores['titulo'] = 'Escribe un título de al menos 5 caracteres.'
+    if len(descripcion.strip()) < 10:
+        errores['descripcion'] = 'Describe el problema (al menos 10 caracteres).'
+    if tipo not in TIPOS:
+        errores['tipo'] = 'Elige el tipo.'
+    if urgencia not in URGENCIAS:
+        errores['urgencia'] = 'Elige la urgencia.'
+    return errores
+
+
+def crear_ticket(titulo, descripcion, tipo, urgencia, cliente, autor):
+    """Crea el ticket en GLPI y devuelve su número.
+
+    El ticket queda a nombre del usuario dueño del token de la API; por eso
+    la descripción indica quién lo creó desde el panel.
+    """
+    contenido = html.escape(descripcion.strip()).replace('\n', '<br>')
+    detalles = [f'<b>Creado desde el panel por:</b> {html.escape(autor)}']
+    if cliente.strip():
+        detalles.insert(0, f'<b>Cliente:</b> {html.escape(cliente.strip())}')
+    entrada = {
+        'name': titulo.strip(),
+        'content': f"<p>{contenido}</p><p>{'<br>'.join(detalles)}</p>",
+        'type': tipo,
+        'urgency': urgencia,
+    }
+    try:
+        with _sesion() as encabezados:
+            respuesta = _pedir('Ticket', encabezados, datos={'input': entrada})
+    except urllib.error.HTTPError as error:
+        # GLPI responde ["CÓDIGO", "mensaje"] cuando rechaza la petición
+        detalle = error.read().decode('utf-8', 'replace')[:200]
+        raise RuntimeError(f'GLPI rechazó el ticket ({error.code}): {detalle}') from error
+    except OSError as error:
+        raise RuntimeError(f'No se pudo conectar con GLPI ({error}).') from error
+
+    # Se borra la caché para que el ticket nuevo aparezca de inmediato
+    _cache.update(momento=0, tickets=None)
+    return (respuesta or {}).get('id')
 
 
 def obtener():

@@ -202,11 +202,33 @@ def usuarios_view():
                            errores=errores, formulario=formulario, largo_minimo=usuarios.LARGO_MINIMO)
 
 
-@dashboard_bp.route('/tickets')
+@dashboard_bp.route('/tickets', methods=['GET', 'POST'])
 @login_requerido
 def tickets():
     if not permisos.puede(session['rol'], 'tickets', 'ver'):
         abort(403)
+    puede_crear = permisos.puede(session['rol'], 'tickets', 'crear')
+    errores, formulario = {}, {}
+
+    if request.method == 'POST':
+        if not puede_crear:
+            abort(403)
+        formulario = {k: request.form.get(k, '') for k in ('titulo', 'descripcion', 'cliente', 'tipo', 'urgencia')}
+        tipo = request.form.get('tipo', type=int)
+        urgencia = request.form.get('urgencia', type=int)
+        errores = glpi.validar_ticket(formulario['titulo'], formulario['descripcion'], tipo, urgencia)
+        if not errores and not glpi.configurado():
+            errores['general'] = 'GLPI no está configurado: el ticket no se puede enviar todavía.'
+        if not errores:
+            try:
+                numero = glpi.crear_ticket(formulario['titulo'], formulario['descripcion'], tipo, urgencia,
+                                           formulario['cliente'], session['usuario'])
+            except RuntimeError as error:
+                errores['general'] = str(error)
+            else:
+                flash(f'Ticket #{numero} creado en GLPI.', 'ok')
+                return redirect(url_for('dashboard.tickets', estado='nuevos'))
+
     lista, origen, error = glpi.obtener()
     filtro = request.args.get('estado', 'alertas')
     filtros = {
@@ -220,7 +242,9 @@ def tickets():
     return render_template('dash/tickets.html', activo='tickets', tickets=visibles,
                            resumen=glpi.resumen(lista), origen=origen, error=error, filtro=filtro,
                            ultimo_nuevo=max((t['id'] for t in lista if t['estado'] == glpi.NUEVO), default=0),
-                           estados=glpi.ESTADOS, prioridades=glpi.PRIORIDADES, url_ticket=glpi.url_ticket)
+                           estados=glpi.ESTADOS, prioridades=glpi.PRIORIDADES, url_ticket=glpi.url_ticket,
+                           puede_crear=puede_crear, glpi_configurado=glpi.configurado(),
+                           tipos=glpi.TIPOS, urgencias=glpi.URGENCIAS, errores=errores, formulario=formulario)
 
 
 @dashboard_bp.route('/tickets/resumen.json')
