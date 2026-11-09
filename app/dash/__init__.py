@@ -133,10 +133,6 @@ def dash_view():
 
     # Cada rol puede tener su propio inicio en templates/dash/inicio/<rol>.html
     rol = session['rol']
-    if rol == 'superadmin':
-        tickets_glpi, origen, _ = glpi.obtener()
-        datos['oficina'] = agentes.construir(tickets_glpi, origen)
-        datos['accesos'] = MENU
     return render_template([f'dash/inicio/{rol}.html', 'dash/inicio/general.html'], **datos)
 
 

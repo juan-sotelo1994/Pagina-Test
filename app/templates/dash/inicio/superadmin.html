@@ -1,45 +1,15 @@
 {% extends 'dash/base_dash.html' %}
 
-{# Inicio del Superadministrador: oficina 3D de agentes, accesos a todo el panel y facturas #}
+{# Inicio del Superadministrador: indicadores de facturas. La oficina de agentes está en Dashboard > Agentes #}
 
-{% block title %}Centro de control{% endblock %}
-{% block page_title %}Centro de control{% endblock %}
+{% block title %}Vista general{% endblock %}
+{% block page_title %}Vista general{% endblock %}
 
 {% block content %}
-
-{% include 'dash/parciales/oficina.html' %}
-
-<!-- Accesos rápidos: el superadministrador puede ir a todas las secciones -->
-<section class="card">
-    <header class="card-head">
-        <div class="role-icon"><i class="fa-solid fa-table-cells-large"></i></div>
-        <div>
-            <h2>Accesos rápidos</h2>
-            <p>Todas las secciones del panel.</p>
-        </div>
-    </header>
-    <div class="quick-grid">
-        {% for g in accesos %}
-        {% for clave, texto, icono in g['items'] if clave != 'inicio' %}
-        <a href="{{ url_for('dashboard.seccion', nombre=clave) }}" class="quick-tile">
-            <i class="fa-solid {{ icono }}"></i>
-            <span>{{ texto }}</span>
-            <small>{{ g.grupo }}</small>
-        </a>
-        {% endfor %}
-        {% endfor %}
-    </div>
-</section>
-
 {% include 'dash/parciales/facturas.html' %}
-
 {% endblock %}
 
 {% block status %}
-<span><span class="status-count {% if oficina.resumen.alertas %}warn{% endif %}">{{ oficina.resumen.alertas }}</span> Tickets nuevos y pendientes · {{ oficina.agentes | length }} agentes</span>
+{{ super() }}
 <span class="status-right" id="row-count">{{ facturas | length }}</span>
-{% endblock %}
-
-{% block extra_js %}
-{% include 'dash/parciales/oficina_js.html' %}
 {% endblock %}
