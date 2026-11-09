@@ -52,7 +52,24 @@ document.addEventListener('click', (e) => {
 
 // Ventanas de formulario (<dialog>)
 document.querySelectorAll('[data-open-dialog]').forEach((boton) => {
-    boton.addEventListener('click', () => document.getElementById(boton.dataset.openDialog).showModal());
+    boton.addEventListener('click', () => {
+        const dialogo = document.getElementById(boton.dataset.openDialog);
+        if (!dialogo) return;
+        // "Asignar tarea" desde la fila de un agente lo deja ya seleccionado
+        const selector = dialogo.querySelector('#tarea-agente');
+        if (selector && boton.dataset.agenteNombre) selector.value = boton.dataset.agenteNombre;
+        dialogo.showModal();
+    });
+});
+
+// Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar
+const confirmar = document.getElementById('confirmar');
+document.querySelectorAll('[data-confirm]').forEach((boton) => {
+    boton.addEventListener('click', () => {
+        document.getElementById('confirmar-texto').textContent = boton.dataset.confirm;
+        document.getElementById('confirmar-form').action = boton.dataset.action;
+        confirmar.showModal();
+    });
 });
 
 document.querySelectorAll('dialog').forEach((dialogo) => {
@@ -173,6 +190,7 @@ if (search && table) {
 
     // Ordenar al hacer clic en el encabezado
     table.querySelectorAll('th').forEach((th, columna) => {
+        if (!th.dataset.sort) return;
         th.addEventListener('click', () => {
             const asc = th.getAttribute('aria-sort') !== 'ascending';
             table.querySelectorAll('th').forEach((t) => t.removeAttribute('aria-sort'));

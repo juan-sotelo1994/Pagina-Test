@@ -349,12 +349,17 @@
         estado.className = `tip-state tip-${a.estado}`;
         estado.textContent = TEXTO_ESTADO[a.estado];
         const detalle = document.createElement('p');
-        detalle.textContent = `${a.asignados} tickets abiertos · ${a.pendientes} pendientes · ${a.urgentes} urgentes`;
+        detalle.textContent = `${a.asignados} tickets · ${a.tareas} tareas · ${a.urgentes} urgentes`;
         tooltip.append(titulo, estado, detalle);
 
         a.tickets.slice(0, 3).forEach((t) => {
             const linea = document.createElement('small');
             linea.textContent = `#${t.id} ${t.titulo}`;
+            tooltip.appendChild(linea);
+        });
+        a.lista_tareas.slice(0, 3).forEach((t) => {
+            const linea = document.createElement('small');
+            linea.textContent = `☐ ${t.titulo}`;
             tooltip.appendChild(linea);
         });
 

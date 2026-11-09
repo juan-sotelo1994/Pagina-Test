@@ -579,11 +579,15 @@ button {
     font-size: 16px;
     font-weight: 500;
     text-align: left;
-    cursor: pointer;
     user-select: none;
 }
 
-.data-table th::after {
+/* Solo las columnas con data-sort se pueden ordenar */
+.data-table th[data-sort] {
+    cursor: pointer;
+}
+
+.data-table th[data-sort]::after {
     content: '\f0dc';
     font-family: 'Font Awesome 6 Free';
     font-weight: 900;
@@ -1425,6 +1429,91 @@ button {
     font-size: 12px;
     font-weight: 700;
     text-align: center;
+}
+
+/* ---------- Acciones en tablas ---------- */
+
+.sub {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: normal;
+}
+
+.actions {
+    white-space: nowrap;
+}
+
+.actions form {
+    display: inline;
+}
+
+.mini-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    margin: 0 2px;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.mini-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.mini-btn.ok:hover {
+    border-color: #4caf6e;
+    background: rgba(76, 175, 110, .15);
+}
+
+.mini-btn.danger:hover {
+    border-color: var(--danger);
+    background: rgba(239, 99, 81, .15);
+}
+
+.mini-btn:disabled,
+.tool-btn:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+
+.btn-danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #d9503f;
+}
+
+.dialog-sm {
+    width: min(420px, calc(100vw - 24px));
+}
+
+.confirm-body {
+    flex-direction: row !important;
+    align-items: flex-start;
+    gap: 14px !important;
+}
+
+.confirm-body i {
+    font-size: 24px;
+    color: #f59e0b;
+}
+
+.confirm-body p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.dialog .note {
+    margin: 0;
 }
 
 /* ---------- Avisos emergentes ---------- */

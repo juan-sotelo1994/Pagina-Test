@@ -4,8 +4,25 @@
 {% block page_title %}Dashboard › Agentes{% endblock %}
 
 {% set textos_estado = {'libre': 'Libre', 'ocupado': 'Ocupado', 'saturado': 'Saturado'} %}
+{% set textos_origen = {'panel': 'Panel', 'usuario': 'Usuario técnico', 'glpi': 'GLPI', 'ejemplo': 'Ejemplo'} %}
+{% set clases_prioridad = {'baja': 'tag-none', 'media': 'tag-read', 'alta': 'tag-part', 'urgente': 'tag-danger'} %}
 
 {% block content %}
+
+{% if puede_crear or puede_asignar %}
+<div class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="nuevo-agente">
+        <i class="fa-solid fa-user-plus"></i> Agregar agente
+    </button>
+    {% endif %}
+    {% if puede_asignar %}
+    <button type="button" class="tool-btn" data-open-dialog="nueva-tarea" {% if not oficina.agentes %}disabled title="Primero agrega un agente"{% endif %}>
+        <i class="fa-solid fa-list-check"></i> Asignar tarea
+    </button>
+    {% endif %}
+</div>
+{% endif %}
 
 {% set clase_oficina = 'office-tall' %}
 {% include 'dash/parciales/oficina.html' %}
@@ -16,53 +33,244 @@
         <div class="role-icon"><i class="fa-solid fa-headset"></i></div>
         <div>
             <h2>Detalle de agentes</h2>
-            <p>Carga de tickets abiertos por técnico.</p>
+            <p>Carga de tickets abiertos y tareas por agente.</p>
         </div>
     </header>
     <div class="table-wrap">
-        <table class="data-table" id="data-table">
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th data-sort="text">Agente</th>
-                    <th data-sort="text">Estado</th>
-                    <th data-sort="number">Abiertos</th>
-                    <th data-sort="number">Pendientes</th>
-                    <th data-sort="number">Urgentes</th>
-                    <th data-sort="text">Tickets</th>
+                    <th>Agente</th>
+                    <th>Especialidad</th>
+                    <th>Estado</th>
+                    <th>Tickets</th>
+                    <th>Tareas</th>
+                    <th>Urgentes</th>
+                    <th>Origen</th>
+                    {% if puede_asignar or puede_eliminar %}<th class="center">Acciones</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for a in oficina.agentes %}
                 <tr>
-                    <td><span class="status"><span class="agent-dot dot-{{ a.estado }}"></span>{{ a.nombre }}</span></td>
+                    <td>
+                        <span class="status"><span class="agent-dot dot-{{ a.estado }}"></span>{{ a.nombre }}</span>
+                        {% if a.correo %}<div class="sub">{{ a.correo }}</div>{% endif %}
+                    </td>
+                    <td>{{ a.especialidad or '—' }}</td>
                     <td>{{ textos_estado[a.estado] }}</td>
-                    <td data-value="{{ a.asignados }}">{{ a.asignados }}</td>
-                    <td data-value="{{ a.pendientes }}">{{ a.pendientes }}</td>
-                    <td data-value="{{ a.urgentes }}">{% if a.urgentes %}<span class="tag tag-danger">{{ a.urgentes }}</span>{% else %}0{% endif %}</td>
                     <td>
                         {% if a.tickets and puede('tickets') %}
-                        <a href="{{ url_for('dashboard.tickets', estado='todos', q=a.nombre) }}" class="link">
-                            {% for t in a.tickets %}#{{ t.id }}{% if not loop.last %}, {% endif %}{% endfor %}
-                        </a>
-                        {% elif a.tickets %}
-                        {% for t in a.tickets %}#{{ t.id }}{% if not loop.last %}, {% endif %}{% endfor %}
+                        <a href="{{ url_for('dashboard.tickets', estado='todos', q=a.nombre) }}" class="link">{{ a.asignados }}</a>
+                        {% else %}{{ a.asignados }}{% endif %}
+                    </td>
+                    <td>{{ a.tareas }}</td>
+                    <td>{% if a.urgentes %}<span class="tag tag-danger">{{ a.urgentes }}</span>{% else %}0{% endif %}</td>
+                    <td><span class="tag tag-lock">{{ textos_origen[a.origen] }}</span></td>
+                    {% if puede_asignar or puede_eliminar %}
+                    <td class="center actions">
+                        {% if puede_asignar %}
+                        <button type="button" class="mini-btn" data-open-dialog="nueva-tarea" data-agente-nombre="{{ a.nombre }}" title="Asignar tarea a {{ a.nombre }}">
+                            <i class="fa-solid fa-list-check"></i><span>Asignar tarea</span>
+                        </button>
+                        {% endif %}
+                        {% if puede_eliminar %}
+                        {% if a.origen == 'panel' %}
+                        <button type="button" class="mini-btn danger"
+                                data-confirm="¿Eliminar a {{ a.nombre }}? También se borrarán sus {{ a.tareas }} tareas abiertas."
+                                data-action="{{ url_for('dashboard.agentes_eliminar', agente_id=a.id) }}" title="Eliminar a {{ a.nombre }}">
+                            <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                        </button>
                         {% else %}
-                        <span class="muted-text">—</span>
+                        <button type="button" class="mini-btn" disabled
+                                title="{% if a.origen == 'usuario' %}Es un usuario técnico: elimínalo o cambia su rol en Usuarios{% elif a.origen == 'glpi' %}Viene de GLPI: se quita al reasignar sus tickets en GLPI{% else %}Agente de ejemplo: desaparece al agregar agentes propios{% endif %}">
+                            <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                        </button>
+                        {% endif %}
                         {% endif %}
                     </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        <p class="empty" id="table-empty" {% if oficina.agentes %}hidden{% endif %}>No hay agentes todavía.</p>
+        {% if not oficina.agentes %}<p class="empty">No hay agentes todavía. Usa “Agregar agente”.</p>{% endif %}
     </div>
 </section>
+
+<!-- Tareas abiertas -->
+<section class="card">
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid fa-list-check"></i></div>
+        <div>
+            <h2>Tareas asignadas</h2>
+            <p>Tareas abiertas de los agentes. Al completarlas, dejan de sumar a su carga.</p>
+        </div>
+    </header>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Tarea</th>
+                    <th>Agente</th>
+                    <th>Prioridad</th>
+                    <th>Fecha límite</th>
+                    <th>Asignada por</th>
+                    {% if puede_asignar or puede_eliminar %}<th class="center">Acciones</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tareas | sort(attribute='id', reverse=true) %}
+                <tr>
+                    <td>
+                        <strong>{{ t.titulo }}</strong>
+                        {% if t.descripcion %}<div class="sub">{{ t.descripcion }}</div>{% endif %}
+                    </td>
+                    <td>{{ t.agente }}</td>
+                    <td><span class="tag {{ clases_prioridad[t.prioridad] }}">{{ prioridades_tarea[t.prioridad] }}</span></td>
+                    <td class="mono">
+                        {% if t.fecha_limite %}
+                        {{ t.fecha_limite }}{% if t.fecha_limite < hoy %} <span class="tag tag-danger">Vencida</span>{% endif %}
+                        {% else %}<span class="muted-text">—</span>{% endif %}
+                    </td>
+                    <td><span class="sub">{{ t.creado_por }}<br>{{ t.creado }}</span></td>
+                    {% if puede_asignar or puede_eliminar %}
+                    <td class="center actions">
+                        {% if puede_asignar %}
+                        <form method="post" action="{{ url_for('dashboard.tareas_completar', tarea_id=t.id) }}">
+                            <button type="submit" class="mini-btn ok" title="Marcar como completada"><i class="fa-solid fa-check"></i><span>Completar</span></button>
+                        </form>
+                        {% endif %}
+                        {% if puede_eliminar %}
+                        <button type="button" class="mini-btn danger"
+                                data-confirm="¿Eliminar la tarea “{{ t.titulo }}”?"
+                                data-action="{{ url_for('dashboard.tareas_eliminar', tarea_id=t.id) }}" title="Eliminar tarea">
+                            <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                        </button>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if not tareas %}<p class="empty">No hay tareas abiertas.</p>{% endif %}
+    </div>
+</section>
+
+{% if puede_crear %}
+<!-- Agregar agente -->
+<dialog class="dialog" id="nuevo-agente" {% if errores_agente %}data-open-on-load{% endif %} aria-labelledby="nuevo-agente-titulo">
+    <form method="post" action="{{ url_for('dashboard.agentes_nuevo') }}" novalidate>
+        <header class="dialog-head">
+            <h2 id="nuevo-agente-titulo"><i class="fa-solid fa-user-plus"></i> Agregar agente</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <label class="form-field {% if errores_agente.nombre %}invalid{% endif %}">
+                <span>Nombre completo</span>
+                <input type="text" name="nombre" value="{{ form_agente.nombre }}" maxlength="80" required autocomplete="off">
+                {% if errores_agente.nombre %}<small>{{ errores_agente.nombre }}</small>{% endif %}
+            </label>
+            <div class="form-row">
+                <label class="form-field {% if errores_agente.especialidad %}invalid{% endif %}">
+                    <span>Especialidad</span>
+                    <select name="especialidad" required>
+                        <option value="">Selecciona</option>
+                        {% for e in especialidades %}
+                        <option {% if form_agente.especialidad == e %}selected{% endif %}>{{ e }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if errores_agente.especialidad %}<small>{{ errores_agente.especialidad }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores_agente.correo %}invalid{% endif %}">
+                    <span>Correo <small class="hint">(opcional)</small></span>
+                    <input type="email" name="correo" value="{{ form_agente.correo }}" autocomplete="off">
+                    {% if errores_agente.correo %}<small>{{ errores_agente.correo }}</small>{% endif %}
+                </label>
+            </div>
+            <p class="note"><i class="fa-solid fa-circle-info"></i> El agente aparece en la oficina. Para que pueda iniciar sesión, créale también un usuario con rol Técnico.</p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Agregar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+{% if puede_asignar and oficina.agentes %}
+<!-- Asignar tarea -->
+<dialog class="dialog" id="nueva-tarea" {% if errores_tarea %}data-open-on-load{% endif %} aria-labelledby="nueva-tarea-titulo">
+    <form method="post" action="{{ url_for('dashboard.tareas_nueva') }}" novalidate>
+        <header class="dialog-head">
+            <h2 id="nueva-tarea-titulo"><i class="fa-solid fa-list-check"></i> Asignar tarea</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <label class="form-field {% if errores_tarea.agente %}invalid{% endif %}">
+                <span>Agente</span>
+                <select name="agente" id="tarea-agente" required>
+                    <option value="">Selecciona un agente</option>
+                    {% for a in oficina.agentes %}
+                    <option value="{{ a.nombre }}" {% if form_tarea.agente == a.nombre %}selected{% endif %}>{{ a.nombre }} — {{ textos_estado[a.estado] }}</option>
+                    {% endfor %}
+                </select>
+                {% if errores_tarea.agente %}<small>{{ errores_tarea.agente }}</small>{% endif %}
+            </label>
+            <label class="form-field {% if errores_tarea.titulo %}invalid{% endif %}">
+                <span>Tarea</span>
+                <input type="text" name="titulo" value="{{ form_tarea.titulo }}" maxlength="150" required placeholder="Ej.: Revisar copias de seguridad del servidor">
+                {% if errores_tarea.titulo %}<small>{{ errores_tarea.titulo }}</small>{% endif %}
+            </label>
+            <div class="form-row">
+                <label class="form-field {% if errores_tarea.prioridad %}invalid{% endif %}">
+                    <span>Prioridad</span>
+                    <select name="prioridad" required>
+                        {% for valor, texto in prioridades_tarea.items() %}
+                        <option value="{{ valor }}" {% if form_tarea.prioridad == valor or (not form_tarea and valor == 'media') %}selected{% endif %}>{{ texto }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if errores_tarea.prioridad %}<small>{{ errores_tarea.prioridad }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores_tarea.fecha_limite %}invalid{% endif %}">
+                    <span>Fecha límite <small class="hint">(opcional)</small></span>
+                    <input type="date" name="fecha_limite" value="{{ form_tarea.fecha_limite }}" min="{{ hoy }}">
+                    {% if errores_tarea.fecha_limite %}<small>{{ errores_tarea.fecha_limite }}</small>{% endif %}
+                </label>
+            </div>
+            <label class="form-field">
+                <span>Descripción <small class="hint">(opcional)</small></span>
+                <textarea name="descripcion" rows="3" maxlength="1000">{{ form_tarea.descripcion }}</textarea>
+            </label>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-paper-plane"></i> Asignar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+<!-- Confirmación para eliminar -->
+<dialog class="dialog dialog-sm" id="confirmar" aria-labelledby="confirmar-texto">
+    <form method="post" id="confirmar-form">
+        <div class="dialog-body confirm-body">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <p id="confirmar-texto"></p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        </footer>
+    </form>
+</dialog>
 
 {% endblock %}
 
 {% block status %}
-<span><span class="status-count {% if oficina.resumen.alertas %}warn{% endif %}">{{ oficina.resumen.alertas }}</span> Tickets nuevos y pendientes · {{ oficina.agentes | length }} agentes</span>
-<span class="status-right" id="row-count">{{ oficina.agentes | length }}</span>
+<span><span class="status-count {% if oficina.resumen.alertas %}warn{% endif %}">{{ oficina.resumen.alertas }}</span> Tickets nuevos y pendientes · {{ oficina.agentes | length }} agentes · {{ tareas | length }} tareas abiertas</span>
+<span class="status-right">{{ oficina.agentes | length }}</span>
 {% endblock %}
 
 {% block extra_js %}

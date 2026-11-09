@@ -1,4 +1,5 @@
 from collections import Counter
+from datetime import date
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
@@ -253,14 +254,95 @@ def tickets():
                            tipos=glpi.TIPOS, urgencias=glpi.URGENCIAS, errores=errores, formulario=formulario)
 
 
+def _exigir(modulo, accion):
+    if not permisos.puede(session['rol'], modulo, accion):
+        abort(403)
+
+
+def _pagina_agentes(**extra):
+    tickets_glpi, origen, _ = glpi.obtener()
+    oficina = agentes.construir(tickets_glpi, origen)
+    rol = session['rol']
+    datos = {
+        'activo': 'agentes', 'oficina': oficina,
+        'tareas': [t for t in agentes.listar_tareas() if t['estado'] == 'abierta'],
+        'especialidades': agentes.ESPECIALIDADES, 'prioridades_tarea': agentes.PRIORIDADES_TAREA,
+        'puede_crear': permisos.puede(rol, 'agentes', 'crear'),
+        'puede_eliminar': permisos.puede(rol, 'agentes', 'eliminar'),
+        'puede_asignar': permisos.puede(rol, 'agentes', 'editar'),
+        'hoy': date.today().isoformat(),
+        'errores_agente': {}, 'form_agente': {}, 'errores_tarea': {}, 'form_tarea': {},
+    }
+    datos.update(extra)
+    return render_template('dash/agentes.html', **datos)
+
+
 @dashboard_bp.route('/agentes')
 @login_requerido
 def agentes_view():
-    if not permisos.puede(session['rol'], 'agentes', 'ver'):
-        abort(403)
+    _exigir('agentes', 'ver')
+    return _pagina_agentes()
+
+
+@dashboard_bp.route('/agentes/nuevo', methods=['POST'])
+@login_requerido
+def agentes_nuevo():
+    _exigir('agentes', 'crear')
+    form = {k: request.form.get(k, '') for k in ('nombre', 'correo', 'especialidad')}
     tickets_glpi, origen, _ = glpi.obtener()
-    return render_template('dash/agentes.html', activo='agentes',
-                           oficina=agentes.construir(tickets_glpi, origen))
+    existentes = {a['nombre'].lower() for a in agentes.construir(tickets_glpi, origen)['agentes'] if a['origen'] != 'ejemplo'}
+    errores = agentes.validar_agente(form['nombre'], form['correo'], form['especialidad'], existentes)
+    if errores:
+        return _pagina_agentes(errores_agente=errores, form_agente=form), 400
+    nuevo = agentes.crear_agente(form['nombre'], form['correo'], form['especialidad'])
+    flash(f"Agente {nuevo['nombre']} agregado a la oficina.", 'ok')
+    return redirect(url_for('dashboard.agentes_view'))
+
+
+@dashboard_bp.route('/agentes/<int:agente_id>/eliminar', methods=['POST'])
+@login_requerido
+def agentes_eliminar(agente_id):
+    _exigir('agentes', 'eliminar')
+    eliminado = agentes.eliminar_agente(agente_id)
+    if eliminado:
+        flash(f"Agente {eliminado['nombre']} eliminado junto con sus tareas.", 'ok')
+    else:
+        flash('Ese agente ya no existe.', 'error')
+    return redirect(url_for('dashboard.agentes_view'))
+
+
+@dashboard_bp.route('/agentes/tareas/nueva', methods=['POST'])
+@login_requerido
+def tareas_nueva():
+    _exigir('agentes', 'editar')
+    form = {k: request.form.get(k, '') for k in ('agente', 'titulo', 'descripcion', 'prioridad', 'fecha_limite')}
+    tickets_glpi, origen, _ = glpi.obtener()
+    nombres = {a['nombre'].lower() for a in agentes.construir(tickets_glpi, origen)['agentes']}
+    errores = agentes.validar_tarea(form['agente'], form['titulo'], form['prioridad'], form['fecha_limite'], nombres)
+    if errores:
+        return _pagina_agentes(errores_tarea=errores, form_tarea=form), 400
+    tarea = agentes.crear_tarea(form['agente'], form['titulo'], form['descripcion'], form['prioridad'],
+                                form['fecha_limite'], session['usuario'])
+    flash(f"Tarea asignada a {tarea['agente']}.", 'ok')
+    return redirect(url_for('dashboard.agentes_view'))
+
+
+@dashboard_bp.route('/agentes/tareas/<int:tarea_id>/completar', methods=['POST'])
+@login_requerido
+def tareas_completar(tarea_id):
+    _exigir('agentes', 'editar')
+    tarea = agentes.completar_tarea(tarea_id)
+    flash(f"Tarea “{tarea['titulo']}” completada." if tarea else 'Esa tarea ya no existe.', 'ok' if tarea else 'error')
+    return redirect(url_for('dashboard.agentes_view'))
+
+
+@dashboard_bp.route('/agentes/tareas/<int:tarea_id>/eliminar', methods=['POST'])
+@login_requerido
+def tareas_eliminar(tarea_id):
+    _exigir('agentes', 'eliminar')
+    tarea = agentes.eliminar_tarea(tarea_id)
+    flash(f"Tarea “{tarea['titulo']}” eliminada." if tarea else 'Esa tarea ya no existe.', 'ok' if tarea else 'error')
+    return redirect(url_for('dashboard.agentes_view'))
 
 
 @dashboard_bp.route('/tickets/resumen.json')
