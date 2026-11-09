@@ -1203,6 +1203,14 @@ button {
     background: #1b1c1f;
 }
 
+.office-tall .office-stage {
+    height: max(520px, calc(100vh - 260px));
+}
+
+.office-tall .agent-list {
+    max-height: none;
+}
+
 .office-stage canvas {
     display: block;
     width: 100%;
@@ -1586,8 +1594,9 @@ button {
         grid-template-columns: 1fr;
     }
 
-    .office-stage {
-        height: 360px;
+    .office-stage,
+    .office-tall .office-stage {
+        height: 380px;
     }
 
     .office-side {

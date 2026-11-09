@@ -19,6 +19,7 @@ FAVORITOS = [
 MENU = [
     {'grupo': 'Dashboard', 'icono': 'fa-gauge-high', 'items': [
         ('inicio', 'Vista general', 'fa-chart-pie'),
+        ('agentes', 'Agentes', 'fa-building-user'),
     ]},
     {'grupo': 'Comercial', 'icono': 'fa-briefcase', 'items': [
         ('clientes', 'Clientes', 'fa-users'),
@@ -254,6 +255,16 @@ def tickets():
                            estados=glpi.ESTADOS, prioridades=glpi.PRIORIDADES, url_ticket=glpi.url_ticket,
                            puede_crear=puede_crear, glpi_configurado=glpi.configurado(),
                            tipos=glpi.TIPOS, urgencias=glpi.URGENCIAS, errores=errores, formulario=formulario)
+
+
+@dashboard_bp.route('/agentes')
+@login_requerido
+def agentes_view():
+    if not permisos.puede(session['rol'], 'agentes', 'ver'):
+        abort(403)
+    tickets_glpi, origen, _ = glpi.obtener()
+    return render_template('dash/agentes.html', activo='agentes',
+                           oficina=agentes.construir(tickets_glpi, origen))
 
 
 @dashboard_bp.route('/tickets/resumen.json')

@@ -24,6 +24,7 @@ TODAS = [clave for clave, _ in ACCIONES]
 
 # (clave, nombre, grupo) — las claves coinciden con las del menú del panel
 MODULOS = [
+    ('agentes', 'Agentes', 'Dashboard'),
     ('clientes', 'Clientes', 'Comercial'),
     ('cotizaciones', 'Cotizaciones', 'Comercial'),
     ('ventas', 'Ventas', 'Comercial'),
@@ -52,7 +53,7 @@ PERMISOS_INICIALES = {
     },
     'tecnico': {
         'clientes': ['ver'], 'servicios': ['ver', 'editar'], 'productos': ['ver'],
-        'tickets': VCE,
+        'tickets': VCE, 'agentes': ['ver'],
     },
     'auxiliar': {
         'clientes': VCE, 'cotizaciones': ['ver'], 'facturas': VCE,

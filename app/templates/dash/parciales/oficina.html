@@ -1,0 +1,53 @@
+<!-- Oficina de agentes en 3D (se usa en el inicio del superadministrador y en Dashboard > Agentes).
+     Necesita la variable "oficina" y los scripts de parciales/oficina_js.html -->
+<section class="card office-card {{ clase_oficina | default('') }}">
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid fa-building-user"></i></div>
+        <div>
+            <h2>Oficina de agentes</h2>
+            <p>
+                Mesa de ayuda en vivo ·
+                {% if oficina.origen == 'glpi' %}datos de GLPI{% else %}datos de ejemplo (GLPI sin configurar){% endif %}
+            </p>
+        </div>
+        <div class="office-legend">
+            <span class="chip chip-libre"><span></span> Libres {{ oficina.conteo.libre }}</span>
+            <span class="chip chip-ocupado"><span></span> Ocupados {{ oficina.conteo.ocupado }}</span>
+            <span class="chip chip-saturado"><span></span> Saturados {{ oficina.conteo.saturado }}</span>
+        </div>
+    </header>
+
+    <div class="office-body">
+        <div class="office-stage" id="oficina">
+            <div class="office-labels" id="oficina-etiquetas" aria-hidden="true"></div>
+            <div class="office-tooltip" id="oficina-tooltip" hidden></div>
+            <p class="office-hint"><i class="fa-solid fa-computer-mouse"></i> Arrastra para girar · rueda para acercar · clic en un agente para ver sus tickets</p>
+            <p class="office-fallback" id="oficina-fallback" hidden>
+                <i class="fa-solid fa-cube"></i> Tu navegador no puede mostrar la vista 3D. Consulta la lista de agentes a la derecha.
+            </p>
+        </div>
+
+        <aside class="office-side">
+            <div class="office-stats">
+                <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}"><strong>{{ oficina.resumen.nuevos }}</strong><span>Nuevos</span></a>
+                <a href="{{ url_for('dashboard.tickets', estado='pendientes') }}"><strong>{{ oficina.resumen.pendientes }}</strong><span>Pendientes</span></a>
+                <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}"><strong>{{ oficina.sin_asignar }}</strong><span>Sin asignar</span></a>
+            </div>
+            <ul class="agent-list">
+                {% for a in oficina.agentes %}
+                <li>
+                    <a href="{{ url_for('dashboard.tickets', estado='todos', q=a.nombre) }}" data-agente="{{ loop.index0 }}">
+                        <span class="agent-dot dot-{{ a.estado }}"></span>
+                        <span class="agent-name">{{ a.nombre }}</span>
+                        <span class="agent-load" title="Tickets asignados">{{ a.asignados }}</span>
+                    </a>
+                </li>
+                {% else %}
+                <li class="muted-text">No hay técnicos todavía. Crea usuarios con rol Técnico.</li>
+                {% endfor %}
+            </ul>
+        </aside>
+    </div>
+</section>
+
+<script type="application/json" id="oficina-datos">{{ oficina | tojson }}</script>

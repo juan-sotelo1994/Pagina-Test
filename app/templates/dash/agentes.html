@@ -1,0 +1,70 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Agentes{% endblock %}
+{% block page_title %}Dashboard › Agentes{% endblock %}
+
+{% set textos_estado = {'libre': 'Libre', 'ocupado': 'Ocupado', 'saturado': 'Saturado'} %}
+
+{% block content %}
+
+{% set clase_oficina = 'office-tall' %}
+{% include 'dash/parciales/oficina.html' %}
+
+<!-- Detalle de cada agente -->
+<section class="card">
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid fa-headset"></i></div>
+        <div>
+            <h2>Detalle de agentes</h2>
+            <p>Carga de tickets abiertos por técnico.</p>
+        </div>
+    </header>
+    <div class="table-wrap">
+        <table class="data-table" id="data-table">
+            <thead>
+                <tr>
+                    <th data-sort="text">Agente</th>
+                    <th data-sort="text">Estado</th>
+                    <th data-sort="number">Abiertos</th>
+                    <th data-sort="number">Pendientes</th>
+                    <th data-sort="number">Urgentes</th>
+                    <th data-sort="text">Tickets</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in oficina.agentes %}
+                <tr>
+                    <td><span class="status"><span class="agent-dot dot-{{ a.estado }}"></span>{{ a.nombre }}</span></td>
+                    <td>{{ textos_estado[a.estado] }}</td>
+                    <td data-value="{{ a.asignados }}">{{ a.asignados }}</td>
+                    <td data-value="{{ a.pendientes }}">{{ a.pendientes }}</td>
+                    <td data-value="{{ a.urgentes }}">{% if a.urgentes %}<span class="tag tag-danger">{{ a.urgentes }}</span>{% else %}0{% endif %}</td>
+                    <td>
+                        {% if a.tickets and puede('tickets') %}
+                        <a href="{{ url_for('dashboard.tickets', estado='todos', q=a.nombre) }}" class="link">
+                            {% for t in a.tickets %}#{{ t.id }}{% if not loop.last %}, {% endif %}{% endfor %}
+                        </a>
+                        {% elif a.tickets %}
+                        {% for t in a.tickets %}#{{ t.id }}{% if not loop.last %}, {% endif %}{% endfor %}
+                        {% else %}
+                        <span class="muted-text">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p class="empty" id="table-empty" {% if oficina.agentes %}hidden{% endif %}>No hay agentes todavía.</p>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block status %}
+<span><span class="status-count {% if oficina.resumen.alertas %}warn{% endif %}">{{ oficina.resumen.alertas }}</span> Tickets nuevos y pendientes · {{ oficina.agentes | length }} agentes</span>
+<span class="status-right" id="row-count">{{ oficina.agentes | length }}</span>
+{% endblock %}
+
+{% block extra_js %}
+{% include 'dash/parciales/oficina_js.html' %}
+{% endblock %}
