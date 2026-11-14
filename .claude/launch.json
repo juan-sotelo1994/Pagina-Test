@@ -4,7 +4,17 @@
     {
       "name": "flask",
       "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["app/app.py"],
+      "runtimeArgs": [
+        "app/app.py"
+      ],
+      "port": 5711
+    },
+    {
+      "name": "flask-linux",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": [
+        "app/app.py"
+      ],
       "port": 5711
     }
   ]

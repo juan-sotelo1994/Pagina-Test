@@ -1,0 +1,74 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Equipos{% endblock %}
+{% block page_title %}Equipos{% endblock %}
+
+{% block content %}
+
+<!-- Resumen -->
+<section class="stats">
+    <article class="stat">
+        <span class="stat-label"><i class="fa-solid fa-laptop"></i> Equipos</span>
+        <strong class="stat-value" id="stat-total">{{ equipos | length }}</strong>
+    </article>
+    <article class="stat">
+        <span class="stat-label"><i class="fa-solid fa-circle stat-ok"></i> En línea</span>
+        <strong class="stat-value" id="stat-online">{{ equipos | selectattr('en_linea') | list | length }}</strong>
+    </article>
+    <article class="stat">
+        <span class="stat-label"><i class="fa-solid fa-circle stat-off"></i> Desconectados</span>
+        <strong class="stat-value" id="stat-offline">{{ equipos | rejectattr('en_linea') | list | length }}</strong>
+    </article>
+    <article class="stat">
+        <span class="stat-label"><i class="fa-solid fa-triangle-exclamation stat-warn"></i> Con alertas</span>
+        <strong class="stat-value" id="stat-alertas">0</strong>
+    </article>
+</section>
+
+<!-- Barra de herramientas -->
+<div class="toolbar">
+    <span class="tool-btn live" title="La lista se actualiza sola">
+        <span class="live-dot"></span> En vivo
+    </span>
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="equipos-buscar" placeholder="Buscar por nombre, usuario o IP" aria-label="Buscar equipos">
+    </label>
+</div>
+
+<!-- Tabla (la llena equipos.js) -->
+<div class="table-wrap">
+    <table class="data-table equipos-table">
+        <thead>
+            <tr>
+                <th>Equipo</th>
+                <th>Usuario</th>
+                <th>IP</th>
+                <th>CPU</th>
+                <th>Memoria</th>
+                <th>Disco</th>
+                <th>Red ↓ / ↑</th>
+                <th>Última conexión</th>
+                <th>Acceso remoto</th>
+            </tr>
+        </thead>
+        <tbody id="equipos-filas"></tbody>
+    </table>
+    <div class="empty" id="equipos-vacio" {% if equipos %}hidden{% endif %}>
+        <i class="fa-solid fa-plug-circle-xmark"></i>
+        <p>Aún no hay equipos reportando. Instala el agente en un Mac siguiendo <code>agente/README.md</code>.</p>
+    </div>
+    <p class="empty" id="equipos-sin-resultados" hidden>No hay equipos que coincidan con la búsqueda.</p>
+</div>
+
+<p class="note"><i class="fa-solid fa-circle-info"></i>
+    Un equipo aparece desconectado si no reporta en {{ en_linea }} segundos.
+    El acceso remoto abre Compartir pantalla (VNC) y pide un usuario administrador del Mac.</p>
+
+<script type="application/json" id="equipos-iniciales">{{ equipos | tojson }}</script>
+<script src="{{ url_for('static', filename='js/equipos.js') }}" defer></script>
+{% endblock %}
+
+{% block status %}
+<span><span class="status-count" id="status-online">{{ equipos | selectattr('en_linea') | list | length }}</span> Equipos en línea</span>
+{% endblock %}
