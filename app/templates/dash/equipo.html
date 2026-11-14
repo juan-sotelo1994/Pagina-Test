@@ -1,0 +1,110 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}{{ equipo.nombre }}{% endblock %}
+{% block page_title %}Equipos / {{ equipo.nombre }}{% endblock %}
+
+{% block content %}
+<div id="equipo" data-url="{{ url_for('dashboard.equipo_datos', equipo_id=equipo.id) }}">
+
+    <!-- Encabezado y acceso remoto -->
+    <section class="card">
+        <div class="card-head equipo-head">
+            <span class="role-icon"><i class="fa-solid fa-laptop"></i></span>
+            <div>
+                <h2>{{ equipo.nombre }}</h2>
+                <p><span data-campo="sistema">{{ equipo.sistema }}</span> · <span data-campo="modelo">{{ equipo.modelo }}</span></p>
+            </div>
+            <span class="tag" id="equipo-estado"></span>
+        </div>
+        <div class="card-foot equipo-acciones">
+            <a class="tool-btn btn-save" id="btn-pantalla" href="vnc://{{ equipo.ip_conexion }}">
+                <i class="fa-solid fa-display"></i> Compartir pantalla
+            </a>
+            <button class="tool-btn" type="button" data-copiar="ssh ADMIN@{{ equipo.ip_conexion }}" id="btn-ssh">
+                <i class="fa-solid fa-terminal"></i> Copiar comando SSH
+            </button>
+            <button class="tool-btn" type="button" data-copiar="{{ equipo.ip_conexion }}" id="btn-ip">
+                <i class="fa-solid fa-copy"></i> Copiar IP
+            </button>
+            {% if puede('equipos', 'eliminar') %}
+            <form method="post" action="{{ url_for('dashboard.equipo_eliminar', equipo_id=equipo.id) }}"
+                  onsubmit="return confirm('¿Quitar este equipo de la lista? Si el agente sigue instalado, volverá a aparecer.')">
+                <button class="tool-btn btn-danger" type="submit"><i class="fa-solid fa-trash"></i> Quitar</button>
+            </form>
+            {% endif %}
+        </div>
+        <p class="remoto-aviso" id="aviso-remoto" hidden>
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            Compartir pantalla está desactivado en este Mac. Actívalo en Ajustes del Sistema → General → Compartir.
+        </p>
+    </section>
+
+    <!-- Indicadores en vivo -->
+    <section class="stats">
+        <article class="stat">
+            <span class="stat-label"><i class="fa-solid fa-microchip"></i> CPU</span>
+            <strong class="stat-value" data-campo="cpu">–</strong>
+            <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark="cpu"/></svg>
+        </article>
+        <article class="stat">
+            <span class="stat-label"><i class="fa-solid fa-memory"></i> Memoria</span>
+            <strong class="stat-value" data-campo="memoria">–</strong>
+            <span class="stat-sub" data-campo="memoria-detalle"></span>
+            <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark="memoria"/></svg>
+        </article>
+        <article class="stat">
+            <span class="stat-label"><i class="fa-solid fa-arrow-down"></i> Red bajada</span>
+            <strong class="stat-value" data-campo="bajada">–</strong>
+            <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark="bajada"/></svg>
+        </article>
+        <article class="stat">
+            <span class="stat-label"><i class="fa-solid fa-arrow-up"></i> Red subida</span>
+            <strong class="stat-value" data-campo="subida">–</strong>
+            <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark="subida"/></svg>
+        </article>
+    </section>
+
+    <div class="equipo-grid">
+        <!-- Información -->
+        <section class="card">
+            <div class="card-head"><h2>Información</h2></div>
+            <dl class="info-list">
+                <dt>Usuario activo</dt><dd data-campo="usuario"></dd>
+                <dt>IP de conexión</dt><dd class="mono" data-campo="ip_conexion"></dd>
+                <dt>Nombre de red</dt><dd data-campo="hostname"></dd>
+                <dt>Número de serie</dt><dd class="mono" data-campo="serial"></dd>
+                <dt>Núcleos</dt><dd data-campo="nucleos"></dd>
+                <dt>Encendido desde</dt><dd data-campo="arranque"></dd>
+                <dt>Batería</dt><dd data-campo="bateria"></dd>
+                <dt>Servicios remotos</dt><dd data-campo="remoto"></dd>
+                <dt>Último reporte</dt><dd data-campo="visto"></dd>
+                <dt>Versión del agente</dt><dd data-campo="agente"></dd>
+            </dl>
+        </section>
+
+        <!-- Discos -->
+        <section class="card">
+            <div class="card-head"><h2>Discos</h2></div>
+            <ul class="disk-list" id="equipo-discos"></ul>
+        </section>
+    </div>
+
+    <!-- Interfaces de red -->
+    <section class="card">
+        <div class="card-head"><h2>Interfaces de red</h2></div>
+        <div class="table-wrap">
+            <table class="data-table plain-table">
+                <thead><tr><th>Interfaz</th><th>IP</th><th>Bajada</th><th>Subida</th><th>Total recibido</th><th>Total enviado</th></tr></thead>
+                <tbody id="equipo-interfaces"></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<script type="application/json" id="equipo-inicial">{{ equipo | tojson }}</script>
+<script src="{{ url_for('static', filename='js/equipos.js') }}" defer></script>
+{% endblock %}
+
+{% block status %}
+<span><a href="{{ url_for('dashboard.equipos_view') }}" class="link"><i class="fa-solid fa-arrow-left"></i> Todos los equipos</a></span>
+{% endblock %}

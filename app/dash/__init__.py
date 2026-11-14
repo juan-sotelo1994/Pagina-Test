@@ -1,9 +1,9 @@
 from collections import Counter
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from auth import login_requerido
-from . import permisos
+from . import equipos, permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -33,6 +33,9 @@ MENU = [
         ('productos', 'Productos', 'fa-box-open'),
         ('servicios', 'Servicios', 'fa-layer-group'),
         ('proveedores', 'Proveedores', 'fa-truck-field'),
+    ]},
+    {'grupo': 'Soporte', 'icono': 'fa-headset', 'items': [
+        ('equipos', 'Equipos', 'fa-laptop'),
     ]},
     {'grupo': 'Usuarios y accesos', 'icono': 'fa-user-shield', 'items': [
         ('usuarios', 'Usuarios', 'fa-user-gear'),
@@ -159,6 +162,59 @@ def roles():
                            seleccionado=seleccionado, permisos_rol=resumen_roles[seleccionado],
                            resumen_roles=resumen_roles,
                            puede_editar=permisos.puede(rol_actual, 'roles', 'editar') and seleccionado != 'superadmin')
+
+
+# ---------------------------------------------------------------- Equipos (agente de soporte)
+
+def exigir(modulo, accion='ver'):
+    if not permisos.puede(session['rol'], modulo, accion):
+        abort(403)
+
+
+@dashboard_bp.route('/equipos')
+@login_requerido
+def equipos_view():
+    exigir('equipos')
+    return render_template('dash/equipos.html', activo='equipos', equipos=equipos.listar(),
+                           en_linea=equipos.SEGUNDOS_EN_LINEA)
+
+
+@dashboard_bp.route('/equipos/datos')
+@login_requerido
+def equipos_datos():
+    # La página consulta esta ruta cada pocos segundos para actualizarse sola
+    exigir('equipos')
+    return jsonify(equipos.listar())
+
+
+@dashboard_bp.route('/equipos/<equipo_id>')
+@login_requerido
+def equipo_view(equipo_id):
+    exigir('equipos')
+    equipo = equipos.obtener(equipo_id)
+    if equipo is None:
+        abort(404)
+    return render_template('dash/equipo.html', activo='equipos', equipo=equipo)
+
+
+@dashboard_bp.route('/equipos/<equipo_id>/datos')
+@login_requerido
+def equipo_datos(equipo_id):
+    exigir('equipos')
+    equipo = equipos.obtener(equipo_id)
+    if equipo is None:
+        abort(404)
+    return jsonify(equipo)
+
+
+@dashboard_bp.route('/equipos/<equipo_id>/eliminar', methods=['POST'])
+@login_requerido
+def equipo_eliminar(equipo_id):
+    # Solo quita el equipo de la lista; si el agente sigue instalado, vuelve a aparecer
+    exigir('equipos', 'eliminar')
+    equipos.eliminar(equipo_id)
+    flash('Equipo eliminado de la lista.', 'ok')
+    return redirect(url_for('dashboard.equipos_view'))
 
 
 @dashboard_bp.route('/<nombre>')
