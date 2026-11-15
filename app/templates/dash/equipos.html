@@ -66,12 +66,27 @@
     </label>
 </div>
 
+{% if clientes_lista %}
+<!-- Grupos por cliente: los equipos se agrupan por el número de serie registrado en el inventario -->
+<nav class="grupos" id="grupos" data-grupo="{{ grupo }}" aria-label="Filtrar por cliente">
+    <button type="button" class="grupo" data-grupo-id=""><i class="fa-solid fa-layer-group"></i> Todos <span class="grupo-n" data-n=""></span></button>
+    {% for c in clientes_lista %}
+    <button type="button" class="grupo" data-grupo-id="{{ c.id }}"><i class="fa-solid fa-building"></i> {{ c.nombre }} <span class="grupo-n" data-n="{{ c.id }}"></span></button>
+    {% endfor %}
+    <button type="button" class="grupo" data-grupo-id="sin-cliente"><i class="fa-regular fa-circle-question"></i> Sin cliente <span class="grupo-n" data-n="sin-cliente"></span></button>
+    {% if puede('activos', 'ver') %}
+    <a class="grupo-enlace link" id="grupo-inventario" href="{{ url_for('dashboard.activos_view') }}"><i class="fa-solid fa-laptop-file"></i> Inventario del cliente</a>
+    {% endif %}
+</nav>
+{% endif %}
+
 <!-- Tabla (la llena equipos.js) -->
 <div class="table-wrap">
     <table class="data-table equipos-table">
         <thead>
             <tr>
                 <th>Equipo</th>
+                <th>Cliente</th>
                 <th>Usuario</th>
                 <th>IP</th>
                 <th>Ubicación</th>
@@ -90,7 +105,7 @@
         <i class="fa-solid fa-plug-circle-xmark"></i>
         <p>Aún no hay equipos reportando. Descarga el agente arriba e instálalo en los equipos.</p>
     </div>
-    <p class="empty" id="equipos-sin-resultados" hidden>No hay equipos que coincidan con la búsqueda.</p>
+    <p class="empty" id="equipos-sin-resultados" hidden>No hay equipos en este grupo o con esa búsqueda.</p>
 </div>
 
 <p class="note"><i class="fa-solid fa-circle-info"></i>

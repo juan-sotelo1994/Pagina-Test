@@ -1,0 +1,177 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Clientes{% endblock %}
+{% block page_title %}Comercial › Clientes{% endblock %}
+
+{% block content %}
+
+<div class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="dialogo-cliente" data-cliente-nuevo>
+        <i class="fa-solid fa-building-circle-check"></i> Nuevo cliente
+    </button>
+    {% endif %}
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar por empresa, NIT o representante" aria-label="Buscar clientes">
+    </label>
+</div>
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">Empresa</th>
+                <th data-sort="text">NIT</th>
+                <th data-sort="text">Representante legal</th>
+                <th data-sort="text">Representante de TI</th>
+                <th data-sort="text">Contrato</th>
+                <th data-sort="number">Equipos</th>
+                <th class="center">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in lista %}
+            {% set r = resumen.get(c.id, {'registrados': 0, 'agente': 0, 'en_linea': 0}) %}
+            <tr>
+                <td><strong>{{ c.nombre }}</strong><div class="sub">Creado {{ c.creado }}</div></td>
+                <td class="mono">{{ c.nit }}</td>
+                <td>{{ c.representante_legal }}</td>
+                <td>
+                    {{ c.representante_ti }}
+                    {% if c.ti_correo or c.ti_telefono %}<div class="sub">{{ c.ti_correo }}{% if c.ti_correo and c.ti_telefono %} · {% endif %}{{ c.ti_telefono }}</div>{% endif %}
+                </td>
+                <td>
+                    {% if c.contrato_numero %}<span class="mono">{{ c.contrato_numero }}</span>{% endif %}
+                    {% if c.contrato_inicio or c.contrato_fin %}<div class="sub">{{ c.contrato_inicio or '…' }} → {{ c.contrato_fin or '…' }}</div>{% endif %}
+                    {% if c.contrato_archivo %}
+                    <a class="link" href="{{ url_for('dashboard.clientes_contrato', cliente_id=c.id) }}" target="_blank"><i class="fa-solid fa-file-pdf"></i> Ver PDF</a>
+                    {% elif not c.contrato_numero %}<span class="muted-text">—</span>{% endif %}
+                </td>
+                <td data-value="{{ r.registrados }}">
+                    <a class="link" href="{{ url_for('dashboard.equipos_view', cliente=c.id) }}" title="Ver sus equipos en Soporte › Equipos">
+                        {{ r.registrados }} registrados
+                    </a>
+                    <div class="sub">{{ r.agente }} con agente · {{ r.en_linea }} en línea</div>
+                </td>
+                <td class="center actions">
+                    <a class="mini-btn" href="{{ url_for('dashboard.activos_view', cliente=c.id) }}" title="Inventario de equipos de {{ c.nombre }}">
+                        <i class="fa-solid fa-laptop-file"></i><span>Equipos</span>
+                    </a>
+                    {% if puede_editar %}
+                    <button type="button" class="mini-btn" data-open-dialog="dialogo-cliente" data-cliente='{{ c | tojson | forceescape }}'>
+                        <i class="fa-solid fa-pen"></i><span>Editar</span>
+                    </button>
+                    {% endif %}
+                    {% if puede_eliminar %}
+                    <button type="button" class="mini-btn danger" data-confirm="¿Eliminar el cliente {{ c.nombre }}? Su contrato en PDF también se borrará."
+                            data-action="{{ url_for('dashboard.clientes_eliminar', cliente_id=c.id) }}">
+                        <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if lista %}hidden{% endif %}>{% if lista %}No hay resultados para esa búsqueda.{% else %}Aún no hay clientes. Usa “Nuevo cliente”.{% endif %}</p>
+</div>
+
+{% if puede_crear or puede_editar %}
+<!-- Formulario de cliente (nuevo y editar) -->
+<dialog class="dialog dialog-wide" id="dialogo-cliente" {% if errores %}data-open-on-load{% endif %} aria-labelledby="dialogo-cliente-titulo">
+    <form method="post" action="{{ url_for('dashboard.clientes_guardar') }}" enctype="multipart/form-data" novalidate id="form-cliente">
+        <input type="hidden" name="id" value="{{ formulario.id }}">
+        <header class="dialog-head">
+            <h2 id="dialogo-cliente-titulo"><i class="fa-solid fa-building"></i> <span data-titulo-cliente>{{ 'Editar cliente' if formulario.id else 'Nuevo cliente' }}</span></h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <h3 class="form-seccion">Empresa</h3>
+            <div class="form-row">
+                <label class="form-field {% if errores.nombre %}invalid{% endif %}">
+                    <span>Nombre de la empresa</span>
+                    <input type="text" name="nombre" value="{{ formulario.nombre }}" maxlength="120" required>
+                    {% if errores.nombre %}<small>{{ errores.nombre }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.nit %}invalid{% endif %}">
+                    <span>NIT</span>
+                    <input type="text" name="nit" value="{{ formulario.nit }}" maxlength="20" required placeholder="900.123.456-7">
+                    {% if errores.nit %}<small>{{ errores.nit }}</small>{% else %}<small class="hint">Con o sin puntos; el dígito de verificación después del guion.</small>{% endif %}
+                </label>
+            </div>
+
+            <h3 class="form-seccion">Representantes</h3>
+            <div class="form-row">
+                <label class="form-field {% if errores.representante_legal %}invalid{% endif %}">
+                    <span>Representante legal</span>
+                    <input type="text" name="representante_legal" value="{{ formulario.representante_legal }}" maxlength="100" required>
+                    {% if errores.representante_legal %}<small>{{ errores.representante_legal }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.representante_ti %}invalid{% endif %}">
+                    <span>Representante de TI</span>
+                    <input type="text" name="representante_ti" value="{{ formulario.representante_ti }}" maxlength="100" required>
+                    {% if errores.representante_ti %}<small>{{ errores.representante_ti }}</small>{% endif %}
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="form-field {% if errores.ti_correo %}invalid{% endif %}">
+                    <span>Correo de TI <small class="hint">(opcional)</small></span>
+                    <input type="email" name="ti_correo" value="{{ formulario.ti_correo }}" maxlength="120">
+                    {% if errores.ti_correo %}<small>{{ errores.ti_correo }}</small>{% endif %}
+                </label>
+                <label class="form-field">
+                    <span>Teléfono de TI <small class="hint">(opcional)</small></span>
+                    <input type="tel" name="ti_telefono" value="{{ formulario.ti_telefono }}" maxlength="30">
+                </label>
+            </div>
+
+            <h3 class="form-seccion">Contrato de venta</h3>
+            <div class="form-row form-row-3">
+                <label class="form-field">
+                    <span>Número de contrato</span>
+                    <input type="text" name="contrato_numero" value="{{ formulario.contrato_numero }}" maxlength="40">
+                </label>
+                <label class="form-field">
+                    <span>Inicio</span>
+                    <input type="date" name="contrato_inicio" value="{{ formulario.contrato_inicio }}">
+                </label>
+                <label class="form-field">
+                    <span>Fin</span>
+                    <input type="date" name="contrato_fin" value="{{ formulario.contrato_fin }}">
+                </label>
+            </div>
+            <label class="form-field {% if errores.contrato %}invalid{% endif %}">
+                <span>Documento del contrato (PDF, máx. 10 MB)</span>
+                <input type="file" name="contrato" accept="application/pdf,.pdf">
+                {% if errores.contrato %}<small>{{ errores.contrato }}</small>{% else %}<small class="hint" data-contrato-actual>Si el cliente ya tiene uno, el nuevo lo reemplaza.</small>{% endif %}
+            </label>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+<!-- Confirmación para eliminar -->
+<dialog class="dialog dialog-sm" id="confirmar" aria-labelledby="confirmar-texto">
+    <form method="post" id="confirmar-form">
+        <div class="dialog-body confirm-body">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <p id="confirmar-texto"></p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        </footer>
+    </form>
+</dialog>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-building"></i> {{ lista | length }} clientes</span>
+<span class="status-right" id="row-count">{{ lista | length }}</span>
+{% endblock %}

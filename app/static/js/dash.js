@@ -88,6 +88,42 @@ document.addEventListener('click', (e) => {
     });
 });
 
+// Formularios de "nuevo" y "editar" que comparten ventana (clientes y equipos de clientes):
+// el botón Editar trae los datos del registro en data-cliente / data-activo
+const FORMULARIOS = {
+    cliente: { form: 'form-cliente', titulo: '[data-titulo-cliente]', nuevo: 'Nuevo cliente', editar: 'Editar cliente' },
+    activo: { form: 'form-activo', titulo: '[data-titulo-activo]', nuevo: 'Registrar equipo', editar: 'Editar equipo' },
+};
+
+Object.entries(FORMULARIOS).forEach(([clave, cfg]) => {
+    const form = document.getElementById(cfg.form);
+    if (!form) return;
+    const nuevoAttr = `${clave}Nuevo`;
+    document.querySelectorAll(`[data-${clave}], [data-${clave}-nuevo]`).forEach((boton) => {
+        boton.addEventListener('click', () => {
+            const esNuevo = nuevoAttr in boton.dataset;
+            const datos = esNuevo ? {} : JSON.parse(boton.dataset[clave]);
+            form.querySelectorAll('input, select, textarea').forEach((campo) => {
+                if (!campo.name || campo.type === 'file' || campo.name === 'volver') return;
+                let valor = datos[campo.name] ?? '';
+                if (Array.isArray(valor)) valor = valor.join('\n');
+                // En "nuevo" se conserva la empresa elegida en el filtro de la página
+                if (esNuevo && campo.name === 'cliente_id') valor = new URLSearchParams(location.search).get('cliente') || '';
+                if (campo.tagName === 'SELECT' && valor === '' && campo.name !== 'cliente_id') return;
+                campo.value = valor;
+            });
+            form.querySelectorAll('.form-field.invalid').forEach((f) => f.classList.remove('invalid'));
+            form.querySelector(cfg.titulo).textContent = esNuevo ? cfg.nuevo : cfg.editar;
+            const contrato = form.querySelector('[data-contrato-actual]');
+            if (contrato) {
+                contrato.textContent = datos.contrato_nombre
+                    ? `Contrato actual: ${datos.contrato_nombre}. Si subes otro, lo reemplaza.`
+                    : 'Opcional. Puedes subirlo después.';
+            }
+        });
+    });
+});
+
 // Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar
 const confirmar = document.getElementById('confirmar');
 document.querySelectorAll('[data-confirm]').forEach((boton) => {

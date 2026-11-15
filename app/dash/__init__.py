@@ -8,7 +8,7 @@ from flask import Blueprint, abort, flash, jsonify, redirect, render_template, r
 
 from auth import correo_admin, login_requerido, usuarios
 from web import EMPRESA
-from . import agentes, comandos, descargas, equipos, glpi, permisos
+from . import agentes, clientes, comandos, descargas, equipos, glpi, permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -39,6 +39,7 @@ MENU = [
         ('productos', 'Productos', 'fa-box-open'),
         ('servicios', 'Servicios', 'fa-layer-group'),
         ('proveedores', 'Proveedores', 'fa-truck-field'),
+        ('activos', 'Equipos de clientes', 'fa-laptop-file'),
     ]},
     {'grupo': 'Soporte', 'icono': 'fa-headset', 'items': [
         ('tickets', 'Tickets (GLPI)', 'fa-ticket'),
@@ -375,7 +376,10 @@ def equipos_view(error_descarga=None, servidor=None):
                            plataformas=descargas.PLATAFORMAS, token_agente=descargas.token_configurado(),
                            puede_descargar=permisos.puede(session['rol'], 'equipos', 'crear'),
                            servidor_agente=servidor or descargas.servidor_sugerido(request.host_url),
-                           error_descarga=error_descarga)
+                           error_descarga=error_descarga,
+                           # Grupos por cliente (según el número de serie registrado en el inventario)
+                           clientes_lista=clientes.listar_clientes() if permisos.puede(session['rol'], 'clientes', 'ver') or permisos.puede(session['rol'], 'activos', 'ver') else [],
+                           grupo=request.args.get('cliente', ''))
 
 
 @dashboard_bp.route('/equipos/agente')
@@ -410,7 +414,10 @@ def equipo_view(equipo_id):
     equipo = equipos.obtener(equipo_id)
     if equipo is None:
         abort(404)
-    return render_template('dash/equipo.html', activo='equipos', equipo=equipo)
+    puede_asignar = permisos.puede(session['rol'], 'activos', 'crear')
+    return render_template('dash/equipo.html', activo='equipos', equipo=equipo,
+                           puede_asignar=puede_asignar, tipos=clientes.TIPOS_EQUIPO,
+                           clientes_lista=clientes.listar_clientes() if puede_asignar else [])
 
 
 @dashboard_bp.route('/equipos/<equipo_id>/datos')
@@ -529,6 +536,148 @@ def equipo_eliminar(equipo_id):
     equipos.eliminar(equipo_id)
     flash('Equipo eliminado de la lista.', 'ok')
     return redirect(url_for('dashboard.equipos_view'))
+
+
+# ---------------------------------------------------------------- Clientes y sus equipos
+
+CAMPOS_CLIENTE = ('nombre', 'nit', 'representante_legal', 'representante_ti', 'ti_correo', 'ti_telefono',
+                  'contrato_numero', 'contrato_inicio', 'contrato_fin')
+CAMPOS_ACTIVO = ('cliente_id', 'tipo', 'marca_modelo', 'serial', 'discos', 'responsable', 'notas')
+
+
+def _resumen_clientes():
+    """Por cliente: equipos registrados, equipos con agente y cuántos están en línea."""
+    por_cliente = {}
+    for a in clientes.listar_activos():
+        por_cliente.setdefault(a['cliente_id'], {'registrados': 0, 'agente': 0, 'en_linea': 0})['registrados'] += 1
+    for e in equipos.listar():
+        if e.get('cliente'):
+            r = por_cliente.setdefault(e['cliente']['id'], {'registrados': 0, 'agente': 0, 'en_linea': 0})
+            r['agente'] += 1
+            r['en_linea'] += 1 if e['en_linea'] else 0
+    return por_cliente
+
+
+def _pagina_clientes(**extra):
+    rol = session['rol']
+    datos = {
+        'activo': 'clientes', 'lista': clientes.listar_clientes(), 'resumen': _resumen_clientes(),
+        'puede_crear': permisos.puede(rol, 'clientes', 'crear'),
+        'puede_editar': permisos.puede(rol, 'clientes', 'editar'),
+        'puede_eliminar': permisos.puede(rol, 'clientes', 'eliminar'),
+        'errores': {}, 'formulario': {},
+    }
+    datos.update(extra)
+    return render_template('dash/clientes.html', **datos)
+
+
+@dashboard_bp.route('/clientes')
+@login_requerido
+def clientes_view():
+    _exigir('clientes')
+    return _pagina_clientes()
+
+
+@dashboard_bp.route('/clientes/guardar', methods=['POST'])
+@login_requerido
+def clientes_guardar():
+    cliente_id = request.form.get('id') or None
+    _exigir('clientes', 'editar' if cliente_id else 'crear')
+    formulario = {k: request.form.get(k, '') for k in CAMPOS_CLIENTE}
+    formulario['id'] = cliente_id or ''
+    errores = clientes.validar_cliente(formulario, cliente_id)
+    archivo = request.files.get('contrato')
+    contenido, error_pdf = clientes.validar_contrato(archivo)
+    if error_pdf:
+        errores['contrato'] = error_pdf
+    if errores:
+        return _pagina_clientes(errores=errores, formulario=formulario), 400
+
+    contrato = {'contenido': contenido, 'nombre': archivo.filename} if contenido else None
+    cliente = clientes.guardar_cliente(formulario, contrato, cliente_id, session['usuario'])
+    if cliente is None:
+        abort(404)
+    flash(f"Cliente {cliente['nombre']} {'actualizado' if cliente_id else 'creado'}.", 'ok')
+    return redirect(url_for('dashboard.clientes_view'))
+
+
+@dashboard_bp.route('/clientes/<cliente_id>/eliminar', methods=['POST'])
+@login_requerido
+def clientes_eliminar(cliente_id):
+    _exigir('clientes', 'eliminar')
+    cliente, error = clientes.eliminar_cliente(cliente_id)
+    flash(error or f"Cliente {cliente['nombre']} eliminado.", 'error' if error else 'ok')
+    return redirect(url_for('dashboard.clientes_view'))
+
+
+@dashboard_bp.route('/clientes/<cliente_id>/contrato')
+@login_requerido
+def clientes_contrato(cliente_id):
+    _exigir('clientes')
+    cliente = clientes.obtener_cliente(cliente_id)
+    ruta = clientes.ruta_contrato(cliente)
+    if ruta is None:
+        abort(404)
+    nombre = re.sub(r'[^\w.\- ]', '_', cliente.get('contrato_nombre') or 'contrato.pdf')
+    return send_file(ruta, mimetype='application/pdf', download_name=nombre)
+
+
+def _pagina_activos(**extra):
+    rol = session['rol']
+    filtro = request.args.get('cliente', '')
+    # Equipos del agente por serial, para mostrar si el registrado ya está reportando
+    por_serial = {clientes.serial_de_equipo(e): e for e in equipos.listar()}
+    lista = clientes.listar_activos(filtro or None)
+    for a in lista:
+        e = por_serial.get(clientes.normalizar_serial(a['serial']))
+        a['equipo'] = {'id': e['id'], 'nombre': e['nombre'], 'en_linea': e['en_linea']} if e else None
+    datos = {
+        'activo': 'activos', 'activos_lista': lista, 'clientes_lista': clientes.listar_clientes(),
+        'nombres_cliente': {c['id']: c['nombre'] for c in clientes.listar_clientes()},
+        'filtro_cliente': filtro, 'tipos': clientes.TIPOS_EQUIPO,
+        'puede_crear': permisos.puede(rol, 'activos', 'crear'),
+        'puede_editar': permisos.puede(rol, 'activos', 'editar'),
+        'puede_eliminar': permisos.puede(rol, 'activos', 'eliminar'),
+        'errores': {}, 'formulario': {},
+    }
+    datos.update(extra)
+    return render_template('dash/activos.html', **datos)
+
+
+@dashboard_bp.route('/activos')
+@login_requerido
+def activos_view():
+    _exigir('activos')
+    return _pagina_activos()
+
+
+@dashboard_bp.route('/activos/guardar', methods=['POST'])
+@login_requerido
+def activos_guardar():
+    activo_id = request.form.get('id') or None
+    _exigir('activos', 'editar' if activo_id else 'crear')
+    formulario = {k: request.form.get(k, '') for k in CAMPOS_ACTIVO}
+    formulario['id'] = activo_id or ''
+    errores = clientes.validar_activo(formulario, activo_id)
+    if errores:
+        return _pagina_activos(errores=errores, formulario=formulario), 400
+    activo = clientes.guardar_activo(formulario, activo_id, session['usuario'])
+    if activo is None:
+        abort(404)
+    flash(f"Equipo {activo['serial']} {'actualizado' if activo_id else 'registrado'}.", 'ok')
+    destino = request.form.get('volver') or url_for('dashboard.activos_view', cliente=activo['cliente_id'])
+    # Solo se permite volver a páginas del propio panel
+    return redirect(destino if destino.startswith('/dashboard/') else url_for('dashboard.activos_view'))
+
+
+@dashboard_bp.route('/activos/<activo_id>/eliminar', methods=['POST'])
+@login_requerido
+def activos_eliminar(activo_id):
+    _exigir('activos', 'eliminar')
+    activo = clientes.eliminar_activo(activo_id)
+    flash(f"Equipo {activo['serial']} eliminado del inventario." if activo else 'Ese equipo ya no existe.',
+          'ok' if activo else 'error')
+    return redirect(url_for('dashboard.activos_view'))
 
 
 @dashboard_bp.route('/<nombre>')

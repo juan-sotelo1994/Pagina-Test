@@ -1879,6 +1879,95 @@ code {
     line-height: 1.4;
 }
 
+/* ---------- Clientes y grupos de equipos ---------- */
+
+.grupos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.grupo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+}
+
+.grupo:hover {
+    border-color: var(--accent);
+}
+
+.grupo.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.grupo-n {
+    min-width: 22px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.grupo.active .grupo-n {
+    background: rgba(255, 255, 255, .25);
+    color: #fff;
+}
+
+.grupo-enlace {
+    margin-left: 6px;
+    font-size: 14px;
+}
+
+.equipo-cliente {
+    margin-left: 10px;
+    vertical-align: middle;
+    font-size: 13px;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.form-seccion {
+    margin: 4px 0 -4px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.form-row-3 {
+    grid-template-columns: 2fr 1fr 1fr;
+}
+
+.form-field input[type="file"] {
+    height: auto;
+    padding: 8px;
+}
+
+@media (max-width: 900px) {
+    .form-row-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ---------- Ubicación del equipo ---------- */
 
 .ubicacion-head {

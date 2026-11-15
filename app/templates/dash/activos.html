@@ -1,0 +1,170 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Equipos de clientes{% endblock %}
+{% block page_title %}Inventario › Equipos de clientes{% endblock %}
+
+{% block content %}
+
+<form method="get" class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="dialogo-activo" data-activo-nuevo
+            {% if not clientes_lista %}disabled title="Primero crea un cliente"{% endif %}>
+        <i class="fa-solid fa-plus"></i> Registrar equipo
+    </button>
+    {% endif %}
+    <select name="cliente" class="tool-btn" onchange="this.form.submit()" aria-label="Filtrar por empresa">
+        <option value="">Todas las empresas</option>
+        {% for c in clientes_lista %}
+        <option value="{{ c.id }}" {% if c.id == filtro_cliente %}selected{% endif %}>{{ c.nombre }}</option>
+        {% endfor %}
+    </select>
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar por serial, modelo o responsable" aria-label="Buscar equipos">
+    </label>
+    {% if filtro_cliente %}
+    <a class="tool-btn" href="{{ url_for('dashboard.equipos_view', cliente=filtro_cliente) }}"><i class="fa-solid fa-laptop"></i> Ver en Soporte › Equipos</a>
+    {% endif %}
+</form>
+
+{% if not clientes_lista %}
+<div class="flash flash-info"><i class="fa-solid fa-circle-info"></i>
+    Para registrar equipos primero crea la empresa en <a class="link" href="{{ url_for('dashboard.clientes_view') }}">Comercial › Clientes</a>.</div>
+{% endif %}
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">Empresa</th>
+                <th data-sort="text">Equipo</th>
+                <th data-sort="text">Número de serie</th>
+                <th data-sort="text">Discos (seriales)</th>
+                <th data-sort="text">Responsable</th>
+                <th data-sort="text">Agente</th>
+                <th class="center">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in activos_lista %}
+            <tr>
+                <td>{{ nombres_cliente.get(a.cliente_id, '—') }}</td>
+                <td>{{ a.tipo }}{% if a.marca_modelo %}<div class="sub">{{ a.marca_modelo }}</div>{% endif %}</td>
+                <td class="mono">{{ a.serial }}</td>
+                <td class="mono">
+                    {% for d in a.discos %}<div>{{ d }}</div>{% else %}<span class="muted-text">—</span>{% endfor %}
+                </td>
+                <td>{{ a.responsable or '—' }}</td>
+                <td>
+                    {% if a.equipo %}
+                    <a class="link" href="{{ url_for('dashboard.equipo_view', equipo_id=a.equipo.id) }}">
+                        <span class="status"><span class="status-dot {{ 'on' if a.equipo.en_linea else 'off' }}"></span>{{ a.equipo.nombre }}</span>
+                    </a>
+                    {% else %}<span class="muted-text" title="Ningún equipo con agente reporta este número de serie">Sin agente</span>{% endif %}
+                </td>
+                <td class="center actions">
+                    {% if puede_editar %}
+                    <button type="button" class="mini-btn" data-open-dialog="dialogo-activo"
+                            data-activo='{{ a | tojson | forceescape }}'>
+                        <i class="fa-solid fa-pen"></i><span>Editar</span>
+                    </button>
+                    {% endif %}
+                    {% if puede_eliminar %}
+                    <button type="button" class="mini-btn danger" data-confirm="¿Eliminar del inventario el equipo {{ a.serial }}?"
+                            data-action="{{ url_for('dashboard.activos_eliminar', activo_id=a.id) }}">
+                        <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if activos_lista %}hidden{% endif %}>{% if activos_lista %}No hay resultados para esa búsqueda.{% else %}No hay equipos registrados{% if filtro_cliente %} para esta empresa{% endif %}.{% endif %}</p>
+</div>
+
+<p class="note"><i class="fa-solid fa-circle-info"></i>
+    Cuando un equipo con el agente instalado reporta el mismo número de serie, aparece agrupado bajo su empresa en Soporte › Equipos.</p>
+
+{% if puede_crear or puede_editar %}
+<!-- Formulario de equipo (registrar y editar) -->
+<dialog class="dialog dialog-wide" id="dialogo-activo" {% if errores %}data-open-on-load{% endif %} aria-labelledby="dialogo-activo-titulo">
+    <form method="post" action="{{ url_for('dashboard.activos_guardar') }}" novalidate id="form-activo">
+        <input type="hidden" name="id" value="{{ formulario.id }}">
+        <header class="dialog-head">
+            <h2 id="dialogo-activo-titulo"><i class="fa-solid fa-laptop-file"></i> <span data-titulo-activo>{{ 'Editar equipo' if formulario.id else 'Registrar equipo' }}</span></h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <label class="form-field {% if errores.cliente_id %}invalid{% endif %}">
+                <span>Empresa a la que va el equipo</span>
+                <select name="cliente_id" required>
+                    <option value="">Selecciona la empresa</option>
+                    {% for c in clientes_lista %}
+                    <option value="{{ c.id }}" {% if (formulario.cliente_id or filtro_cliente) == c.id %}selected{% endif %}>{{ c.nombre }} · NIT {{ c.nit }}</option>
+                    {% endfor %}
+                </select>
+                {% if errores.cliente_id %}<small>{{ errores.cliente_id }}</small>{% endif %}
+            </label>
+            <div class="form-row">
+                <label class="form-field {% if errores.tipo %}invalid{% endif %}">
+                    <span>Tipo de equipo</span>
+                    <select name="tipo" required>
+                        {% for t in tipos %}<option {% if formulario.tipo == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                    </select>
+                    {% if errores.tipo %}<small>{{ errores.tipo }}</small>{% endif %}
+                </label>
+                <label class="form-field">
+                    <span>Marca y modelo <small class="hint">(opcional)</small></span>
+                    <input type="text" name="marca_modelo" value="{{ formulario.marca_modelo }}" maxlength="80" placeholder="Lenovo ThinkPad T14">
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="form-field {% if errores.serial %}invalid{% endif %}">
+                    <span>Número de serie del equipo</span>
+                    <input type="text" name="serial" value="{{ formulario.serial }}" maxlength="60" required class="mono" autocomplete="off">
+                    {% if errores.serial %}<small>{{ errores.serial }}</small>{% else %}<small class="hint">El que aparece en la etiqueta o en la BIOS. Con este se agrupa en Soporte › Equipos.</small>{% endif %}
+                </label>
+                <label class="form-field">
+                    <span>Responsable <small class="hint">(opcional)</small></span>
+                    <input type="text" name="responsable" value="{{ formulario.responsable }}" maxlength="80" placeholder="Persona que usa el equipo">
+                </label>
+            </div>
+            <label class="form-field {% if errores.discos %}invalid{% endif %}">
+                <span>Seriales de los discos <small class="hint">(uno por línea)</small></span>
+                <textarea name="discos" rows="3" class="mono" spellcheck="false">{{ formulario.discos }}</textarea>
+                {% if errores.discos %}<small>{{ errores.discos }}</small>{% endif %}
+            </label>
+            <label class="form-field">
+                <span>Notas <small class="hint">(opcional)</small></span>
+                <textarea name="notas" rows="2" maxlength="500">{{ formulario.notas }}</textarea>
+            </label>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+<!-- Confirmación para eliminar -->
+<dialog class="dialog dialog-sm" id="confirmar" aria-labelledby="confirmar-texto">
+    <form method="post" id="confirmar-form">
+        <div class="dialog-body confirm-body">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <p id="confirmar-texto"></p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        </footer>
+    </form>
+</dialog>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-laptop-file"></i> {{ activos_lista | length }} equipos registrados</span>
+<span class="status-right" id="row-count">{{ activos_lista | length }}</span>
+{% endblock %}

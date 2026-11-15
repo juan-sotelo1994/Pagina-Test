@@ -124,6 +124,9 @@ if (filas) {
                     el('span', { className: `status-dot ${e.en_linea ? 'on' : 'off'}`, title: e.en_linea ? 'En línea' : 'Desconectado' }),
                     el('a', { className: 'link', href: enlace, textContent: e.nombre })),
                 el('div', { className: 'sub', textContent: e.sistema })),
+            el('td', {}, e.cliente
+                ? el('span', { className: 'tag tag-read', textContent: e.cliente.nombre })
+                : el('span', { className: 'muted', textContent: 'Sin cliente', title: 'Su número de serie no está en el inventario de ningún cliente' })),
             el('td', {}, icono('fa-user muted'), ' ', e.usuario || '—'),
             el('td', { className: 'mono', textContent: e.ip_conexion || '—' }),
             el('td', {}, (e.rastreo || {}).activo
@@ -139,23 +142,57 @@ if (filas) {
             el('td', { className: 'mono' }, e.en_linea ? `${velocidad(e.red.bajada)} / ${velocidad(e.red.subida)}` : '—'),
             el('td', { textContent: hace(e.visto), title: fecha(e.visto) }),
             el('td', {}, acceso));
-        tr.dataset.texto = [e.nombre, e.usuario, e.ip_conexion, e.sistema, e.hostname].join(' ').toLowerCase();
+        tr.dataset.texto = [e.nombre, e.usuario, e.ip_conexion, e.sistema, e.hostname, e.cliente && e.cliente.nombre].join(' ').toLowerCase();
         return tr;
     };
 
+    // Grupos por cliente ('' = todos, 'sin-cliente' = sin asignar)
+    const barraGrupos = document.getElementById('grupos');
+    let grupo = barraGrupos ? barraGrupos.dataset.grupo : '';
+    const enGrupo = (e) => !grupo || (grupo === 'sin-cliente' ? !e.cliente : (e.cliente && e.cliente.id === grupo));
+
+    const pintarGrupos = () => {
+        if (!barraGrupos) return;
+        barraGrupos.querySelectorAll('[data-grupo-id]').forEach((b) => b.classList.toggle('active', b.dataset.grupoId === grupo));
+        barraGrupos.querySelectorAll('[data-n]').forEach((n) => {
+            const id = n.dataset.n;
+            n.textContent = equipos.filter((e) => (!id ? true : id === 'sin-cliente' ? !e.cliente : e.cliente && e.cliente.id === id)).length;
+        });
+        const enlace = document.getElementById('grupo-inventario');
+        if (enlace) {
+            enlace.hidden = !grupo || grupo === 'sin-cliente';
+            enlace.href = `${enlace.href.split('?')[0]}?cliente=${encodeURIComponent(grupo)}`;
+        }
+    };
+
+    if (barraGrupos) {
+        barraGrupos.querySelectorAll('[data-grupo-id]').forEach((b) => b.addEventListener('click', () => {
+            grupo = b.dataset.grupoId;
+            // El grupo queda en la dirección para poder compartirla o recargar
+            const url = new URL(location.href);
+            if (grupo) url.searchParams.set('cliente', grupo); else url.searchParams.delete('cliente');
+            history.replaceState(null, '', url);
+            pintar();
+        }));
+    }
+
     const pintar = () => {
         const texto = buscar.value.trim().toLowerCase();
-        const nuevas = equipos.map(fila);
+        const visibles = equipos.filter(enGrupo);
+        const nuevas = visibles.map(fila);
         nuevas.forEach((tr) => { tr.hidden = !tr.dataset.texto.includes(texto); });
         filas.replaceChildren(...nuevas);
+        pintarGrupos();
 
-        const enLinea = equipos.filter((e) => e.en_linea).length;
-        document.getElementById('stat-total').textContent = equipos.length;
+        // Los contadores de arriba muestran el grupo seleccionado
+        const enLinea = visibles.filter((e) => e.en_linea).length;
+        document.getElementById('stat-total').textContent = visibles.length;
         document.getElementById('stat-online').textContent = enLinea;
-        document.getElementById('stat-offline').textContent = equipos.length - enLinea;
-        document.getElementById('stat-alertas').textContent = equipos.filter(tieneAlerta).length;
+        document.getElementById('stat-offline').textContent = visibles.length - enLinea;
+        document.getElementById('stat-alertas').textContent = visibles.filter(tieneAlerta).length;
         document.getElementById('status-online').textContent = enLinea;
         vacio.hidden = equipos.length > 0;
+        // Mensaje cuando hay equipos pero ninguno en el grupo o la búsqueda
         sinResultados.hidden = !equipos.length || nuevas.some((tr) => !tr.hidden);
     };
 
@@ -348,7 +385,7 @@ if (detalle) {
         document.getElementById('inventario-ram').replaceChildren(...(inv.ram_modulos || []).map((m) =>
             filaTabla(m.ranura, `${m.capacidad_gb} GB`, m.velocidad ? `${m.velocidad} MHz` : '', m.fabricante)));
         document.getElementById('inventario-discos').replaceChildren(...(inv.discos || []).map((d) =>
-            filaTabla(d.modelo, `${d.tamano_gb} GB`, [d.tipo, d.interfaz].filter(Boolean).join(' · '), d.salud)));
+            filaTabla(d.modelo, `${d.tamano_gb} GB`, [d.tipo, d.interfaz].filter(Boolean).join(' · '), d.salud, d.serial)));
         document.getElementById('inventario-red').replaceChildren(...(inv.red || []).map((r) =>
             filaTabla(r.descripcion || r.nombre, r.mac, r.velocidad)));
 
@@ -468,7 +505,7 @@ $inv = [ordered]@{
     ram_modulos = @($ram | ForEach-Object { [ordered]@{ capacidad_gb = [math]::Round($_.Capacity / 1GB); velocidad = $_.Speed; fabricante = "$($_.Manufacturer)".Trim(); ranura = "$($_.DeviceLocator)" } })
     so = $so.Caption; so_version = $so.Version; so_compilacion = $so.BuildNumber; arquitectura = $so.OSArchitecture
     so_instalado = $so.InstallDate.ToString('yyyy-MM-dd'); dominio = $cs.Domain; en_dominio = [bool]$cs.PartOfDomain
-    discos = @($discos | ForEach-Object { [ordered]@{ modelo = $_.FriendlyName; tamano_gb = [math]::Round($_.Size / 1GB); tipo = "$($_.MediaType)"; interfaz = "$($_.BusType)"; salud = "$($_.HealthStatus)" } })
+    discos = @($discos | ForEach-Object { [ordered]@{ modelo = $_.FriendlyName; tamano_gb = [math]::Round($_.Size / 1GB); tipo = "$($_.MediaType)"; interfaz = "$($_.BusType)"; salud = "$($_.HealthStatus)"; serial = "$($_.SerialNumber)".Trim() } })
     red = @($red | ForEach-Object { [ordered]@{ nombre = $_.Name; descripcion = $_.InterfaceDescription; mac = $_.MacAddress; velocidad = "$($_.LinkSpeed)" } })
     antivirus = @($av | ForEach-Object { $_.displayName })
     software = @($apps | Select-Object -First 500 | ForEach-Object { [ordered]@{ nombre = $_.DisplayName; version = "$($_.DisplayVersion)"; editor = "$($_.Publisher)" } })
@@ -519,7 +556,7 @@ def correr(*a):
 cpu = [l.split(":", 1)[1].strip() for l in leer("/proc/cpuinfo").splitlines() if l.startswith("model name")]
 ram_kb = int(next((l.split()[1] for l in leer("/proc/meminfo").splitlines() if l.startswith("MemTotal")), 0))
 so = platform.freedesktop_os_release()
-discos = json.loads(correr("lsblk", "-J", "-d", "-b", "-o", "MODEL,SIZE,ROTA,TRAN,TYPE") or '{"blockdevices": []}')["blockdevices"]
+discos = json.loads(correr("lsblk", "-J", "-d", "-b", "-o", "MODEL,SIZE,ROTA,TRAN,TYPE,SERIAL") or '{"blockdevices": []}')["blockdevices"]
 red = [{"nombre": n, "mac": leer(f"/sys/class/net/{n}/address")} for n in os.listdir("/sys/class/net") if n != "lo"]
 apps = [l.split("\\t") for l in correr("dpkg-query", "-W", "-f=\${Package}\\t\${Version}\\t\${Maintainer}\\n").splitlines()]
 inv = {"fabricante": leer("/sys/class/dmi/id/sys_vendor"), "modelo": leer("/sys/class/dmi/id/product_name"),
@@ -528,7 +565,7 @@ inv = {"fabricante": leer("/sys/class/dmi/id/sys_vendor"), "modelo": leer("/sys/
        "hilos": len(cpu), "ram_gb": round(ram_kb / 1048576, 1), "so": so.get("PRETTY_NAME", ""),
        "so_version": platform.release(), "arquitectura": platform.machine(),
        "discos": [{"modelo": (d.get("model") or "").strip(), "tamano_gb": int(d.get("size") or 0) // 1000**3,
-                   "tipo": "HDD" if d.get("rota") in (True, 1, "1") else "SSD", "interfaz": d.get("tran") or ""} for d in discos if d.get("type") == "disk"],
+                   "tipo": "HDD" if d.get("rota") in (True, 1, "1") else "SSD", "interfaz": d.get("tran") or "", "serial": (d.get("serial") or "").strip()} for d in discos if d.get("type") == "disk"],
        "red": red, "software": [{"nombre": a[0], "version": a[1] if len(a) > 1 else "", "editor": a[2] if len(a) > 2 else ""} for a in apps[:500]]}
 print("Equipo:", inv["fabricante"], inv["modelo"], "- serie", inv["serial"]); print("Procesador:", inv["procesador"])
 print("Memoria:", inv["ram_gb"], "GB"); print("Sistema:", inv["so"]); print("Paquetes:", len(apps))
