@@ -13,6 +13,8 @@ import time
 from collections import deque
 from pathlib import Path
 
+from . import clientes
+
 ARCHIVO = Path(__file__).resolve().parent.parent / 'data' / 'equipos.json'
 
 SEGUNDOS_EN_LINEA = 60     # sin reportes en este tiempo = desconectado (3 reportes de 20 s)
@@ -276,6 +278,7 @@ def limpiar_inventario(datos):
             'tipo': _texto(d.get('tipo'), 20).strip(),
             'interfaz': _texto(d.get('interfaz'), 20).strip(),
             'salud': _texto(d.get('salud'), 20).strip(),
+            'serial': _texto(d.get('serial'), 60).strip(),
         }),
         'red': _lista(datos.get('red'), 20, lambda r: {
             'nombre': _texto(r.get('nombre'), 60).strip(),
@@ -323,6 +326,14 @@ def actualizar_inventario(equipo_id, salida, comando):
         equipo['inventario'] = inventario
         guardar()
     return True
+
+
+def _asignar_cliente(equipo, seriales):
+    """Marca a qué cliente pertenece el equipo según su número de serie. Devuelve el activo."""
+    activo, cliente = clientes.buscar_activo(equipo, seriales)
+    equipo['cliente'] = {'id': cliente['id'], 'nombre': cliente['nombre']} if cliente else None
+    equipo['activo_id'] = activo['id'] if activo else None
+    return activo
 
 
 def _completar(equipo):
@@ -378,8 +389,10 @@ def listar():
     ahora = time.time()
     with _lock:
         equipos = [dict(e) for e in cargar().values()]
+    seriales = clientes.mapa_seriales()
     for e in equipos:
         e['en_linea'] = en_linea(e, ahora)
+        _asignar_cliente(e, seriales)
         _completar(e)
         e.pop('inventario', None)  # la lista no lo necesita y pesa (programas instalados)
     # Primero los conectados, luego por nombre
@@ -394,6 +407,9 @@ def obtener(equipo_id):
         equipo = dict(equipo)
         equipo['historial'] = list(_historial.get(equipo_id, []))
     equipo['en_linea'] = en_linea(equipo)
+    activo = _asignar_cliente(equipo, clientes.mapa_seriales())
+    if activo:
+        equipo['discos_verificados'] = clientes.verificar_discos(activo, equipo)
     return _completar(equipo)
 
 

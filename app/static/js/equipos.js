@@ -101,6 +101,11 @@ if (filas) {
     const base = location.pathname.replace(/\/$/, '');
     let equipos = JSON.parse(document.getElementById('equipos-iniciales').textContent);
 
+    // Selección de equipos para acciones masivas (se conserva aunque la tabla se actualice)
+    const barraMasivo = document.getElementById('masivo-barra');
+    const conSeleccion = !!barraMasivo;
+    const seleccion = new Set();
+
     const fila = (e) => {
         const disco = discoPrincipal(e);
         const enlace = `${base}/${encodeURIComponent(e.id)}`;
@@ -118,12 +123,20 @@ if (filas) {
             acceso = el('span', { className: 'muted', textContent: esWindows(e) ? 'RDP desactivado' : 'Pantalla desactivada' });
         }
 
+        const celdaCheck = conSeleccion ? [el('td', { className: 'col-check' },
+            el('input', { type: 'checkbox', checked: seleccion.has(e.id), ariaLabel: `Seleccionar ${e.nombre}`,
+                onchange: (ev) => { ev.target.checked ? seleccion.add(e.id) : seleccion.delete(e.id); pintarBarra(); } }))] : [];
+
         const tr = el('tr', { className: e.en_linea ? '' : 'offline' },
+            ...celdaCheck,
             el('td', {},
                 el('span', { className: 'status' },
                     el('span', { className: `status-dot ${e.en_linea ? 'on' : 'off'}`, title: e.en_linea ? 'En línea' : 'Desconectado' }),
                     el('a', { className: 'link', href: enlace, textContent: e.nombre })),
                 el('div', { className: 'sub', textContent: e.sistema })),
+            el('td', {}, e.cliente
+                ? el('span', { className: 'tag tag-read', textContent: e.cliente.nombre })
+                : el('span', { className: 'muted', textContent: 'Sin empresa', title: 'Todavía no está asignado a ninguna empresa' })),
             el('td', {}, icono('fa-user muted'), ' ', e.usuario || '—'),
             el('td', { className: 'mono', textContent: e.ip_conexion || '—' }),
             el('td', {}, (e.rastreo || {}).activo
@@ -139,23 +152,217 @@ if (filas) {
             el('td', { className: 'mono' }, e.en_linea ? `${velocidad(e.red.bajada)} / ${velocidad(e.red.subida)}` : '—'),
             el('td', { textContent: hace(e.visto), title: fecha(e.visto) }),
             el('td', {}, acceso));
-        tr.dataset.texto = [e.nombre, e.usuario, e.ip_conexion, e.sistema, e.hostname].join(' ').toLowerCase();
+        tr.dataset.texto = [e.nombre, e.usuario, e.ip_conexion, e.sistema, e.hostname, e.cliente && e.cliente.nombre].join(' ').toLowerCase();
         return tr;
     };
 
+    // Filtro por empresa ('' = todas, 'sin-cliente' = sin empresa)
+    const filtroEmpresa = document.getElementById('filtro-empresa');
+    let grupo = filtroEmpresa ? filtroEmpresa.dataset.grupo : '';
+    if (filtroEmpresa) filtroEmpresa.value = grupo;
+    if (filtroEmpresa && filtroEmpresa.value !== grupo) grupo = filtroEmpresa.value; // empresa que ya no existe
+    const enGrupo = (e) => !grupo || (grupo === 'sin-cliente' ? !e.cliente : (e.cliente && e.cliente.id === grupo));
+
+    const pintarGrupos = () => {
+        if (!filtroEmpresa) return;
+        // Cada opción muestra cuántos equipos tiene
+        [...filtroEmpresa.options].forEach((o) => {
+            const id = o.value;
+            const n = equipos.filter((e) => (!id ? true : id === 'sin-cliente' ? !e.cliente : e.cliente && e.cliente.id === id)).length;
+            o.textContent = `${o.dataset.nombre} (${n})`;
+        });
+        filtroEmpresa.parentElement.classList.toggle('activo', !!grupo);
+        const enlace = document.getElementById('grupo-inventario');
+        if (enlace) {
+            enlace.hidden = !grupo || grupo === 'sin-cliente';
+            enlace.href = `${enlace.href.split('?')[0]}?cliente=${encodeURIComponent(grupo)}`;
+        }
+    };
+
+    if (filtroEmpresa) {
+        filtroEmpresa.addEventListener('change', () => {
+            grupo = filtroEmpresa.value;
+            // El filtro queda en la dirección para poder compartirla o recargar
+            const url = new URL(location.href);
+            if (grupo) url.searchParams.set('cliente', grupo); else url.searchParams.delete('cliente');
+            history.replaceState(null, '', url);
+            pintar();
+        });
+    }
+
+    // Destino de las acciones: los marcados o, si no hay ninguno, toda la empresa elegida
+    const destino = () => {
+        if (seleccion.size) return equipos.filter((e) => seleccion.has(e.id));
+        return grupo ? equipos.filter(enGrupo) : [];
+    };
+
+    const nombreGrupo = () => (filtroEmpresa && filtroEmpresa.selectedOptions[0] ? filtroEmpresa.selectedOptions[0].dataset.nombre : '');
+
+    const pintarBarra = () => {
+        if (!barraMasivo) return;
+        const lista = destino();
+        barraMasivo.hidden = !lista.length;
+        document.getElementById('masivo-n').parentElement.innerHTML = seleccion.size
+            ? `<strong id="masivo-n">${lista.length}</strong> equipos seleccionados`
+            : `<strong id="masivo-n">${lista.length}</strong> equipos de <strong></strong>`;
+        if (!seleccion.size) barraMasivo.querySelector('strong + strong').textContent = nombreGrupo();
+        const todos = document.getElementById('seleccionar-todos');
+        if (todos) {
+            const visibles = equipos.filter(enGrupo);
+            todos.checked = visibles.length > 0 && visibles.every((e) => seleccion.has(e.id));
+        }
+    };
+
+    if (conSeleccion) {
+        const todos = document.getElementById('seleccionar-todos');
+        todos.addEventListener('change', () => {
+            equipos.filter(enGrupo).forEach((e) => (todos.checked ? seleccion.add(e.id) : seleccion.delete(e.id)));
+            pintar();
+        });
+        document.getElementById('masivo-limpiar').addEventListener('click', () => { seleccion.clear(); pintar(); });
+        iniciarAcciones();
+    }
+
+    function iniciarAcciones() {
+        const dialogoMasivo = document.getElementById('dialogo-masivo');
+        const resumen = (lista) => {
+            const win = lista.filter(esWindows).length;
+            return `${lista.length} equipos: ${win} Windows, ${lista.length - win} Mac/Linux.`;
+        };
+        document.querySelectorAll('[data-open-dialog="dialogo-asignar-masivo"], [data-open-dialog="dialogo-masivo"]').forEach((b) =>
+            b.addEventListener('click', () => {
+                document.querySelectorAll('[data-masivo-resumen]').forEach((p) => { p.textContent = resumen(destino()); });
+                if (dialogoMasivo) actualizarDestinoMasivo();
+            }));
+
+        // Asignar a empresa
+        const confirmar = document.getElementById('asignar-confirmar');
+        if (confirmar) {
+            confirmar.addEventListener('click', async () => {
+                const dialogo = document.getElementById('dialogo-asignar-masivo');
+                const error = document.getElementById('asignar-error');
+                error.hidden = true;
+                confirmar.disabled = true;
+                try {
+                    const r = await fetch(dialogo.dataset.url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify({ cliente_id: document.getElementById('asignar-cliente').value, equipos: destino().map((e) => e.id) }),
+                    });
+                    const datos = await r.json();
+                    if (!r.ok) throw new Error(datos.error || r.status);
+                    dialogo.close();
+                    seleccion.clear();
+                    equipos = await pedir(`${base}/datos`);
+                    pintar();
+                } catch (e) {
+                    error.textContent = `No se pudo asignar: ${e.message}`;
+                    error.hidden = false;
+                } finally {
+                    confirmar.disabled = false;
+                }
+            });
+        }
+
+        // Ejecución masiva
+        if (!dialogoMasivo) return;
+        const sistema = document.getElementById('masivo-sistema');
+        const plantilla = document.getElementById('masivo-plantilla');
+        const script = document.getElementById('masivo-script');
+        const tiempo = document.getElementById('masivo-tiempo');
+        const error = document.getElementById('masivo-error');
+        const ejecutar = document.getElementById('masivo-ejecutar');
+        let consulta = null;
+
+        const plantillasDe = () => (sistema.value === 'windows' ? PLANTILLAS.windows : [...PLANTILLAS.linux, ...PLANTILLAS.mac]);
+        const cargarPlantillas = () => {
+            plantilla.replaceChildren(el('option', { value: '', textContent: 'Escribir mi propio comando…' }),
+                ...plantillasDe().map(([nombre], i) => el('option', { value: i, textContent: nombre })));
+        };
+        const afecta = (e) => (sistema.value === 'windows' ? esWindows(e) : !esWindows(e));
+
+        function actualizarDestinoMasivo() {
+            const lista = destino();
+            // Se elige sola la consola del sistema más común en el grupo
+            if (lista.length && !dialogoMasivo.open) sistema.value = lista.filter(esWindows).length >= lista.length / 2 ? 'windows' : 'unix';
+            cargarPlantillas();
+            document.getElementById('masivo-destino').textContent = lista.filter(afecta).length;
+        }
+
+        sistema.addEventListener('change', actualizarDestinoMasivo);
+        plantilla.addEventListener('change', () => {
+            const p = plantillasDe()[plantilla.value];
+            if (p) { script.value = p[2]; tiempo.value = String(p[1]); }
+        });
+
+        const ESTADOS = { pendiente: ['tag-read', 'Esperando'], enviado: ['tag-part', 'Ejecutando'], terminado: ['tag-full', 'Terminado'], error: ['tag-danger', 'Error'], 'sin respuesta': ['tag-lock', 'Sin respuesta'] };
+        const pintarAvance = (comandos) => {
+            const hechos = comandos.filter((c) => ['terminado', 'error', 'sin respuesta'].includes(c.estado)).length;
+            document.getElementById('masivo-cuenta').textContent = `${hechos} de ${comandos.length} terminados`;
+            document.getElementById('masivo-lista').replaceChildren(...comandos.map((c) => {
+                const [clase, texto] = ESTADOS[c.estado] || ['tag-lock', c.estado];
+                return el('li', {}, el('details', {},
+                    el('summary', {},
+                        el('span', { className: `tag ${clase}`, textContent: c.estado === 'error' ? `${texto} (${c.codigo})` : texto }),
+                        el('span', { className: 'consola-cmd', textContent: c.equipo_nombre })),
+                    el('div', { className: 'consola-detalle' }, el('pre', { className: 'consola-salida', textContent: c.salida || '(sin salida todavía)' }))));
+            }));
+            return hechos === comandos.length;
+        };
+
+        ejecutar.addEventListener('click', async () => {
+            error.hidden = true;
+            const lista = destino().filter(afecta);
+            if (!script.value.trim()) { error.textContent = 'Escribe un comando o elige una plantilla.'; error.hidden = false; return; }
+            if (!lista.length) { error.textContent = 'Ninguno de los equipos elegidos usa ese sistema.'; error.hidden = false; return; }
+            if (!confirm(`¿Ejecutar este comando en ${lista.length} equipos?`)) return;
+            const p = plantillasDe()[plantilla.value];
+            ejecutar.disabled = true;
+            try {
+                const r = await fetch(dialogoMasivo.dataset.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({ equipos: lista.map((e) => e.id), sistema: sistema.value, script: script.value.trim(),
+                        tiempo: Number(tiempo.value), descripcion: p && p[2] === script.value.trim() ? p[0] : '' }),
+                });
+                const datos = await r.json();
+                if (!r.ok) throw new Error(datos.error || r.status);
+                document.getElementById('masivo-progreso').hidden = false;
+                clearInterval(consulta);
+                const revisar = async () => {
+                    const estado = await pedir(`${dialogoMasivo.dataset.url}/${datos.lote}`);
+                    if (pintarAvance(estado.comandos)) clearInterval(consulta);
+                };
+                await revisar();
+                consulta = setInterval(revisar, 3000);
+            } catch (e) {
+                error.textContent = `No se pudo enviar: ${e.message}`;
+                error.hidden = false;
+            } finally {
+                ejecutar.disabled = false;
+            }
+        });
+        dialogoMasivo.addEventListener('close', () => clearInterval(consulta));
+    }
+
     const pintar = () => {
         const texto = buscar.value.trim().toLowerCase();
-        const nuevas = equipos.map(fila);
+        const visibles = equipos.filter(enGrupo);
+        const nuevas = visibles.map(fila);
         nuevas.forEach((tr) => { tr.hidden = !tr.dataset.texto.includes(texto); });
         filas.replaceChildren(...nuevas);
+        pintarGrupos();
+        pintarBarra();
 
-        const enLinea = equipos.filter((e) => e.en_linea).length;
-        document.getElementById('stat-total').textContent = equipos.length;
+        // Los contadores de arriba muestran el grupo seleccionado
+        const enLinea = visibles.filter((e) => e.en_linea).length;
+        document.getElementById('stat-total').textContent = visibles.length;
         document.getElementById('stat-online').textContent = enLinea;
-        document.getElementById('stat-offline').textContent = equipos.length - enLinea;
-        document.getElementById('stat-alertas').textContent = equipos.filter(tieneAlerta).length;
+        document.getElementById('stat-offline').textContent = visibles.length - enLinea;
+        document.getElementById('stat-alertas').textContent = visibles.filter(tieneAlerta).length;
         document.getElementById('status-online').textContent = enLinea;
         vacio.hidden = equipos.length > 0;
+        // Mensaje cuando hay equipos pero ninguno en el grupo o la búsqueda
         sinResultados.hidden = !equipos.length || nuevas.some((tr) => !tr.hidden);
     };
 
@@ -348,7 +555,7 @@ if (detalle) {
         document.getElementById('inventario-ram').replaceChildren(...(inv.ram_modulos || []).map((m) =>
             filaTabla(m.ranura, `${m.capacidad_gb} GB`, m.velocidad ? `${m.velocidad} MHz` : '', m.fabricante)));
         document.getElementById('inventario-discos').replaceChildren(...(inv.discos || []).map((d) =>
-            filaTabla(d.modelo, `${d.tamano_gb} GB`, [d.tipo, d.interfaz].filter(Boolean).join(' · '), d.salud)));
+            filaTabla(d.modelo, `${d.tamano_gb} GB`, [d.tipo, d.interfaz].filter(Boolean).join(' · '), d.salud, d.serial)));
         document.getElementById('inventario-red').replaceChildren(...(inv.red || []).map((r) =>
             filaTabla(r.descripcion || r.nombre, r.mac, r.velocidad)));
 
@@ -468,7 +675,7 @@ $inv = [ordered]@{
     ram_modulos = @($ram | ForEach-Object { [ordered]@{ capacidad_gb = [math]::Round($_.Capacity / 1GB); velocidad = $_.Speed; fabricante = "$($_.Manufacturer)".Trim(); ranura = "$($_.DeviceLocator)" } })
     so = $so.Caption; so_version = $so.Version; so_compilacion = $so.BuildNumber; arquitectura = $so.OSArchitecture
     so_instalado = $so.InstallDate.ToString('yyyy-MM-dd'); dominio = $cs.Domain; en_dominio = [bool]$cs.PartOfDomain
-    discos = @($discos | ForEach-Object { [ordered]@{ modelo = $_.FriendlyName; tamano_gb = [math]::Round($_.Size / 1GB); tipo = "$($_.MediaType)"; interfaz = "$($_.BusType)"; salud = "$($_.HealthStatus)" } })
+    discos = @($discos | ForEach-Object { [ordered]@{ modelo = $_.FriendlyName; tamano_gb = [math]::Round($_.Size / 1GB); tipo = "$($_.MediaType)"; interfaz = "$($_.BusType)"; salud = "$($_.HealthStatus)"; serial = "$($_.SerialNumber)".Trim() } })
     red = @($red | ForEach-Object { [ordered]@{ nombre = $_.Name; descripcion = $_.InterfaceDescription; mac = $_.MacAddress; velocidad = "$($_.LinkSpeed)" } })
     antivirus = @($av | ForEach-Object { $_.displayName })
     software = @($apps | Select-Object -First 500 | ForEach-Object { [ordered]@{ nombre = $_.DisplayName; version = "$($_.DisplayVersion)"; editor = "$($_.Publisher)" } })
@@ -519,7 +726,7 @@ def correr(*a):
 cpu = [l.split(":", 1)[1].strip() for l in leer("/proc/cpuinfo").splitlines() if l.startswith("model name")]
 ram_kb = int(next((l.split()[1] for l in leer("/proc/meminfo").splitlines() if l.startswith("MemTotal")), 0))
 so = platform.freedesktop_os_release()
-discos = json.loads(correr("lsblk", "-J", "-d", "-b", "-o", "MODEL,SIZE,ROTA,TRAN,TYPE") or '{"blockdevices": []}')["blockdevices"]
+discos = json.loads(correr("lsblk", "-J", "-d", "-b", "-o", "MODEL,SIZE,ROTA,TRAN,TYPE,SERIAL") or '{"blockdevices": []}')["blockdevices"]
 red = [{"nombre": n, "mac": leer(f"/sys/class/net/{n}/address")} for n in os.listdir("/sys/class/net") if n != "lo"]
 apps = [l.split("\\t") for l in correr("dpkg-query", "-W", "-f=\${Package}\\t\${Version}\\t\${Maintainer}\\n").splitlines()]
 inv = {"fabricante": leer("/sys/class/dmi/id/sys_vendor"), "modelo": leer("/sys/class/dmi/id/product_name"),
@@ -528,7 +735,7 @@ inv = {"fabricante": leer("/sys/class/dmi/id/sys_vendor"), "modelo": leer("/sys/
        "hilos": len(cpu), "ram_gb": round(ram_kb / 1048576, 1), "so": so.get("PRETTY_NAME", ""),
        "so_version": platform.release(), "arquitectura": platform.machine(),
        "discos": [{"modelo": (d.get("model") or "").strip(), "tamano_gb": int(d.get("size") or 0) // 1000**3,
-                   "tipo": "HDD" if d.get("rota") in (True, 1, "1") else "SSD", "interfaz": d.get("tran") or ""} for d in discos if d.get("type") == "disk"],
+                   "tipo": "HDD" if d.get("rota") in (True, 1, "1") else "SSD", "interfaz": d.get("tran") or "", "serial": (d.get("serial") or "").strip()} for d in discos if d.get("type") == "disk"],
        "red": red, "software": [{"nombre": a[0], "version": a[1] if len(a) > 1 else "", "editor": a[2] if len(a) > 2 else ""} for a in apps[:500]]}
 print("Equipo:", inv["fabricante"], inv["modelo"], "- serie", inv["serial"]); print("Procesador:", inv["procesador"])
 print("Memoria:", inv["ram_gb"], "GB"); print("Sistema:", inv["so"]); print("Paquetes:", len(apps))

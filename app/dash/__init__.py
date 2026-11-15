@@ -8,7 +8,7 @@ from flask import Blueprint, abort, flash, jsonify, redirect, render_template, r
 
 from auth import correo_admin, login_requerido, usuarios
 from web import EMPRESA
-from . import agentes, comandos, descargas, equipos, glpi, permisos
+from . import agentes, clientes, comandos, descargas, equipos, glpi, permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -39,6 +39,7 @@ MENU = [
         ('productos', 'Productos', 'fa-box-open'),
         ('servicios', 'Servicios', 'fa-layer-group'),
         ('proveedores', 'Proveedores', 'fa-truck-field'),
+        ('activos', 'Equipos de clientes', 'fa-laptop-file'),
     ]},
     {'grupo': 'Soporte', 'icono': 'fa-headset', 'items': [
         ('tickets', 'Tickets (GLPI)', 'fa-ticket'),
@@ -120,6 +121,7 @@ def datos_panel():
         'puede': lambda modulo, accion='ver': permisos.puede(rol, modulo, accion),
         'alertas': sum(1 for f in FACTURAS if f['estado'] == 'Vencida'),
         'alertas_tickets': alertas_tickets,
+        'documento_de': clientes.documento_de,  # "NIT 900123456-7" / "CC 1020304050"
     }
 
 
@@ -375,7 +377,13 @@ def equipos_view(error_descarga=None, servidor=None):
                            plataformas=descargas.PLATAFORMAS, token_agente=descargas.token_configurado(),
                            puede_descargar=permisos.puede(session['rol'], 'equipos', 'crear'),
                            servidor_agente=servidor or descargas.servidor_sugerido(request.host_url),
-                           error_descarga=error_descarga)
+                           error_descarga=error_descarga,
+                           # Grupos por cliente (según el número de serie registrado en el inventario)
+                           ver_grupos=permisos.puede(session['rol'], 'clientes', 'ver') or permisos.puede(session['rol'], 'activos', 'ver'),
+                           clientes_lista=clientes.listar_clientes(),
+                           puede_asignar=permisos.puede(session['rol'], 'activos', 'crear') and permisos.puede(session['rol'], 'activos', 'editar'),
+                           puede_masivo=permisos.puede(session['rol'], 'equipos', 'editar'),
+                           grupo=request.args.get('cliente', ''))
 
 
 @dashboard_bp.route('/equipos/agente')
@@ -410,7 +418,10 @@ def equipo_view(equipo_id):
     equipo = equipos.obtener(equipo_id)
     if equipo is None:
         abort(404)
-    return render_template('dash/equipo.html', activo='equipos', equipo=equipo)
+    puede_asignar = permisos.puede(session['rol'], 'activos', 'crear')
+    return render_template('dash/equipo.html', activo='equipos', equipo=equipo,
+                           puede_asignar=puede_asignar, tipos=clientes.TIPOS_EQUIPO,
+                           clientes_lista=clientes.listar_clientes() if puede_asignar else [])
 
 
 @dashboard_bp.route('/equipos/<equipo_id>/datos')
@@ -508,6 +519,71 @@ def comandos_historial_csv():
                      download_name=f"historial-comandos-{date.today().isoformat()}.csv")
 
 
+def _equipos_por_ids(ids):
+    lista = [equipos.obtener(str(i)) for i in (ids or [])[:500]]
+    return [e for e in lista if e]
+
+
+@dashboard_bp.route('/equipos/asignar', methods=['POST'])
+@login_requerido
+def equipos_asignar():
+    # Asigna (o mueve) varios equipos a la empresa elegida
+    _exigir('activos', 'crear')
+    _exigir('activos', 'editar')
+    datos = request.get_json(silent=True) or {}
+    seleccion = _equipos_por_ids(datos.get('equipos'))
+    if not seleccion:
+        return jsonify(error='Selecciona al menos un equipo.'), 400
+    cliente = clientes.obtener_cliente(str(datos.get('cliente_id', '')))
+    if cliente is None:
+        return jsonify(error='Elige la empresa.'), 400
+    n = clientes.asignar_equipos(cliente['id'], seleccion, session['usuario'])
+    return jsonify(ok=True, asignados=n, cliente=cliente['nombre'])
+
+
+SISTEMAS_CONSOLA = {
+    'windows': lambda e: (e.get('sistema') or '').startswith('Windows'),
+    'unix': lambda e: not (e.get('sistema') or '').startswith('Windows'),
+}
+
+
+@dashboard_bp.route('/equipos/masivo', methods=['POST'])
+@login_requerido
+def equipos_masivo():
+    # El mismo comando para varios equipos (un grupo o una selección). Queda como un lote
+    _exigir('equipos', 'editar')
+    datos = request.get_json(silent=True) or {}
+    script = str(datos.get('script', '')).strip()
+    if not script:
+        return jsonify(error='Escribe el comando a ejecutar.'), 400
+    if len(script) > comandos.LARGO_SCRIPT:
+        return jsonify(error='El script es demasiado largo.'), 400
+    sistema = datos.get('sistema')
+    if sistema not in SISTEMAS_CONSOLA:
+        return jsonify(error='Elige el tipo de consola.'), 400
+    seleccion = _equipos_por_ids(datos.get('equipos'))
+    # PowerShell solo va a equipos Windows y bash a Mac / Linux: los demás se omiten
+    destino = [e for e in seleccion if SISTEMAS_CONSOLA[sistema](e)]
+    if not destino:
+        return jsonify(error='Ninguno de los equipos elegidos usa ese sistema.'), 400
+    try:
+        tiempo = int(datos.get('tiempo') or 300)
+    except (TypeError, ValueError):
+        tiempo = 300
+    lote = comandos.crear_lote(destino, script, tiempo, session['usuario'],
+                               permisos.NOMBRES_ROL.get(session['rol'], session['rol']), request.remote_addr,
+                               str(datos.get('descripcion', '')))
+    return jsonify(ok=True, lote=lote, enviados=len(destino), omitidos=[e['nombre'] for e in seleccion if e not in destino])
+
+
+@dashboard_bp.route('/equipos/masivo/<lote>')
+@login_requerido
+def equipos_masivo_estado(lote):
+    _exigir('equipos', 'editar')
+    return jsonify(comandos=[{k: c.get(k) for k in ('equipo', 'equipo_nombre', 'estado', 'codigo', 'salida', 'cuenta_equipo')}
+                             for c in comandos.del_lote(lote)])
+
+
 @dashboard_bp.route('/equipos/<equipo_id>/ubicacion', methods=['POST'])
 @login_requerido
 def equipo_ubicacion(equipo_id):
@@ -529,6 +605,158 @@ def equipo_eliminar(equipo_id):
     equipos.eliminar(equipo_id)
     flash('Equipo eliminado de la lista.', 'ok')
     return redirect(url_for('dashboard.equipos_view'))
+
+
+# ---------------------------------------------------------------- Clientes y sus equipos
+
+CAMPOS_CLIENTE = ('tipo_persona', 'nombre', 'tipo_documento', 'documento', 'representante_legal', 'representante_ti',
+                  'ti_correo', 'ti_telefono', 'relacion', 'contrato_numero', 'contrato_inicio', 'contrato_fin',
+                  'compra_referencia', 'compra_fecha')
+CAMPOS_ACTIVO = ('cliente_id', 'tipo', 'marca_modelo', 'serial', 'discos', 'responsable', 'notas')
+
+
+def _resumen_clientes():
+    """Por cliente: equipos registrados, equipos con agente y cuántos están en línea."""
+    por_cliente = {}
+    for a in clientes.listar_activos():
+        por_cliente.setdefault(a['cliente_id'], {'registrados': 0, 'agente': 0, 'en_linea': 0})['registrados'] += 1
+    for e in equipos.listar():
+        if e.get('cliente'):
+            r = por_cliente.setdefault(e['cliente']['id'], {'registrados': 0, 'agente': 0, 'en_linea': 0})
+            r['agente'] += 1
+            r['en_linea'] += 1 if e['en_linea'] else 0
+    return por_cliente
+
+
+def _pagina_clientes(**extra):
+    rol = session['rol']
+    filtro_tipo = request.args.get('tipo', '')
+    filtro_relacion = request.args.get('relacion', '')
+    lista = [c for c in clientes.listar_clientes()
+             if (not filtro_tipo or c.get('tipo_persona', 'juridica') == filtro_tipo)
+             and (not filtro_relacion or c.get('relacion', 'contrato') == filtro_relacion)]
+    datos = {
+        'activo': 'clientes', 'lista': lista, 'resumen': _resumen_clientes(),
+        'total_clientes': len(clientes.listar_clientes()),
+        'filtro_tipo': filtro_tipo, 'filtro_relacion': filtro_relacion,
+        'tipos_persona': clientes.TIPOS_PERSONA, 'tipos_documento': clientes.TIPOS_DOCUMENTO,
+        'relaciones': clientes.RELACIONES,
+        'puede_crear': permisos.puede(rol, 'clientes', 'crear'),
+        'puede_editar': permisos.puede(rol, 'clientes', 'editar'),
+        'puede_eliminar': permisos.puede(rol, 'clientes', 'eliminar'),
+        'errores': {}, 'formulario': {},
+    }
+    datos.update(extra)
+    return render_template('dash/clientes.html', **datos)
+
+
+@dashboard_bp.route('/clientes')
+@login_requerido
+def clientes_view():
+    _exigir('clientes')
+    return _pagina_clientes()
+
+
+@dashboard_bp.route('/clientes/guardar', methods=['POST'])
+@login_requerido
+def clientes_guardar():
+    cliente_id = request.form.get('id') or None
+    _exigir('clientes', 'editar' if cliente_id else 'crear')
+    formulario = {k: request.form.get(k, '') for k in CAMPOS_CLIENTE}
+    formulario['id'] = cliente_id or ''
+    errores = clientes.validar_cliente(formulario, cliente_id)
+    archivo = request.files.get('contrato')
+    contenido, error_pdf = clientes.validar_contrato(archivo)
+    if error_pdf:
+        errores['contrato'] = error_pdf
+    if errores:
+        return _pagina_clientes(errores=errores, formulario=formulario), 400
+
+    contrato = {'contenido': contenido, 'nombre': archivo.filename} if contenido else None
+    cliente = clientes.guardar_cliente(formulario, contrato, cliente_id, session['usuario'])
+    if cliente is None:
+        abort(404)
+    flash(f"Cliente {cliente['nombre']} {'actualizado' if cliente_id else 'creado'}.", 'ok')
+    return redirect(url_for('dashboard.clientes_view'))
+
+
+@dashboard_bp.route('/clientes/<cliente_id>/eliminar', methods=['POST'])
+@login_requerido
+def clientes_eliminar(cliente_id):
+    _exigir('clientes', 'eliminar')
+    cliente, error = clientes.eliminar_cliente(cliente_id)
+    flash(error or f"Cliente {cliente['nombre']} eliminado.", 'error' if error else 'ok')
+    return redirect(url_for('dashboard.clientes_view'))
+
+
+@dashboard_bp.route('/clientes/<cliente_id>/contrato')
+@login_requerido
+def clientes_contrato(cliente_id):
+    _exigir('clientes')
+    cliente = clientes.obtener_cliente(cliente_id)
+    ruta = clientes.ruta_contrato(cliente)
+    if ruta is None:
+        abort(404)
+    nombre = re.sub(r'[^\w.\- ]', '_', cliente.get('contrato_nombre') or 'contrato.pdf')
+    return send_file(ruta, mimetype='application/pdf', download_name=nombre)
+
+
+def _pagina_activos(**extra):
+    rol = session['rol']
+    filtro = request.args.get('cliente', '')
+    # Equipos del agente ya unidos a cada registro (por serial o por ID), para mostrar si reporta
+    por_activo = {e['activo_id']: e for e in equipos.listar() if e.get('activo_id')}
+    lista = clientes.listar_activos(filtro or None)
+    for a in lista:
+        e = por_activo.get(a['id'])
+        a['equipo'] = {'id': e['id'], 'nombre': e['nombre'], 'en_linea': e['en_linea']} if e else None
+    datos = {
+        'activo': 'activos', 'activos_lista': lista, 'clientes_lista': clientes.listar_clientes(),
+        'nombres_cliente': {c['id']: c['nombre'] for c in clientes.listar_clientes()},
+        'filtro_cliente': filtro, 'tipos': clientes.TIPOS_EQUIPO,
+        'puede_crear': permisos.puede(rol, 'activos', 'crear'),
+        'puede_editar': permisos.puede(rol, 'activos', 'editar'),
+        'puede_eliminar': permisos.puede(rol, 'activos', 'eliminar'),
+        'errores': {}, 'formulario': {},
+    }
+    datos.update(extra)
+    return render_template('dash/activos.html', **datos)
+
+
+@dashboard_bp.route('/activos')
+@login_requerido
+def activos_view():
+    _exigir('activos')
+    return _pagina_activos()
+
+
+@dashboard_bp.route('/activos/guardar', methods=['POST'])
+@login_requerido
+def activos_guardar():
+    activo_id = request.form.get('id') or None
+    _exigir('activos', 'editar' if activo_id else 'crear')
+    formulario = {k: request.form.get(k, '') for k in CAMPOS_ACTIVO}
+    formulario['id'] = activo_id or ''
+    errores = clientes.validar_activo(formulario, activo_id)
+    if errores:
+        return _pagina_activos(errores=errores, formulario=formulario), 400
+    activo = clientes.guardar_activo(formulario, activo_id, session['usuario'])
+    if activo is None:
+        abort(404)
+    flash(f"Equipo {activo['serial']} {'actualizado' if activo_id else 'registrado'}.", 'ok')
+    destino = request.form.get('volver') or url_for('dashboard.activos_view', cliente=activo['cliente_id'])
+    # Solo se permite volver a páginas del propio panel
+    return redirect(destino if destino.startswith('/dashboard/') else url_for('dashboard.activos_view'))
+
+
+@dashboard_bp.route('/activos/<activo_id>/eliminar', methods=['POST'])
+@login_requerido
+def activos_eliminar(activo_id):
+    _exigir('activos', 'eliminar')
+    activo = clientes.eliminar_activo(activo_id)
+    flash(f"Equipo {activo['serial']} eliminado del inventario." if activo else 'Ese equipo ya no existe.',
+          'ok' if activo else 'error')
+    return redirect(url_for('dashboard.activos_view'))
 
 
 @dashboard_bp.route('/<nombre>')

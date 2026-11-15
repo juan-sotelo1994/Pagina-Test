@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 
 import psutil
 
-VERSION = '0.6.0'
+VERSION = '0.7.0'
 INTERVALO = 20           # segundos entre reportes al panel
 INTERVALO_COMANDOS = 5   # segundos entre consultas de comandos remotos
 ES_MAC = sys.platform == 'darwin'
@@ -44,10 +44,11 @@ log = logging.getLogger('agente')
 
 # ---------------------------------------------------------------- utilidades
 
-def comando(*args):
-    # Ejecuta un comando del sistema y devuelve su salida, o '' si falla
+def comando(*args, timeout=15):
+    # Ejecuta un comando del sistema y devuelve su salida, o '' si falla (sin abrir ventanas en Windows)
+    extra = {'creationflags': 0x08000000} if sys.platform == 'win32' else {}
     try:
-        return subprocess.run(args, capture_output=True, text=True, timeout=5).stdout.strip()
+        return subprocess.run(args, capture_output=True, text=True, timeout=timeout, **extra).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return ''
 
@@ -119,11 +120,19 @@ def info_fija():
         nombre = os.environ.get('COMPUTERNAME') or socket.gethostname()
         sistema = f'Windows {platform.release()} (compilación {platform.version()})'
         modelo = platform.machine()
-        serial = ''
+        # Número de serie de la BIOS: con él el panel agrupa el equipo bajo su cliente
+        serial = comando('powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
+                         '(Get-CimInstance Win32_BIOS).SerialNumber')
     else:
         nombre = socket.gethostname()
         sistema = nombre_linux() or platform.platform(terse=True)
         modelo = platform.machine()
+        try:
+            serial = Path('/sys/class/dmi/id/product_serial').read_text().strip()  # requiere root
+        except OSError:
+            serial = ''
+    # Valores de relleno que algunos fabricantes dejan en la BIOS
+    if serial.lower() in ('to be filled by o.e.m.', 'default string', 'system serial number', '0', 'none'):
         serial = ''
     return {
         'id': identificador(),

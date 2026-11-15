@@ -88,6 +88,63 @@ document.addEventListener('click', (e) => {
     });
 });
 
+// Formularios de "nuevo" y "editar" que comparten ventana (clientes y equipos de clientes):
+// el botón Editar trae los datos del registro en data-cliente / data-activo
+const FORMULARIOS = {
+    cliente: { form: 'form-cliente', titulo: '[data-titulo-cliente]', nuevo: 'Nuevo cliente', editar: 'Editar cliente' },
+    activo: { form: 'form-activo', titulo: '[data-titulo-activo]', nuevo: 'Registrar equipo', editar: 'Editar equipo' },
+};
+
+Object.entries(FORMULARIOS).forEach(([clave, cfg]) => {
+    const form = document.getElementById(cfg.form);
+    if (!form) return;
+    const nuevoAttr = `${clave}Nuevo`;
+    document.querySelectorAll(`[data-${clave}], [data-${clave}-nuevo]`).forEach((boton) => {
+        boton.addEventListener('click', () => {
+            const esNuevo = nuevoAttr in boton.dataset;
+            const datos = esNuevo ? {} : JSON.parse(boton.dataset[clave]);
+            // Valores por defecto y clientes guardados antes de existir estos campos
+            const porDefecto = { tipo_persona: 'juridica', relacion: 'contrato', tipo_documento: 'CC', documento: datos.nit };
+            form.querySelectorAll('input, select, textarea').forEach((campo) => {
+                if (!campo.name || campo.type === 'file' || campo.name === 'volver') return;
+                if (campo.type === 'radio') {
+                    campo.checked = campo.value === (datos[campo.name] || porDefecto[campo.name]);
+                    return;
+                }
+                let valor = datos[campo.name] ?? porDefecto[campo.name] ?? '';
+                if (Array.isArray(valor)) valor = valor.join('\n');
+                // En "nuevo" se conserva la empresa elegida en el filtro de la página
+                if (esNuevo && campo.name === 'cliente_id') valor = new URLSearchParams(location.search).get('cliente') || '';
+                if (campo.tagName === 'SELECT' && valor === '' && campo.name !== 'cliente_id') return;
+                campo.value = valor;
+            });
+            form.querySelectorAll('.form-field.invalid').forEach((f) => f.classList.remove('invalid'));
+            form.querySelector(cfg.titulo).textContent = esNuevo ? cfg.nuevo : cfg.editar;
+            const contrato = form.querySelector('[data-contrato-actual]');
+            if (contrato) {
+                contrato.textContent = datos.contrato_nombre
+                    ? `Documento actual: ${datos.contrato_nombre}. Si subes otro, lo reemplaza.`
+                    : 'Opcional. Puedes subirlo después.';
+            }
+            form.dispatchEvent(new Event('change'));
+        });
+    });
+});
+
+// Formulario de cliente: muestra solo los campos del tipo (empresa / persona natural)
+// y de la relación elegida (contrato / compra / soporte)
+const formCliente = document.getElementById('form-cliente');
+if (formCliente) {
+    const aplicarSecciones = () => {
+        const tipo = (formCliente.querySelector('[name="tipo_persona"]:checked') || {}).value || 'juridica';
+        const relacion = (formCliente.querySelector('[name="relacion"]:checked') || {}).value || 'contrato';
+        formCliente.querySelectorAll('[data-solo-tipo]').forEach((n) => { n.hidden = n.dataset.soloTipo !== tipo; });
+        formCliente.querySelectorAll('[data-solo-relacion]').forEach((n) => { n.hidden = !n.dataset.soloRelacion.split(' ').includes(relacion); });
+    };
+    formCliente.addEventListener('change', aplicarSecciones);
+    aplicarSecciones();
+}
+
 // Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar
 const confirmar = document.getElementById('confirmar');
 document.querySelectorAll('[data-confirm]').forEach((boton) => {

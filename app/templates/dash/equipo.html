@@ -11,7 +11,17 @@
         <div class="card-head equipo-head">
             <span class="role-icon"><i class="fa-solid fa-laptop"></i></span>
             <div>
-                <h2>{{ equipo.nombre }}</h2>
+                <h2>{{ equipo.nombre }}
+                    {% if equipo.cliente %}
+                    <a class="tag tag-read equipo-cliente" href="{{ url_for('dashboard.equipos_view', cliente=equipo.cliente.id) }}" title="Ver los equipos de este cliente">
+                        <i class="fa-solid fa-building"></i> {{ equipo.cliente.nombre }}
+                    </a>
+                    {% elif puede_asignar %}
+                    <button type="button" class="tag tag-lock equipo-cliente" data-open-dialog="dialogo-asignar">
+                        <i class="fa-solid fa-building-circle-arrow-right"></i> Asignar a un cliente
+                    </button>
+                    {% endif %}
+                </h2>
                 <p><span data-campo="sistema">{{ equipo.sistema }}</span> · <span data-campo="modelo">{{ equipo.modelo }}</span></p>
             </div>
             <span class="tag" id="equipo-estado"></span>
@@ -171,7 +181,7 @@
                 </div>
                 <div>
                     <h3>Discos físicos</h3>
-                    <table class="data-table plain-table"><thead><tr><th>Modelo</th><th>Tamaño</th><th>Tipo</th><th>Salud</th></tr></thead><tbody id="inventario-discos"></tbody></table>
+                    <table class="data-table plain-table"><thead><tr><th>Modelo</th><th>Tamaño</th><th>Tipo</th><th>Salud</th><th>Serial</th></tr></thead><tbody id="inventario-discos"></tbody></table>
                 </div>
                 <div>
                     <h3>Tarjetas de red</h3>
@@ -197,6 +207,65 @@
         </div>
     </section>
 </div>
+
+{% if puede_asignar and not equipo.cliente %}
+<!-- Ventana: asignar este equipo a un cliente (lo registra en el inventario con su serial) -->
+{% set inv = equipo.inventario or {} %}
+<dialog class="dialog" id="dialogo-asignar" aria-labelledby="dialogo-asignar-titulo">
+    <form method="post" action="{{ url_for('dashboard.activos_guardar') }}">
+        <input type="hidden" name="volver" value="{{ url_for('dashboard.equipo_view', equipo_id=equipo.id) }}">
+        <input type="hidden" name="notas" value="Registrado desde el agente ({{ equipo.nombre }})">
+        <header class="dialog-head">
+            <h2 id="dialogo-asignar-titulo"><i class="fa-solid fa-building-circle-arrow-right"></i> Asignar {{ equipo.nombre }} a un cliente</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            {% if not clientes_lista %}
+            <div class="flash flash-info"><i class="fa-solid fa-circle-info"></i> Primero crea el cliente en Comercial › Clientes.</div>
+            {% endif %}
+            <label class="form-field">
+                <span>Empresa</span>
+                <select name="cliente_id" required>
+                    <option value="">Selecciona la empresa</option>
+                    {% for c in clientes_lista %}<option value="{{ c.id }}">{{ c.nombre }} · {{ documento_de(c) }}</option>{% endfor %}
+                </select>
+            </label>
+            <div class="form-row">
+                <label class="form-field">
+                    <span>Número de serie</span>
+                    <input type="text" name="serial" value="{{ equipo.serial }}" class="mono" maxlength="60" required>
+                    {% if not equipo.serial %}<small class="hint">El agente aún no informó el serial: pulsa “Actualizar inventario” o escríbelo.</small>{% endif %}
+                </label>
+                <label class="form-field">
+                    <span>Tipo de equipo</span>
+                    <select name="tipo">
+                        {% for t in tipos %}<option {% if (t == 'Mac' and equipo.sistema.startswith('macOS')) or (t == 'Portátil' and equipo.bateria) %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                    </select>
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="form-field">
+                    <span>Marca y modelo</span>
+                    <input type="text" name="marca_modelo" value="{{ (inv.fabricante ~ ' ' ~ inv.modelo).strip() if inv.modelo else '' }}" maxlength="80">
+                </label>
+                <label class="form-field">
+                    <span>Responsable</span>
+                    <input type="text" name="responsable" value="{{ equipo.usuario }}" maxlength="80">
+                </label>
+            </div>
+            <label class="form-field">
+                <span>Seriales de los discos <small class="hint">(tomados del inventario del agente)</small></span>
+                <textarea name="discos" rows="2" class="mono">{% for d in inv.discos or [] if d.serial %}{{ d.serial }}
+{% endfor %}</textarea>
+            </label>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save" {% if not clientes_lista %}disabled{% endif %}><i class="fa-solid fa-floppy-disk"></i> Asignar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
 
 <!-- Ventana: conexión de Escritorio remoto -->
 <dialog class="dialog" id="dialogo-rdp" aria-labelledby="dialogo-rdp-titulo">

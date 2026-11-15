@@ -8,6 +8,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ['SECRET_KEY']
+app.config['MAX_CONTENT_LENGTH'] = 12 * 1024 * 1024  # subidas de archivos (contratos en PDF)
 
 
 # resgistro de las importaciones y configuraciones
