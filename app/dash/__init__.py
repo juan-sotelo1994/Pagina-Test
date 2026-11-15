@@ -378,7 +378,10 @@ def equipos_view(error_descarga=None, servidor=None):
                            servidor_agente=servidor or descargas.servidor_sugerido(request.host_url),
                            error_descarga=error_descarga,
                            # Grupos por cliente (según el número de serie registrado en el inventario)
-                           clientes_lista=clientes.listar_clientes() if permisos.puede(session['rol'], 'clientes', 'ver') or permisos.puede(session['rol'], 'activos', 'ver') else [],
+                           ver_grupos=permisos.puede(session['rol'], 'clientes', 'ver') or permisos.puede(session['rol'], 'activos', 'ver'),
+                           clientes_lista=clientes.listar_clientes(),
+                           puede_asignar=permisos.puede(session['rol'], 'activos', 'crear') and permisos.puede(session['rol'], 'activos', 'editar'),
+                           puede_masivo=permisos.puede(session['rol'], 'equipos', 'editar'),
                            grupo=request.args.get('cliente', ''))
 
 
@@ -515,6 +518,71 @@ def comandos_historial_csv():
                      download_name=f"historial-comandos-{date.today().isoformat()}.csv")
 
 
+def _equipos_por_ids(ids):
+    lista = [equipos.obtener(str(i)) for i in (ids or [])[:500]]
+    return [e for e in lista if e]
+
+
+@dashboard_bp.route('/equipos/asignar', methods=['POST'])
+@login_requerido
+def equipos_asignar():
+    # Asigna (o mueve) varios equipos a la empresa elegida
+    _exigir('activos', 'crear')
+    _exigir('activos', 'editar')
+    datos = request.get_json(silent=True) or {}
+    seleccion = _equipos_por_ids(datos.get('equipos'))
+    if not seleccion:
+        return jsonify(error='Selecciona al menos un equipo.'), 400
+    cliente = clientes.obtener_cliente(str(datos.get('cliente_id', '')))
+    if cliente is None:
+        return jsonify(error='Elige la empresa.'), 400
+    n = clientes.asignar_equipos(cliente['id'], seleccion, session['usuario'])
+    return jsonify(ok=True, asignados=n, cliente=cliente['nombre'])
+
+
+SISTEMAS_CONSOLA = {
+    'windows': lambda e: (e.get('sistema') or '').startswith('Windows'),
+    'unix': lambda e: not (e.get('sistema') or '').startswith('Windows'),
+}
+
+
+@dashboard_bp.route('/equipos/masivo', methods=['POST'])
+@login_requerido
+def equipos_masivo():
+    # El mismo comando para varios equipos (un grupo o una selección). Queda como un lote
+    _exigir('equipos', 'editar')
+    datos = request.get_json(silent=True) or {}
+    script = str(datos.get('script', '')).strip()
+    if not script:
+        return jsonify(error='Escribe el comando a ejecutar.'), 400
+    if len(script) > comandos.LARGO_SCRIPT:
+        return jsonify(error='El script es demasiado largo.'), 400
+    sistema = datos.get('sistema')
+    if sistema not in SISTEMAS_CONSOLA:
+        return jsonify(error='Elige el tipo de consola.'), 400
+    seleccion = _equipos_por_ids(datos.get('equipos'))
+    # PowerShell solo va a equipos Windows y bash a Mac / Linux: los demás se omiten
+    destino = [e for e in seleccion if SISTEMAS_CONSOLA[sistema](e)]
+    if not destino:
+        return jsonify(error='Ninguno de los equipos elegidos usa ese sistema.'), 400
+    try:
+        tiempo = int(datos.get('tiempo') or 300)
+    except (TypeError, ValueError):
+        tiempo = 300
+    lote = comandos.crear_lote(destino, script, tiempo, session['usuario'],
+                               permisos.NOMBRES_ROL.get(session['rol'], session['rol']), request.remote_addr,
+                               str(datos.get('descripcion', '')))
+    return jsonify(ok=True, lote=lote, enviados=len(destino), omitidos=[e['nombre'] for e in seleccion if e not in destino])
+
+
+@dashboard_bp.route('/equipos/masivo/<lote>')
+@login_requerido
+def equipos_masivo_estado(lote):
+    _exigir('equipos', 'editar')
+    return jsonify(comandos=[{k: c.get(k) for k in ('equipo', 'equipo_nombre', 'estado', 'codigo', 'salida', 'cuenta_equipo')}
+                             for c in comandos.del_lote(lote)])
+
+
 @dashboard_bp.route('/equipos/<equipo_id>/ubicacion', methods=['POST'])
 @login_requerido
 def equipo_ubicacion(equipo_id):
@@ -625,11 +693,11 @@ def clientes_contrato(cliente_id):
 def _pagina_activos(**extra):
     rol = session['rol']
     filtro = request.args.get('cliente', '')
-    # Equipos del agente por serial, para mostrar si el registrado ya está reportando
-    por_serial = {clientes.serial_de_equipo(e): e for e in equipos.listar()}
+    # Equipos del agente ya unidos a cada registro (por serial o por ID), para mostrar si reporta
+    por_activo = {e['activo_id']: e for e in equipos.listar() if e.get('activo_id')}
     lista = clientes.listar_activos(filtro or None)
     for a in lista:
-        e = por_serial.get(clientes.normalizar_serial(a['serial']))
+        e = por_activo.get(a['id'])
         a['equipo'] = {'id': e['id'], 'nombre': e['nombre'], 'en_linea': e['en_linea']} if e else None
     datos = {
         'activo': 'activos', 'activos_lista': lista, 'clientes_lista': clientes.listar_clientes(),

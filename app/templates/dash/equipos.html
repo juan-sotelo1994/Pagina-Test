@@ -66,18 +66,36 @@
     </label>
 </div>
 
-{% if clientes_lista %}
-<!-- Grupos por cliente: los equipos se agrupan por el número de serie registrado en el inventario -->
-<nav class="grupos" id="grupos" data-grupo="{{ grupo }}" aria-label="Filtrar por cliente">
+{% if ver_grupos %}
+<!-- Grupos por empresa: cada cliente es un grupo de equipos -->
+<nav class="grupos" id="grupos" data-grupo="{{ grupo }}" aria-label="Filtrar por empresa">
+    <span class="grupos-titulo"><i class="fa-solid fa-building"></i> Empresas</span>
     <button type="button" class="grupo" data-grupo-id=""><i class="fa-solid fa-layer-group"></i> Todos <span class="grupo-n" data-n=""></span></button>
     {% for c in clientes_lista %}
-    <button type="button" class="grupo" data-grupo-id="{{ c.id }}"><i class="fa-solid fa-building"></i> {{ c.nombre }} <span class="grupo-n" data-n="{{ c.id }}"></span></button>
+    <button type="button" class="grupo" data-grupo-id="{{ c.id }}">{{ c.nombre }} <span class="grupo-n" data-n="{{ c.id }}"></span></button>
     {% endfor %}
-    <button type="button" class="grupo" data-grupo-id="sin-cliente"><i class="fa-regular fa-circle-question"></i> Sin cliente <span class="grupo-n" data-n="sin-cliente"></span></button>
+    <button type="button" class="grupo" data-grupo-id="sin-cliente"><i class="fa-regular fa-circle-question"></i> Sin empresa <span class="grupo-n" data-n="sin-cliente"></span></button>
+    {% if puede('clientes', 'crear') %}
+    <a class="grupo-enlace link" href="{{ url_for('dashboard.clientes_view') }}"><i class="fa-solid fa-plus"></i> Nueva empresa</a>
+    {% endif %}
     {% if puede('activos', 'ver') %}
-    <a class="grupo-enlace link" id="grupo-inventario" href="{{ url_for('dashboard.activos_view') }}"><i class="fa-solid fa-laptop-file"></i> Inventario del cliente</a>
+    <a class="grupo-enlace link" id="grupo-inventario" href="{{ url_for('dashboard.activos_view') }}"><i class="fa-solid fa-laptop-file"></i> Inventario de la empresa</a>
     {% endif %}
 </nav>
+{% endif %}
+
+{% if puede_asignar or puede_masivo %}
+<!-- Acciones sobre varios equipos: aparece al marcar equipos -->
+<div class="masivo-barra" id="masivo-barra" hidden>
+    <span><strong id="masivo-n">0</strong> equipos seleccionados</span>
+    {% if puede_asignar %}
+    <button type="button" class="tool-btn" data-open-dialog="dialogo-asignar-masivo"><i class="fa-solid fa-building-circle-arrow-right"></i> Asignar a empresa</button>
+    {% endif %}
+    {% if puede_masivo %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="dialogo-masivo"><i class="fa-solid fa-terminal"></i> Ejecutar comando</button>
+    {% endif %}
+    <button type="button" class="link masivo-limpiar" id="masivo-limpiar">Quitar selección</button>
+</div>
 {% endif %}
 
 <!-- Tabla (la llena equipos.js) -->
@@ -85,8 +103,9 @@
     <table class="data-table equipos-table">
         <thead>
             <tr>
+                {% if puede_asignar or puede_masivo %}<th class="col-check"><input type="checkbox" id="seleccionar-todos" aria-label="Seleccionar todos los equipos visibles"></th>{% endif %}
                 <th>Equipo</th>
-                <th>Cliente</th>
+                <th>Empresa</th>
                 <th>Usuario</th>
                 <th>IP</th>
                 <th>Ubicación</th>
@@ -105,12 +124,98 @@
         <i class="fa-solid fa-plug-circle-xmark"></i>
         <p>Aún no hay equipos reportando. Descarga el agente arriba e instálalo en los equipos.</p>
     </div>
-    <p class="empty" id="equipos-sin-resultados" hidden>No hay equipos en este grupo o con esa búsqueda.</p>
+    <p class="empty" id="equipos-sin-resultados" hidden>No hay equipos en esta empresa o con esa búsqueda.</p>
 </div>
 
 <p class="note"><i class="fa-solid fa-circle-info"></i>
     Un equipo aparece desconectado si no reporta en {{ en_linea }} segundos.
     El acceso remoto abre una conexión VNC (Compartir pantalla en Mac) y pide un usuario administrador del equipo.</p>
+
+{% if puede_asignar %}
+<!-- Ventana: asignar los equipos seleccionados a una empresa -->
+<dialog class="dialog" id="dialogo-asignar-masivo" aria-labelledby="asignar-masivo-titulo"
+        data-url="{{ url_for('dashboard.equipos_asignar') }}">
+    <div>
+        <header class="dialog-head">
+            <h2 id="asignar-masivo-titulo"><i class="fa-solid fa-building-circle-arrow-right"></i> Asignar a empresa</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            {% if clientes_lista %}
+            <p class="muted-text" data-masivo-resumen></p>
+            <label class="form-field">
+                <span>Empresa (grupo)</span>
+                <select id="asignar-cliente">
+                    <option value="">Selecciona la empresa</option>
+                    {% for c in clientes_lista %}<option value="{{ c.id }}">{{ c.nombre }} · NIT {{ c.nit }}</option>{% endfor %}
+                </select>
+            </label>
+            <p class="note"><i class="fa-solid fa-circle-info"></i> Si un equipo ya pertenece a otra empresa, se mueve a esta. Quedan registrados en Inventario › Equipos de clientes con su serial.</p>
+            {% else %}
+            <div class="flash flash-info"><i class="fa-solid fa-circle-info"></i>
+                Aún no hay empresas. Créala primero en <a class="link" href="{{ url_for('dashboard.clientes_view') }}">Comercial › Clientes</a>.</div>
+            {% endif %}
+            <p class="consola-error" id="asignar-error" hidden></p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="button" class="tool-btn btn-save" id="asignar-confirmar" {% if not clientes_lista %}disabled{% endif %}><i class="fa-solid fa-check"></i> Asignar</button>
+        </footer>
+    </div>
+</dialog>
+{% endif %}
+
+{% if puede_masivo %}
+<!-- Ventana: el mismo comando para varios equipos, con el avance de cada uno -->
+<dialog class="dialog dialog-wide" id="dialogo-masivo" aria-labelledby="masivo-titulo"
+        data-url="{{ url_for('dashboard.equipos_masivo') }}">
+    <div class="consola">
+        <header class="dialog-head">
+            <h2 id="masivo-titulo"><i class="fa-solid fa-terminal"></i> Ejecutar en varios equipos</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <p class="consola-aviso"><i class="fa-solid fa-shield-halved"></i>
+                <span>Se ejecuta en segundo plano (SYSTEM en Windows, root en Mac/Linux) en cada equipo, sin interrumpir a sus usuarios. Queda en el historial de comandos.</span></p>
+            <p class="muted-text" data-masivo-resumen></p>
+            <div class="form-row consola-opciones">
+                <label class="form-field">
+                    <span>Consola</span>
+                    <select id="masivo-sistema">
+                        <option value="windows">PowerShell · equipos Windows</option>
+                        <option value="unix">Terminal (bash) · equipos Mac y Linux</option>
+                    </select>
+                </label>
+                <label class="form-field">
+                    <span>Tiempo máximo</span>
+                    <select id="masivo-tiempo">
+                        <option value="60">1 minuto</option>
+                        <option value="300" selected>5 minutos</option>
+                        <option value="900">15 minutos</option>
+                        <option value="3600">1 hora (actualizaciones)</option>
+                    </select>
+                </label>
+            </div>
+            <label class="form-field">
+                <span>Plantilla</span>
+                <select id="masivo-plantilla"><option value="">Escribir mi propio comando…</option></select>
+            </label>
+            <label class="form-field">
+                <span>Comando</span>
+                <textarea id="masivo-script" rows="6" spellcheck="false"></textarea>
+            </label>
+            <p class="consola-error" id="masivo-error" hidden></p>
+            <div class="consola-acciones">
+                <button type="button" class="tool-btn btn-save" id="masivo-ejecutar"><i class="fa-solid fa-play"></i> Ejecutar en <span id="masivo-destino">0</span> equipos</button>
+            </div>
+            <div id="masivo-progreso" hidden>
+                <h3 class="consola-subtitulo">Avance <span class="muted-text" id="masivo-cuenta"></span></h3>
+                <ul class="consola-historial" id="masivo-lista"></ul>
+            </div>
+        </div>
+    </div>
+</dialog>
+{% endif %}
 
 <script type="application/json" id="equipos-iniciales">{{ equipos | tojson }}</script>
 <script src="{{ url_for('static', filename='js/equipos.js') }}" defer></script>

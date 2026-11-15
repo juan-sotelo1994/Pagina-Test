@@ -171,7 +171,10 @@ def validar_activo(datos, activo_id=None):
     if datos['tipo'] not in TIPOS_EQUIPO:
         errores['tipo'] = 'Elige el tipo de equipo.'
     serial = datos['serial'].strip()
-    if not PATRON_SERIAL.match(serial):
+    # Un equipo asignado desde el agente puede no tener serial todavía: queda unido por su ID
+    if not serial and datos.get('equipo_id'):
+        pass
+    elif not PATRON_SERIAL.match(serial):
         errores['serial'] = 'Número de serie no válido (3 a 60 letras, números o guiones).'
     else:
         repetido = next((a for a in almacen.leer(ARCHIVO_ACTIVOS, [])
@@ -196,6 +199,7 @@ def guardar_activo(datos, activo_id=None, usuario=''):
         'discos': _seriales_discos(datos['discos']),
         'responsable': datos['responsable'].strip()[:80],
         'notas': datos['notas'].strip()[:500],
+        'equipo_id': (datos.get('equipo_id') or '').strip()[:64],
     }
     with _lock:
         lista = almacen.leer(ARCHIVO_ACTIVOS, [])
@@ -203,6 +207,8 @@ def guardar_activo(datos, activo_id=None, usuario=''):
             activo = next((a for a in lista if a['id'] == activo_id), None)
             if activo is None:
                 return None
+            if not campos['equipo_id']:
+                campos['equipo_id'] = activo.get('equipo_id', '')  # el formulario no lo trae: se conserva
             activo.update(campos, actualizado=_ahora(), actualizado_por=usuario)
         else:
             activo = {'id': uuid.uuid4().hex[:12], **campos, 'creado': _ahora(), 'creado_por': usuario}
@@ -228,9 +234,58 @@ def serial_de_equipo(equipo):
 
 
 def mapa_seriales():
-    """{serial normalizado: (activo, cliente)} para agrupar los equipos del agente."""
+    """Índice para agrupar los equipos del agente: por serial normalizado y por ID del equipo.
+
+    {'serial:<SERIAL>': (activo, cliente), 'equipo:<id>': (activo, cliente)}
+    """
     clientes = {c['id']: c for c in almacen.leer(ARCHIVO_CLIENTES, [])}
-    return {normalizar_serial(a['serial']): (a, clientes.get(a['cliente_id'])) for a in almacen.leer(ARCHIVO_ACTIVOS, [])}
+    indice = {}
+    for a in almacen.leer(ARCHIVO_ACTIVOS, []):
+        par = (a, clientes.get(a['cliente_id']))
+        if a.get('serial'):
+            indice[f"serial:{normalizar_serial(a['serial'])}"] = par
+        if a.get('equipo_id'):
+            indice[f"equipo:{a['equipo_id']}"] = par
+    return indice
+
+
+def buscar_activo(equipo, indice):
+    """El activo del inventario que corresponde a un equipo del agente: por serial o por ID."""
+    serial = serial_de_equipo(equipo)
+    return (indice.get(f'serial:{serial}') if serial else None) or indice.get(f"equipo:{equipo.get('id')}") or (None, None)
+
+
+def tipo_sugerido(equipo):
+    if (equipo.get('sistema') or '').startswith('macOS'):
+        return 'Mac'
+    return 'Portátil' if equipo.get('bateria') else 'Escritorio'
+
+
+def asignar_equipos(cliente_id, lista_equipos, usuario):
+    """Asigna (o mueve) varios equipos del agente a un cliente. Devuelve cuántos se asignaron."""
+    if not obtener_cliente(cliente_id):
+        return 0
+    with _lock:
+        activos = almacen.leer(ARCHIVO_ACTIVOS, [])
+        for equipo in lista_equipos:
+            serial = serial_de_equipo(equipo)
+            existente = next((a for a in activos if (serial and normalizar_serial(a['serial']) == serial)
+                              or a.get('equipo_id') == equipo['id']), None)
+            if existente:
+                existente.update(cliente_id=cliente_id, equipo_id=equipo['id'], actualizado=_ahora(), actualizado_por=usuario)
+                continue
+            inv = equipo.get('inventario') or {}
+            activos.append({
+                'id': uuid.uuid4().hex[:12], 'cliente_id': cliente_id, 'tipo': tipo_sugerido(equipo),
+                'marca_modelo': f"{inv.get('fabricante', '')} {inv.get('modelo', '')}".strip()[:80],
+                'serial': (equipo.get('serial') or inv.get('serial') or '').strip(),
+                'discos': [d['serial'] for d in inv.get('discos', []) if d.get('serial')],
+                'responsable': (equipo.get('usuario') or '')[:80],
+                'notas': f"Asignado desde Soporte › Equipos ({equipo.get('nombre', '')})",
+                'equipo_id': equipo['id'], 'creado': _ahora(), 'creado_por': usuario,
+            })
+        almacen.escribir(ARCHIVO_ACTIVOS, activos)
+    return len(lista_equipos)
 
 
 def verificar_discos(activo, equipo):

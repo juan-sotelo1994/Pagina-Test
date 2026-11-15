@@ -330,7 +330,7 @@ def actualizar_inventario(equipo_id, salida, comando):
 
 def _asignar_cliente(equipo, seriales):
     """Marca a qué cliente pertenece el equipo según su número de serie. Devuelve el activo."""
-    activo, cliente = seriales.get(clientes.serial_de_equipo(equipo), (None, None))
+    activo, cliente = clientes.buscar_activo(equipo, seriales)
     equipo['cliente'] = {'id': cliente['id'], 'nombre': cliente['nombre']} if cliente else None
     equipo['activo_id'] = activo['id'] if activo else None
     return activo

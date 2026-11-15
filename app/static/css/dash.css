@@ -1935,6 +1935,50 @@ code {
     font-size: 14px;
 }
 
+.grupos-titulo {
+    margin-right: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.col-check {
+    width: 44px;
+    text-align: center !important;
+}
+
+.col-check input {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+/* Barra de acciones sobre varios equipos */
+.masivo-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: rgba(29, 111, 232, .08);
+    border: 1px solid rgba(29, 111, 232, .3);
+    border-radius: var(--radius);
+}
+
+.masivo-limpiar {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    color: var(--accent);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+}
+
 .equipo-cliente {
     margin-left: 10px;
     vertical-align: middle;

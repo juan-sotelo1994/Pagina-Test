@@ -48,11 +48,12 @@ def _vencer(lista, ahora):
     return cambio
 
 
-def crear(equipo_id, equipo_nombre, script, tiempo, usuario, rol, ip_panel, descripcion=''):
+def crear(equipo_id, equipo_nombre, script, tiempo, usuario, rol, ip_panel, descripcion='', lote='', guardar=True):
     comando = {
         'id': uuid.uuid4().hex,
         'equipo': equipo_id,
         'equipo_nombre': equipo_nombre,
+        'lote': lote,  # mismo valor para todos los comandos de una ejecución masiva
         'script': script[:LARGO_SCRIPT],
         'descripcion': descripcion[:120],
         'tiempo': tiempo if tiempo in TIEMPOS else 300,
@@ -70,11 +71,32 @@ def crear(equipo_id, equipo_nombre, script, tiempo, usuario, rol, ip_panel, desc
         'codigo': None,
         'salida': '',
     }
+    if guardar:
+        with _lock:
+            lista = _leer()
+            lista.append(comando)
+            _escribir(lista)
+    return comando
+
+
+def crear_lote(equipos_destino, script, tiempo, usuario, rol, ip_panel, descripcion=''):
+    """Un mismo comando para varios equipos. Devuelve el ID del lote."""
+    lote = uuid.uuid4().hex[:12]
+    nuevos = [crear(e['id'], e['nombre'], script, tiempo, usuario, rol, ip_panel, descripcion, lote, guardar=False)
+              for e in equipos_destino]
     with _lock:
         lista = _leer()
-        lista.append(comando)
+        lista.extend(nuevos)
         _escribir(lista)
-    return comando
+    return lote
+
+
+def del_lote(lote):
+    with _lock:
+        lista = _leer()
+        if _vencer(lista, time.time()):
+            _escribir(lista)
+    return [c for c in lista if c.get('lote') == lote]
 
 
 def para_agente(equipo_id):
