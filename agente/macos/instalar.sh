@@ -17,22 +17,31 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-SERVIDOR="${1:-}"
-if [[ -z "$SERVIDOR" ]]; then
-    read -rp "URL del panel (p. ej. http://192.168.1.10:5711): " SERVIDOR
-fi
-TOKEN="${AGENT_TOKEN:-}"
-if [[ -z "$TOKEN" ]]; then
-    read -rsp "Token del agente: " TOKEN
-    echo
-fi
-INTERVALO="${INTERVALO:-5}"
-
 # Python 3 viene con las herramientas de línea de comandos de Xcode
 if ! /usr/bin/python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))' 2>/dev/null; then
     echo "Falta Python 3.9+. Instala las herramientas de Xcode con: xcode-select --install" >&2
     exit 1
 fi
+
+# El paquete descargado desde el panel trae config.json con la URL y el token
+leer_config() {
+    /usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$ORIGEN/config.json" "$1" 2>/dev/null || true
+}
+
+SERVIDOR="${1:-}"
+TOKEN="${AGENT_TOKEN:-}"
+if [[ -f "$ORIGEN/config.json" ]]; then
+    SERVIDOR="${SERVIDOR:-$(leer_config servidor)}"
+    TOKEN="${TOKEN:-$(leer_config token)}"
+fi
+if [[ -z "$SERVIDOR" ]]; then
+    read -rp "URL del panel (p. ej. http://192.168.1.10:5711): " SERVIDOR
+fi
+if [[ -z "$TOKEN" ]]; then
+    read -rsp "Token del agente: " TOKEN
+    echo
+fi
+INTERVALO="${INTERVALO:-5}"
 
 echo "→ Copiando el agente a $CARPETA"
 mkdir -p "$CARPETA"

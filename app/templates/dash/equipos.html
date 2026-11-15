@@ -25,6 +25,48 @@
     </article>
 </section>
 
+<!-- Descargas del agente -->
+<section class="card agent-downloads">
+    <header class="card-head">
+        <div class="role-icon"><i class="fa-solid fa-download"></i></div>
+        <div>
+            <h2>Instalar el agente</h2>
+            <p>Descarga el instalador para el sistema del equipo que quieres monitorear. Ya viene configurado con la dirección del panel y el token.</p>
+        </div>
+    </header>
+
+    {% if not puede_descargar %}
+    <p class="downloads-note"><i class="fa-solid fa-lock"></i> Tu rol no puede descargar el agente: el paquete incluye el token de acceso. Pídelo a un administrador.</p>
+    {% else %}
+    <form method="get" action="{{ url_for('dashboard.equipos_descargar_agente') }}" class="downloads-form">
+        {% if not token_agente %}
+        <div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i>
+            El panel no tiene AGENT_TOKEN en el .env: los agentes no podrán reportar. Agrégalo y reinicia el panel antes de instalar.</div>
+        {% endif %}
+
+        <label class="form-field {% if error_descarga %}invalid{% endif %}">
+            <span>Dirección del panel que usarán los equipos</span>
+            <input type="url" name="servidor" value="{{ servidor_agente }}" required placeholder="http://192.168.1.10:5711">
+            {% if error_descarga %}<small>{{ error_descarga }}</small>{% else %}<small class="hint">La IP de este servidor en la red (o por VPN). El panel debe correr con HOST=0.0.0.0 en el .env.</small>{% endif %}
+        </label>
+
+        <div class="download-grid">
+            {% for clave, p in plataformas.items() %}
+            <button type="submit" name="plataforma" value="{{ clave }}" class="download-tile">
+                <i class="{{ p.icono }}"></i>
+                <strong>{{ p.nombre }}</strong>
+                <small>{{ p.requisitos }}</small>
+                <span class="download-cta"><i class="fa-solid fa-download"></i> Descargar .zip</span>
+                <span class="download-steps">
+                    {% for paso in p.pasos %}<code>{{ paso }}</code>{% endfor %}
+                </span>
+            </button>
+            {% endfor %}
+        </div>
+    </form>
+    {% endif %}
+</section>
+
 <!-- Barra de herramientas -->
 <div class="toolbar">
     <span class="tool-btn live" title="La lista se actualiza sola">
@@ -56,14 +98,14 @@
     </table>
     <div class="empty" id="equipos-vacio" {% if equipos %}hidden{% endif %}>
         <i class="fa-solid fa-plug-circle-xmark"></i>
-        <p>Aún no hay equipos reportando. Instala el agente en un Mac siguiendo <code>agente/README.md</code>.</p>
+        <p>Aún no hay equipos reportando. Descarga el agente arriba e instálalo en los equipos.</p>
     </div>
     <p class="empty" id="equipos-sin-resultados" hidden>No hay equipos que coincidan con la búsqueda.</p>
 </div>
 
 <p class="note"><i class="fa-solid fa-circle-info"></i>
     Un equipo aparece desconectado si no reporta en {{ en_linea }} segundos.
-    El acceso remoto abre Compartir pantalla (VNC) y pide un usuario administrador del Mac.</p>
+    El acceso remoto abre una conexión VNC (Compartir pantalla en Mac) y pide un usuario administrador del equipo.</p>
 
 <script type="application/json" id="equipos-iniciales">{{ equipos | tojson }}</script>
 <script src="{{ url_for('static', filename='js/equipos.js') }}" defer></script>

@@ -1,10 +1,12 @@
+import io
 from collections import Counter
 from datetime import date
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 
 from auth import correo_admin, login_requerido, usuarios
-from . import agentes, equipos, glpi, permisos
+from web import EMPRESA
+from . import agentes, descargas, equipos, glpi, permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -359,10 +361,31 @@ def tickets_resumen():
 
 @dashboard_bp.route('/equipos')
 @login_requerido
-def equipos_view():
+def equipos_view(error_descarga=None, servidor=None):
     _exigir('equipos')
     return render_template('dash/equipos.html', activo='equipos', equipos=equipos.listar(),
-                           en_linea=equipos.SEGUNDOS_EN_LINEA)
+                           en_linea=equipos.SEGUNDOS_EN_LINEA,
+                           plataformas=descargas.PLATAFORMAS, token_agente=descargas.token_configurado(),
+                           puede_descargar=permisos.puede(session['rol'], 'equipos', 'crear'),
+                           servidor_agente=servidor or descargas.servidor_sugerido(request.host_url),
+                           error_descarga=error_descarga)
+
+
+@dashboard_bp.route('/equipos/agente')
+@login_requerido
+def equipos_descargar_agente():
+    # El paquete lleva el token del agente: solo para quien puede agregar equipos
+    _exigir('equipos', 'crear')
+    plataforma = request.args.get('plataforma', '')
+    servidor = request.args.get('servidor', '').strip()
+    if plataforma not in descargas.PLATAFORMAS:
+        abort(404)
+    error = descargas.validar_servidor(servidor)
+    if error:
+        return equipos_view(error_descarga=error, servidor=servidor), 400
+    contenido = descargas.construir_zip(plataforma, servidor, EMPRESA['nombre'])
+    return send_file(io.BytesIO(contenido), mimetype='application/zip', as_attachment=True,
+                     download_name=f'agente-soporte-{plataforma}.zip')
 
 
 @dashboard_bp.route('/equipos/datos')

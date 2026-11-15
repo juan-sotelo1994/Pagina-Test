@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Agente de soporte.
 
-Se instala en cada equipo (macOS) y cada pocos segundos envía al panel:
-nombre, usuario, sistema, CPU, memoria, discos, red y si el equipo acepta
-conexiones remotas (Compartir pantalla / SSH).
+Se instala en cada equipo (macOS, Windows o Linux) y cada pocos segundos
+envía al panel: nombre, usuario, sistema, CPU, memoria, discos, red y si el
+equipo acepta conexiones remotas (VNC / SSH / Escritorio remoto).
 
 Uso:
     python3 agente.py                         # lee config.json
     python3 agente.py --servidor http://192.168.1.10:5711 --token XXXX
     python3 agente.py --una-vez --mostrar     # imprime un reporte y sale (prueba)
+    python3 agente.py --log agente.log        # escribe el registro en un archivo
 """
 import argparse
 import json
@@ -27,8 +28,10 @@ from urllib.parse import urlparse
 
 import psutil
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 ES_MAC = sys.platform == 'darwin'
+ES_WINDOWS = sys.platform == 'win32'
+# En Windows y Linux el instalador copia el agente a su carpeta y config.json queda al lado
 CARPETA = Path('/Library/Application Support/AgenteSoporte') if ES_MAC else Path(__file__).resolve().parent
 CONFIG = Path(os.environ.get('AGENTE_CONFIG', CARPETA / 'config.json'))
 
@@ -62,10 +65,33 @@ def puerto_abierto(puerto):
 
 # ---------------------------------------------------------------- identidad
 
+def guid_windows():
+    # Identificador que Windows asigna a la instalación
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Cryptography',
+                            0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as clave:
+            return winreg.QueryValueEx(clave, 'MachineGuid')[0]
+    except OSError:
+        return ''
+
+
+def nombre_linux():
+    # "Ubuntu 24.04 LTS", "Debian GNU/Linux 12 (bookworm)", etc.
+    try:
+        return platform.freedesktop_os_release().get('PRETTY_NAME', '')
+    except (OSError, AttributeError):
+        return ''
+
+
 def identificador():
-    # Un ID estable por equipo: el UUID del hardware en Mac
+    # Un ID estable por equipo: el UUID del hardware en Mac, el MachineGuid en Windows
     if ES_MAC:
         valor = dato_ioreg('IOPlatformUUID')
+        if valor:
+            return valor.lower()
+    if ES_WINDOWS:
+        valor = guid_windows()
         if valor:
             return valor.lower()
     machine_id = Path('/etc/machine-id')
@@ -85,9 +111,14 @@ def info_fija():
         sistema = f'macOS {platform.mac_ver()[0]}'
         modelo = comando('sysctl', '-n', 'hw.model')
         serial = dato_ioreg('IOPlatformSerialNumber')
+    elif ES_WINDOWS:
+        nombre = os.environ.get('COMPUTERNAME') or socket.gethostname()
+        sistema = f'Windows {platform.release()} (compilación {platform.version()})'
+        modelo = platform.machine()
+        serial = ''
     else:
         nombre = socket.gethostname()
-        sistema = platform.platform(terse=True)
+        sistema = nombre_linux() or platform.platform(terse=True)
         modelo = platform.machine()
         serial = ''
     return {
@@ -122,6 +153,11 @@ def discos():
             if p.mountpoint != '/' and not p.mountpoint.startswith('/Volumes/'):
                 continue
             nombre = 'Macintosh HD' if p.mountpoint == '/' else p.mountpoint.removeprefix('/Volumes/')
+        elif ES_WINDOWS:
+            # Omite lectores de CD/DVD y unidades sin disco
+            if 'cdrom' in p.opts or not p.fstype:
+                continue
+            nombre = p.mountpoint.rstrip('\\')
         else:
             if p.fstype in ('squashfs', 'tmpfs', 'overlay') or p.device.startswith('/dev/loop'):
                 continue
@@ -213,6 +249,7 @@ def reporte(fijo, red, servidor):
         'remoto': {
             'pantalla': puerto_abierto(5900),  # Compartir pantalla / Gestión remota (VNC)
             'ssh': puerto_abierto(22),         # Sesión remota (SSH)
+            'rdp': puerto_abierto(3389),       # Escritorio remoto de Windows
         },
     }
 
@@ -249,9 +286,11 @@ def main():
     parser.add_argument('--intervalo', type=int, help='Segundos entre reportes (por defecto 5)')
     parser.add_argument('--una-vez', action='store_true', help='Envía un solo reporte y sale')
     parser.add_argument('--mostrar', action='store_true', help='Imprime el reporte en pantalla')
+    parser.add_argument('--log', help='Archivo de registro (en Windows el servicio no tiene consola)')
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s',
+                        filename=args.log, encoding='utf-8')
     servidor, token, intervalo = cargar_config(args)
 
     fijo = info_fija()
@@ -262,7 +301,13 @@ def main():
     log.info('Agente %s iniciado: equipo "%s", panel %s, cada %ss', VERSION, fijo['nombre'], servidor, intervalo)
     fallando = False
     while True:
-        datos = reporte(fijo, red, servidor)
+        try:
+            datos = reporte(fijo, red, servidor)
+        except Exception:
+            # Un error leyendo un sensor no debe detener el agente
+            log.exception('No se pudo leer el estado del equipo')
+            time.sleep(intervalo)
+            continue
         if args.mostrar:
             print(json.dumps(datos, indent=2, ensure_ascii=False))
         if token:
