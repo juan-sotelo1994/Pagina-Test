@@ -44,8 +44,16 @@
     escenario.prepend(renderer.domElement);
 
     const escena = new THREE.Scene();
-    escena.background = new THREE.Color(0xdfe7f2);
-    escena.fog = new THREE.Fog(0xdfe7f2, 40, 75);
+    // Colores de la sala según el tema del panel (claro u oscuro)
+    const PALETAS = {
+        light: { fondo: 0xdfe7f2, piso: 0xc8d3e2, pared: 0xaebdd2, mesa: 0x5b6b82, rejilla: [0xb3c1d4, 0xbcc9da], cielo: 0xffffff, suelo: 0x8796ab, luz: 0.8 },
+        dark: { fondo: 0x1b1c1f, piso: 0x2a2c30, pared: 0x313338, mesa: 0x3d4046, rejilla: [0x34363b, 0x2f3135], cielo: 0xdfe8ff, suelo: 0x202124, luz: 0.65 },
+    };
+    const temaActual = () => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+    const paleta = PALETAS[temaActual()];
+
+    escena.background = new THREE.Color(paleta.fondo);
+    escena.fog = new THREE.Fog(paleta.fondo, 40, 75);
 
     const camara = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
     camara.position.set(13, 12, 17);
@@ -61,7 +69,8 @@
     controles.autoRotateSpeed = 0.35;
     controles.addEventListener('start', () => { controles.autoRotate = false; });
 
-    escena.add(new THREE.HemisphereLight(0xffffff, 0x8796ab, 0.8));
+    const hemisferio = new THREE.HemisphereLight(paleta.cielo, paleta.suelo, paleta.luz);
+    escena.add(hemisferio);
 
     const sol = new THREE.DirectionalLight(0xffffff, 0.75);
     sol.position.set(12, 22, 10);
@@ -107,17 +116,17 @@
 
     // ---------- Sala ----------
 
-    const piso = new THREE.Mesh(new THREE.PlaneGeometry(ancho, fondo), material(0xc8d3e2, { roughness: 0.95 }));
+    const piso = new THREE.Mesh(new THREE.PlaneGeometry(ancho, fondo), material(paleta.piso, { roughness: 0.95 }));
     piso.rotation.x = -Math.PI / 2;
     piso.receiveShadow = true;
     escena.add(piso);
 
-    const rejilla = new THREE.GridHelper(ancho, Math.round(ancho / 1.5), 0xb3c1d4, 0xbcc9da);
+    const rejilla = new THREE.GridHelper(ancho, Math.round(ancho / 1.5), ...paleta.rejilla);
     rejilla.scale.z = fondo / ancho;
     rejilla.position.y = 0.01;
     escena.add(rejilla);
 
-    const matPared = material(0xaebdd2);
+    const matPared = material(paleta.pared);
     escena.add(caja(ancho, 6, 0.3, matPared, 0, 3, -fondo / 2));
     escena.add(caja(0.3, 6, fondo, matPared, -ancho / 2, 3, 0));
 
@@ -195,7 +204,23 @@
 
     // ---------- Escritorios y agentes ----------
 
-    const matMesa = material(0x5b6b82);
+    const matMesa = material(paleta.mesa);
+
+    // Al pulsar el botón de tema se cambian los colores sin recargar la escena
+    document.addEventListener('cambio-tema', () => {
+        const p = PALETAS[temaActual()];
+        escena.background.setHex(p.fondo);
+        escena.fog.color.setHex(p.fondo);
+        piso.material.color.setHex(p.piso);
+        matPared.color.setHex(p.pared);
+        matMesa.color.setHex(p.mesa);
+        hemisferio.color.setHex(p.cielo);
+        hemisferio.groundColor.setHex(p.suelo);
+        hemisferio.intensity = p.luz;
+        rejilla.material.color.setHex(p.rejilla[1]);
+        rejilla.material.vertexColors = false;
+        rejilla.material.needsUpdate = true;
+    });
     const matPata = material(0x26272a);
     const matSilla = material(0x1f2023);
     const matTeclado = material(0x18191b);

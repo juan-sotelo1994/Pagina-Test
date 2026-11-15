@@ -23,6 +23,7 @@
     --shadow: 0 2px 12px rgba(19, 33, 60, .06);
     --shadow-pop: 0 12px 32px rgba(19, 33, 60, .16);
     --radius: 12px;
+    --escena: #dfe7f2;   /* fondo de la oficina 3D mientras carga */
 
     /* Menú lateral: azul marino con degradado */
     --side: linear-gradient(180deg, #0c2d62 0%, #0a2250 55%, #081a3d 100%);
@@ -1227,7 +1228,7 @@ button {
     position: relative;
     height: 500px;
     overflow: hidden;
-    background: #dfe7f2;
+    background: var(--escena);
 }
 
 .office-tall .office-stage {
@@ -2483,4 +2484,80 @@ select.tool-btn {
 
 .office-tooltip small {
     color: var(--text-2);
+}
+
+/* =========================================================
+   Tema oscuro (botón sol/luna de la barra superior)
+   ========================================================= */
+
+[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111827;
+    --panel: #1a2234;
+    --surface-2: #1f293d;
+    --surface-3: #283449;
+    --hover: #222d43;
+    --track: #2b364b;
+    --line: #2c3850;
+    --text: #e6ebf3;
+    --text-2: #c3cad6;
+    --muted: #94a0b4;
+    --accent: #3b82f6;
+    --accent-dark: #2563eb;
+    --lime: #b5f04a;
+    --danger: #ef6351;
+    --code-bg: #0b1220;
+    --shadow: 0 2px 12px rgba(0, 0, 0, .3);
+    --shadow-pop: 0 12px 32px rgba(0, 0, 0, .5);
+    --escena: #1b1c1f;
+
+    --side: linear-gradient(180deg, #0b1a36 0%, #08142b 60%, #060f21 100%);
+}
+
+/* Textos de color pensados para fondo blanco: versión clara para fondo oscuro */
+[data-theme="dark"] .tag-full,
+[data-theme="dark"] .flash-ok {
+    color: #86e0a3;
+}
+
+[data-theme="dark"] .tag-read,
+[data-theme="dark"] .flash-info {
+    color: #9cc2fb;
+}
+
+[data-theme="dark"] .tag-part,
+[data-theme="dark"] .remoto-aviso {
+    color: #fbc66b;
+}
+
+[data-theme="dark"] .tag-danger,
+[data-theme="dark"] .flash-error,
+[data-theme="dark"] .form-field small:not(.hint),
+[data-theme="dark"] .dropdown-warn,
+[data-theme="dark"] .consola-error {
+    color: #ffa597;
+}
+
+[data-theme="dark"] .consola-aviso {
+    color: #b9d3fb;
+    background: rgba(59, 130, 246, .1);
+    border-color: rgba(59, 130, 246, .3);
+}
+
+[data-theme="dark"] .role-icon {
+    background: rgba(59, 130, 246, .15);
+}
+
+[data-theme="dark"] .switch span {
+    background: #3a465c;
+}
+
+/* Botón de tema: muestra la luna en claro y el sol en oscuro */
+.tema-btn .fa-sun,
+[data-theme="dark"] .tema-btn .fa-moon {
+    display: none;
+}
+
+[data-theme="dark"] .tema-btn .fa-sun {
+    display: inline-block;
 }

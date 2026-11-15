@@ -33,6 +33,25 @@ document.querySelectorAll('.group summary').forEach((s) => {
     });
 });
 
+// Tema claro / oscuro: se guarda en este navegador
+const botonTema = document.getElementById('tema-btn');
+
+const aplicarTema = (tema) => {
+    if (tema === 'dark') document.documentElement.dataset.theme = 'dark';
+    else delete document.documentElement.dataset.theme;
+    botonTema.title = tema === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+    // La oficina 3D escucha este aviso para cambiar sus colores
+    document.dispatchEvent(new CustomEvent('cambio-tema', { detail: tema }));
+};
+
+aplicarTema(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+
+botonTema.addEventListener('click', () => {
+    const nuevo = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('panel-tema', nuevo); } catch (e) { }
+    aplicarTema(nuevo);
+});
+
 // Menú del usuario
 const userBtn = document.getElementById('user-btn');
 const userDropdown = document.getElementById('user-dropdown');
