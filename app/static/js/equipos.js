@@ -257,3 +257,190 @@ if (detalle) {
         pintar();
     });
 }
+
+// ---------- Ventana de Escritorio remoto ----------
+
+const formRdp = document.getElementById('form-rdp');
+
+if (formRdp) {
+    const usuarioRdp = document.getElementById('rdp-usuario');
+    const ipRdp = document.getElementById('rdp-ip');
+
+    document.getElementById('rdp-conectar').addEventListener('click', () => {
+        const parametros = new URLSearchParams({
+            usuario: usuarioRdp.value.trim(),
+            pantalla: document.getElementById('rdp-pantalla').value,
+        });
+        // Descarga el .rdp; el navegador lo abre con Conexión a Escritorio remoto
+        window.location.href = `${formRdp.dataset.url}?${parametros}`;
+        document.getElementById('dialogo-rdp').close();
+    });
+
+    const copiar = formRdp.querySelector('[data-copiar-rdp]');
+    copiar.addEventListener('click', async () => {
+        const texto = `mstsc /v:${ipRdp.value}`;
+        try {
+            await navigator.clipboard.writeText(texto);
+            copiar.lastElementChild.textContent = 'Copiado';
+            setTimeout(() => { copiar.lastElementChild.textContent = 'Copiar comando mstsc'; }, 1500);
+        } catch (e) {
+            prompt('Copia este comando:', texto);
+        }
+    });
+}
+
+// ---------- Consola remota (PowerShell como SYSTEM / bash como root) ----------
+
+const PLANTILLAS = {
+    windows: [
+        ['Windows Update: instalar actualizaciones (sin reiniciar)', 3600, `$sesion = New-Object -ComObject Microsoft.Update.Session
+$buscador = $sesion.CreateUpdateSearcher()
+Write-Output 'Buscando actualizaciones...'
+$resultado = $buscador.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+if ($resultado.Updates.Count -eq 0) { Write-Output 'El equipo está al día.'; exit 0 }
+$lista = New-Object -ComObject Microsoft.Update.UpdateColl
+foreach ($u in $resultado.Updates) {
+    if (-not $u.EulaAccepted) { $u.AcceptEula() }
+    [void]$lista.Add($u)
+    Write-Output "- $($u.Title)"
+}
+Write-Output 'Descargando...'
+$descarga = $sesion.CreateUpdateDownloader(); $descarga.Updates = $lista; [void]$descarga.Download()
+Write-Output 'Instalando...'
+$instalador = $sesion.CreateUpdateInstaller(); $instalador.Updates = $lista
+$fin = $instalador.Install()
+Write-Output "Resultado: $($fin.ResultCode) (2 = correcto, 3 = correcto con errores)"
+if ($fin.RebootRequired) { Write-Output 'Requiere reinicio. El equipo NO se reinició: coordina el reinicio con el usuario.' }`],
+        ['Windows Update: solo buscar (no instala)', 900, `$buscador = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher()
+$resultado = $buscador.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+if ($resultado.Updates.Count -eq 0) { 'El equipo está al día.' } else { $resultado.Updates | ForEach-Object { "- $($_.Title)" } }`],
+        ['Actualizar aplicaciones con winget', 3600, `$winget = Get-ChildItem "$env:ProgramFiles\\WindowsApps\\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\\winget.exe" -ErrorAction SilentlyContinue |
+    Sort-Object FullName -Descending | Select-Object -First 1
+if (-not $winget) { Write-Output 'winget no está instalado en este equipo.'; exit 1 }
+& $winget.FullName upgrade --all --silent --accept-package-agreements --accept-source-agreements --disable-interactivity`],
+        ['Información del sistema', 300, `Get-ComputerInfo | Select-Object CsName, OsName, OsVersion, OsBuildNumber, CsManufacturer, CsModel, BiosSeralNumber, OsLastBootUpTime | Format-List`],
+        ['Espacio en discos', 60, `Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='Usado (GB)';e={[math]::Round($_.Used/1GB,1)}}, @{n='Libre (GB)';e={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize`],
+        ['Limpiar archivos temporales de Windows', 300, `$antes = (Get-PSDrive C).Free
+Remove-Item "$env:windir\\Temp\\*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:windir\\SoftwareDistribution\\Download\\*" -Recurse -Force -ErrorAction SilentlyContinue
+"Espacio liberado: {0:N1} MB" -f (((Get-PSDrive C).Free - $antes) / 1MB)`],
+        ['Reiniciar la cola de impresión', 60, `Restart-Service -Name Spooler -Force
+Get-Service -Name Spooler | Format-Table Name, Status -AutoSize`],
+    ],
+    mac: [
+        ['Buscar actualizaciones de macOS', 900, 'softwareupdate --list'],
+        ['Instalar actualizaciones (sin reiniciar)', 3600, 'softwareupdate --install --all --no-scan 2>&1 | grep -v "^$"'],
+        ['Espacio en discos', 60, 'df -h /'],
+    ],
+    linux: [
+        ['Actualizar paquetes (apt)', 3600, 'export DEBIAN_FRONTEND=noninteractive\napt-get update -q && apt-get -y -q upgrade\n[ -f /var/run/reboot-required ] && echo "Requiere reinicio (no se reinició)."'],
+        ['Paquetes pendientes de actualizar', 300, 'apt-get update -qq && apt list --upgradable 2>/dev/null'],
+        ['Espacio en discos', 60, 'df -h -x tmpfs -x squashfs'],
+    ],
+};
+
+const dialogoConsola = document.getElementById('dialogo-consola');
+
+if (dialogoConsola) {
+    const datosEquipo = JSON.parse(document.getElementById('equipo-inicial').textContent);
+    const sistema = esWindows(datosEquipo) ? 'windows' : esMac(datosEquipo) ? 'mac' : 'linux';
+    const plantillas = PLANTILLAS[sistema];
+    const url = dialogoConsola.dataset.url;
+    const selectPlantilla = document.getElementById('consola-plantilla');
+    const script = document.getElementById('consola-script');
+    const tiempo = document.getElementById('consola-tiempo');
+    const error = document.getElementById('consola-error');
+    const espera = document.getElementById('consola-espera');
+    const lista = document.getElementById('consola-historial');
+    const ejecutar = document.getElementById('consola-ejecutar');
+    let temporizador = null;
+
+    if (sistema !== 'windows') {
+        document.getElementById('btn-consola-texto').textContent = 'Terminal (root)';
+        document.getElementById('consola-titulo').textContent = 'Terminal como root';
+        document.getElementById('consola-aviso').textContent = 'Se ejecuta en segundo plano como root: el usuario no ve ventanas ni se interrumpe su sesión.';
+        script.placeholder = 'df -h';
+    }
+
+    plantillas.forEach(([nombre], i) => selectPlantilla.append(el('option', { value: i, textContent: nombre })));
+    selectPlantilla.addEventListener('change', () => {
+        const p = plantillas[selectPlantilla.value];
+        if (!p) return;
+        script.value = p[2];
+        tiempo.value = String(p[1]);
+    });
+
+    const ESTADOS = {
+        pendiente: ['tag-read', 'Esperando al equipo'],
+        enviado: ['tag-part', 'Ejecutando'],
+        terminado: ['tag-full', 'Terminado'],
+        error: ['tag-danger', 'Error'],
+        'sin respuesta': ['tag-lock', 'Sin respuesta'],
+    };
+
+    const pintarHistorial = (comandos) => {
+        if (!comandos.length) return;
+        const abiertos = new Set([...lista.querySelectorAll('details[open]')].map((d) => d.dataset.id));
+        lista.replaceChildren(...comandos.map((c) => {
+            const [clase, texto] = ESTADOS[c.estado] || ['tag-lock', c.estado];
+            const titulo = c.descripcion || c.script.split('\n')[0];
+            const resumen = el('summary', {},
+                el('span', { className: `tag ${clase}`, textContent: c.codigo != null && c.estado === 'error' ? `${texto} (${c.codigo})` : texto }),
+                el('span', { className: 'consola-cmd', textContent: titulo }),
+                el('span', { className: 'muted-text consola-meta', textContent: `${c.usuario} · ${hace(c.creado)}` }));
+            const cuerpo = el('div', { className: 'consola-detalle' },
+                el('small', { className: 'muted-text', textContent: 'Comando' }),
+                el('pre', { textContent: c.script }),
+                el('small', { className: 'muted-text', textContent: 'Salida' }),
+                el('pre', { className: 'consola-salida', textContent: c.salida || (c.estado === 'enviado' ? 'Ejecutando…' : c.estado === 'pendiente' ? 'El equipo lo recogerá en unos segundos…' : '(sin salida)') }));
+            const item = el('details', { open: abiertos.has(c.id) }, resumen, cuerpo);
+            item.dataset.id = c.id;
+            return el('li', {}, item);
+        }));
+        const activos = comandos.some((c) => c.estado === 'pendiente' || c.estado === 'enviado');
+        espera.textContent = activos ? 'Hay comandos en curso: la salida aparece aquí al terminar.' : '';
+    };
+
+    const actualizar = async () => {
+        try { pintarHistorial((await pedir(url)).comandos); } catch (e) { /* se reintenta */ }
+    };
+
+    ejecutar.addEventListener('click', async () => {
+        error.hidden = true;
+        const texto = script.value.trim();
+        if (!texto) {
+            error.textContent = 'Escribe un comando o elige una plantilla.';
+            error.hidden = false;
+            return;
+        }
+        const plantilla = plantillas[selectPlantilla.value];
+        ejecutar.disabled = true;
+        try {
+            const r = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ script: texto, tiempo: Number(tiempo.value), descripcion: plantilla && plantilla[2] === texto ? plantilla[0] : '' }),
+            });
+            const datos = await r.json();
+            if (!r.ok) throw new Error(datos.error || `Error ${r.status}`);
+            pintarHistorial(datos.comandos);
+            const primero = lista.querySelector('details');
+            if (primero) primero.open = true;
+        } catch (e) {
+            error.textContent = `No se pudo enviar: ${e.message}`;
+            error.hidden = false;
+        } finally {
+            ejecutar.disabled = false;
+        }
+    });
+
+    // Mientras la ventana está abierta, el historial se actualiza cada 3 segundos
+    const observador = new MutationObserver(() => {
+        clearInterval(temporizador);
+        if (dialogoConsola.open) {
+            actualizar();
+            temporizador = setInterval(actualizar, 3000);
+        }
+    });
+    observador.observe(dialogoConsola, { attributes: true, attributeFilter: ['open'] });
+}

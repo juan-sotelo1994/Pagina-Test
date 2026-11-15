@@ -171,24 +171,37 @@ def ip_conexion(equipo):
     return equipo.get('ip') or equipo.get('ip_origen', '')
 
 
-def archivo_rdp(equipo):
+PANTALLAS_RDP = {'completa': None, '1920x1080': (1920, 1080), '1600x900': (1600, 900), '1280x720': (1280, 720)}
+
+
+def archivo_rdp(equipo, usuario='', pantalla='completa'):
     """Contenido de un archivo .rdp para abrir Escritorio remoto contra el equipo.
 
-    Devuelve None si la IP no es válida (solo se aceptan dígitos, puntos y ':'
-    para que no se puedan colar otras líneas en el archivo).
+    Devuelve None si la IP no es válida. La IP y el usuario se validan para
+    que no se puedan colar otras líneas en el archivo.
     """
     ip = ip_conexion(equipo)
     if not ip or not re.fullmatch(r'[0-9A-Fa-f.:]{3,45}', ip):
         return None
+    usuario = usuario.strip()
+    if not re.fullmatch(r'[\w.\\@-]{0,104}', usuario):
+        usuario = ''
+    tamano = PANTALLAS_RDP.get(pantalla)
+
     lineas = [
         f'full address:s:{ip}:3389',
-        'prompt for credentials:i:1',       # pide usuario y contraseña al conectar
+        'prompt for credentials:i:1',       # pide la contraseña al conectar (no se guarda)
         'authentication level:i:2',          # avisa si no puede verificar el certificado
-        'screen mode id:i:2',                # pantalla completa
         'use multimon:i:0',
         'redirectclipboard:i:1',
         'audiomode:i:0',
     ]
+    if usuario:
+        lineas.append(f'username:s:{usuario}')
+    if tamano:
+        lineas += ['screen mode id:i:1', f'desktopwidth:i:{tamano[0]}', f'desktopheight:i:{tamano[1]}']
+    else:
+        lineas.append('screen mode id:i:2')
     return '\r\n'.join(lineas) + '\r\n'
 
 

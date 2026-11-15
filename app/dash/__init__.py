@@ -7,7 +7,7 @@ from flask import Blueprint, abort, flash, jsonify, redirect, render_template, r
 
 from auth import correo_admin, login_requerido, usuarios
 from web import EMPRESA
-from . import agentes, descargas, equipos, glpi, permisos
+from . import agentes, comandos, descargas, equipos, glpi, permisos
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -425,12 +425,32 @@ def equipo_rdp(equipo_id):
     equipo = equipos.obtener(equipo_id)
     if equipo is None:
         abort(404)
-    contenido = equipos.archivo_rdp(equipo)
+    contenido = equipos.archivo_rdp(equipo, usuario=request.args.get('usuario', ''),
+                                    pantalla=request.args.get('pantalla', 'completa'))
     if contenido is None:
         abort(409, 'El equipo no tiene una IP válida para conectarse.')
     nombre = re.sub(r'[^A-Za-z0-9_-]', '_', equipo['nombre']) or 'equipo'
     return send_file(io.BytesIO(contenido.encode('utf-8')), mimetype='application/x-rdp',
                      as_attachment=True, download_name=f'{nombre}.rdp')
+
+
+@dashboard_bp.route('/equipos/<equipo_id>/comandos', methods=['GET', 'POST'])
+@login_requerido
+def equipo_comandos(equipo_id):
+    # Consola remota: ejecuta scripts como SYSTEM/root en el equipo. Exige permiso de editar Equipos
+    _exigir('equipos', 'editar')
+    if equipos.obtener(equipo_id) is None:
+        abort(404)
+    if request.method == 'POST':
+        datos = request.get_json(silent=True) or {}
+        script = str(datos.get('script', '')).strip()
+        if not script:
+            return jsonify(error='Escribe el comando a ejecutar.'), 400
+        if len(script) > comandos.LARGO_SCRIPT:
+            return jsonify(error='El script es demasiado largo.'), 400
+        comandos.crear(equipo_id, script, int(datos.get('tiempo') or 300), session['usuario'],
+                       str(datos.get('descripcion', '')))
+    return jsonify(comandos=comandos.historial(equipo_id))
 
 
 @dashboard_bp.route('/equipos/<equipo_id>/eliminar', methods=['POST'])

@@ -19,6 +19,8 @@ import platform
 import socket
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -28,8 +30,9 @@ from urllib.parse import urlparse
 
 import psutil
 
-VERSION = '0.2.0'
-INTERVALO = 20  # segundos entre reportes al panel
+VERSION = '0.3.0'
+INTERVALO = 20           # segundos entre reportes al panel
+INTERVALO_COMANDOS = 5   # segundos entre consultas de comandos remotos
 ES_MAC = sys.platform == 'darwin'
 ES_WINDOWS = sys.platform == 'win32'
 # En Windows y Linux el instalador copia el agente a su carpeta y config.json queda al lado
@@ -268,6 +271,86 @@ def enviar(servidor, token, datos):
         return r.status
 
 
+# ---------------------------------------------------------------- comandos remotos
+
+def pedir_json(servidor, token, ruta, datos=None, timeout=10):
+    peticion = urllib.request.Request(
+        servidor.rstrip('/') + ruta,
+        data=json.dumps(datos).encode() if datos is not None else None,
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'},
+        method='POST' if datos is not None else 'GET',
+    )
+    with urllib.request.urlopen(peticion, timeout=timeout) as r:
+        return json.loads(r.read().decode() or 'null')
+
+
+def ejecutar(script, tiempo):
+    """Ejecuta un script en segundo plano y devuelve (código, salida).
+
+    En Windows corre en PowerShell con la cuenta del agente (SYSTEM): no abre
+    ventanas ni interrumpe al usuario. En macOS/Linux corre en bash como root.
+    """
+    if ES_WINDOWS:
+        # Salida en UTF-8 y sin barras de progreso (ensucian el texto)
+        preambulo = ("$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8\n"
+                     "$ProgressPreference = 'SilentlyContinue'\n")
+        sufijo, codificacion = '.ps1', 'utf-8-sig'  # PowerShell 5 necesita el BOM
+    else:
+        preambulo, sufijo, codificacion = '', '.sh', 'utf-8'
+
+    with tempfile.NamedTemporaryFile('w', suffix=sufijo, delete=False, encoding=codificacion) as f:
+        f.write(preambulo + script)
+        ruta = f.name
+    if ES_WINDOWS:
+        orden = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ruta]
+        extra = {'creationflags': 0x08000000}  # CREATE_NO_WINDOW
+    else:
+        orden, extra = ['/bin/bash', ruta], {}
+
+    try:
+        proceso = subprocess.run(orden, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 stdin=subprocess.DEVNULL, timeout=tiempo, **extra)
+        return proceso.returncode, proceso.stdout.decode('utf-8', 'replace')
+    except subprocess.TimeoutExpired as e:
+        parcial = (e.stdout or b'').decode('utf-8', 'replace')
+        return 124, parcial + f'\n[Detenido: superó el tiempo máximo de {tiempo} s]'
+    except OSError as e:
+        return 127, f'No se pudo ejecutar: {e}'
+    finally:
+        try:
+            os.remove(ruta)
+        except OSError:
+            pass
+
+
+def atender_comandos(servidor, token, equipo_id, permitir):
+    # Hilo aparte: pregunta al panel cada pocos segundos si hay algo que ejecutar
+    fallando = False
+    while True:
+        try:
+            pendientes = pedir_json(servidor, token, f'/api/agente/comandos/{equipo_id}')['comandos']
+            fallando = False
+            for c in pendientes:
+                tiempo = max(10, min(int(c.get('tiempo', 300)), 3600))
+                if permitir:
+                    log.info('Ejecutando comando %s del panel', c['id'])
+                    codigo, salida = ejecutar(c['script'], tiempo)
+                else:
+                    codigo, salida = 126, 'Este equipo tiene desactivados los comandos remotos (permitir_comandos: false).'
+                pedir_json(servidor, token, f"/api/agente/comandos/{equipo_id}/{c['id']}",
+                           {'codigo': codigo, 'salida': salida[-60000:]}, timeout=30)
+        except urllib.error.HTTPError as e:
+            # 404 = el panel aún no conoce el equipo (llega con el primer reporte)
+            if e.code != 404 and not fallando:
+                log.warning('Comandos remotos: el panel respondió HTTP %s', e.code)
+            fallando = True
+        except Exception as e:
+            if not fallando:
+                log.warning('Comandos remotos: %s', e)
+            fallando = True
+        time.sleep(INTERVALO_COMANDOS)
+
+
 def cargar_config(args):
     config = {}
     if CONFIG.exists():
@@ -275,9 +358,10 @@ def cargar_config(args):
     servidor = args.servidor or config.get('servidor')
     token = args.token or config.get('token')
     intervalo = args.intervalo or config.get('intervalo', INTERVALO)
+    permitir = bool(config.get('permitir_comandos', True))
     if not args.mostrar and (not servidor or not token):
         sys.exit(f'Falta "servidor" o "token". Revisa {CONFIG} o usa --servidor y --token.')
-    return servidor or 'http://127.0.0.1', token, max(int(intervalo), 2)
+    return servidor or 'http://127.0.0.1', token, max(int(intervalo), 2), permitir
 
 
 def main():
@@ -292,7 +376,7 @@ def main():
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s',
                         filename=args.log, encoding='utf-8')
-    servidor, token, intervalo = cargar_config(args)
+    servidor, token, intervalo, permitir = cargar_config(args)
 
     fijo = info_fija()
     red = Red()
@@ -300,6 +384,8 @@ def main():
     time.sleep(1)
 
     log.info('Agente %s iniciado: equipo "%s", panel %s, cada %ss', VERSION, fijo['nombre'], servidor, intervalo)
+    if token and not args.una_vez:
+        threading.Thread(target=atender_comandos, args=(servidor, token, fijo['id'], permitir), daemon=True).start()
     fallando = False
     while True:
         try:

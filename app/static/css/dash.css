@@ -1839,6 +1839,132 @@ code {
     color: var(--muted);
 }
 
+/* ---------- Consola remota ---------- */
+
+.dialog-wide {
+    width: min(920px, calc(100vw - 24px));
+}
+
+.dialog .form-field small code,
+.dialog-head h2 i.fa-brands {
+    color: var(--accent);
+}
+
+.consola-aviso {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 0;
+    padding: 10px 12px;
+    background: rgba(43, 179, 163, .1);
+    border: 1px solid rgba(43, 179, 163, .35);
+    font-size: 14px;
+    color: #a9e3dc;
+}
+
+.consola-opciones {
+    grid-template-columns: 2fr 1fr;
+}
+
+#consola-script {
+    font-family: ui-monospace, Consolas, 'Cascadia Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    background: #0f1012;
+    color: #e4e6e8;
+}
+
+.consola-error {
+    margin: 0;
+    color: #ff9d8f;
+    font-size: 14px;
+}
+
+.consola-acciones {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+}
+
+.consola-subtitulo {
+    margin: 6px 0 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.consola-historial {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+}
+
+.consola-historial > li {
+    border-bottom: 1px solid var(--line);
+}
+
+.consola-historial > li.muted-text {
+    padding: 14px;
+    font-size: 14px;
+}
+
+.consola-historial summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.consola-historial summary::-webkit-details-marker {
+    display: none;
+}
+
+.consola-historial summary:hover {
+    background: var(--side-hover);
+}
+
+.consola-cmd {
+    flex: 1;
+    min-width: 0;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.consola-meta {
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.consola-detalle {
+    padding: 0 12px 12px;
+}
+
+.consola-detalle pre {
+    margin: 4px 0 10px;
+    padding: 10px;
+    max-height: 260px;
+    overflow: auto;
+    background: #0f1012;
+    border: 1px solid var(--line);
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.consola-salida {
+    color: #b5f04a;
+}
+
 /* ---------- Avisos emergentes ---------- */
 
 .toasts {
