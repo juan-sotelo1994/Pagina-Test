@@ -34,6 +34,7 @@ MODULOS = [
     ('servicios', 'Servicios', 'Inventario'),
     ('proveedores', 'Proveedores', 'Inventario'),
     ('tickets', 'Tickets (GLPI)', 'Soporte'),
+    ('equipos', 'Equipos', 'Soporte'),
     ('usuarios', 'Usuarios', 'Usuarios y accesos'),
     ('roles', 'Roles y permisos', 'Configuración'),
     ('configuracion', 'General', 'Configuración'),
@@ -53,7 +54,7 @@ PERMISOS_INICIALES = {
     },
     'tecnico': {
         'clientes': ['ver'], 'servicios': ['ver', 'editar'], 'productos': ['ver'],
-        'tickets': VCE, 'agentes': ['ver'],
+        'tickets': VCE, 'agentes': ['ver'], 'equipos': ['ver'],
     },
     'auxiliar': {
         'clientes': VCE, 'cotizaciones': ['ver'], 'facturas': VCE,

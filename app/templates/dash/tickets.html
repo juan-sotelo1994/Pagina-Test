@@ -19,21 +19,21 @@
 {% endif %}
 
 <!-- Contadores -->
-<section class="stats">
-    <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}" class="stat stat-new {% if filtro == 'nuevos' %}active{% endif %}">
+<section class="kpis">
+    <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}" class="kpi kpi-new {% if filtro == 'nuevos' %}active{% endif %}">
         <i class="fa-solid fa-bell"></i>
-        <span class="stat-num">{{ resumen.nuevos }}</span>
-        <span class="stat-label">Nuevos</span>
+        <span class="kpi-num">{{ resumen.nuevos }}</span>
+        <span class="kpi-label">Nuevos</span>
     </a>
-    <a href="{{ url_for('dashboard.tickets', estado='pendientes') }}" class="stat stat-pending {% if filtro == 'pendientes' %}active{% endif %}">
+    <a href="{{ url_for('dashboard.tickets', estado='pendientes') }}" class="kpi kpi-pending {% if filtro == 'pendientes' %}active{% endif %}">
         <i class="fa-solid fa-hourglass-half"></i>
-        <span class="stat-num">{{ resumen.pendientes }}</span>
-        <span class="stat-label">Pendientes</span>
+        <span class="kpi-num">{{ resumen.pendientes }}</span>
+        <span class="kpi-label">Pendientes</span>
     </a>
-    <a href="{{ url_for('dashboard.tickets', estado='en_curso') }}" class="stat stat-progress {% if filtro == 'en_curso' %}active{% endif %}">
+    <a href="{{ url_for('dashboard.tickets', estado='en_curso') }}" class="kpi kpi-progress {% if filtro == 'en_curso' %}active{% endif %}">
         <i class="fa-solid fa-gears"></i>
-        <span class="stat-num">{{ resumen.en_curso }}</span>
-        <span class="stat-label">En curso</span>
+        <span class="kpi-num">{{ resumen.en_curso }}</span>
+        <span class="kpi-label">En curso</span>
     </a>
 </section>
 
