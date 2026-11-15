@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 
 import psutil
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 INTERVALO = 20           # segundos entre reportes al panel
 INTERVALO_COMANDOS = 5   # segundos entre consultas de comandos remotos
 ES_MAC = sys.platform == 'darwin'
@@ -323,8 +323,17 @@ def ejecutar(script, tiempo):
             pass
 
 
+def cuenta_del_agente():
+    # La cuenta con la que corre el agente (y sus comandos): p. ej. "nt authority\system" o "root"
+    if ES_WINDOWS:
+        return comando('whoami') or os.environ.get('USERNAME', '')
+    import getpass
+    return getpass.getuser()
+
+
 def atender_comandos(servidor, token, equipo_id, permitir):
     # Hilo aparte: pregunta al panel cada pocos segundos si hay algo que ejecutar
+    cuenta = cuenta_del_agente()
     fallando = False
     while True:
         try:
@@ -337,8 +346,10 @@ def atender_comandos(servidor, token, equipo_id, permitir):
                     codigo, salida = ejecutar(c['script'], tiempo)
                 else:
                     codigo, salida = 126, 'Este equipo tiene desactivados los comandos remotos (permitir_comandos: false).'
+                # Para la auditoría: con qué cuenta corrió y quién usaba el equipo en ese momento
                 pedir_json(servidor, token, f"/api/agente/comandos/{equipo_id}/{c['id']}",
-                           {'codigo': codigo, 'salida': salida[-60000:]}, timeout=30)
+                           {'codigo': codigo, 'salida': salida[-200000:], 'cuenta': cuenta, 'sesion': usuario_activo()},
+                           timeout=30)
         except urllib.error.HTTPError as e:
             # 404 = el panel aún no conoce el equipo (llega con el primer reporte)
             if e.code != 404 and not fallando:

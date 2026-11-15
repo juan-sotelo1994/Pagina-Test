@@ -8,7 +8,9 @@ Flujo:
   Si el agente no responde a tiempo                      -> 'sin respuesta'
 
 Todo queda guardado en app/data/comandos.json como registro de auditoría:
-quién envió qué, a qué equipo, cuándo y qué respondió.
+  - quién lo envió en la plataforma (correo, rol, IP desde donde lo envió)
+  - con qué cuenta corrió en el equipo (p. ej. nt authority\\system)
+  - qué usuario tenía la sesión abierta en el equipo en ese momento
 """
 import threading
 import time
@@ -20,7 +22,7 @@ ARCHIVO = 'comandos.json'
 LARGO_SCRIPT = 20_000        # caracteres
 LARGO_SALIDA = 64_000        # caracteres que se guardan de la salida
 TIEMPOS = [60, 300, 900, 3600]  # segundos que puede tardar un comando
-MAXIMO_REGISTROS = 2000
+MAXIMO_REGISTROS = 5000
 
 _lock = threading.Lock()
 
@@ -46,14 +48,21 @@ def _vencer(lista, ahora):
     return cambio
 
 
-def crear(equipo_id, script, tiempo, usuario, descripcion=''):
+def crear(equipo_id, equipo_nombre, script, tiempo, usuario, rol, ip_panel, descripcion=''):
     comando = {
         'id': uuid.uuid4().hex,
         'equipo': equipo_id,
+        'equipo_nombre': equipo_nombre,
         'script': script[:LARGO_SCRIPT],
         'descripcion': descripcion[:120],
         'tiempo': tiempo if tiempo in TIEMPOS else 300,
+        # Quién lo envió desde la plataforma
         'usuario': usuario,
+        'rol': rol,
+        'ip_panel': ip_panel,
+        # Lo completa el agente al ejecutarlo
+        'cuenta_equipo': '',
+        'sesion_equipo': '',
         'estado': 'pendiente',
         'creado': time.time(),
         'enviado': None,
@@ -84,26 +93,31 @@ def para_agente(equipo_id):
     return entregar
 
 
-def registrar_resultado(comando_id, equipo_id, codigo, salida):
+def registrar_resultado(comando_id, equipo_id, codigo, salida, cuenta='', sesion=''):
+    """Guarda lo que devolvió el agente. Devuelve el comando actualizado o None."""
     with _lock:
         lista = _leer()
         c = next((c for c in lista if c['id'] == comando_id and c['equipo'] == equipo_id), None)
         if c is None or c['estado'] != 'enviado':
-            return False
+            return None
         try:
             codigo = int(codigo)
         except (TypeError, ValueError):
             codigo = -1
         c.update(estado='terminado' if codigo == 0 else 'error', codigo=codigo,
-                 salida=str(salida or '')[:LARGO_SALIDA], terminado=time.time())
+                 salida=str(salida or '')[:LARGO_SALIDA], terminado=time.time(),
+                 cuenta_equipo=str(cuenta or '')[:120], sesion_equipo=str(sesion or '')[:120])
         _escribir(lista)
-    return True
+        return dict(c)
 
 
-def historial(equipo_id, cantidad=20):
+def historial(equipo_id=None, cantidad=None):
+    """Comandos del más reciente al más antiguo; de un equipo o de todos."""
     with _lock:
         lista = _leer()
         if _vencer(lista, time.time()):
             _escribir(lista)
-    propios = [c for c in lista if c['equipo'] == equipo_id]
-    return list(reversed(propios[-cantidad:]))
+    if equipo_id:
+        lista = [c for c in lista if c['equipo'] == equipo_id]
+    lista = list(reversed(lista))
+    return lista[:cantidad] if cantidad else lista

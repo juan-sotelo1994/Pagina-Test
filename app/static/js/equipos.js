@@ -237,7 +237,54 @@ if (detalle) {
         sparkline('memoria', h.map((p) => p.memoria), 100);
         sparkline('bajada', h.map((p) => p.bajada));
         sparkline('subida', h.map((p) => p.subida));
+
+        pintarInventario(e.inventario);
     };
+
+    // Inventario: solo se vuelve a dibujar cuando llega uno nuevo (la lista de programas es larga)
+    let inventarioPintado = null;
+    const filaTabla = (...celdas) => el('tr', {}, ...celdas.map((c) => el('td', { textContent: c || '—' })));
+
+    const pintarInventario = (inv) => {
+        if (!inv || inv.actualizado === inventarioPintado) return;
+        inventarioPintado = inv.actualizado;
+        document.getElementById('inventario-vacio').hidden = true;
+        document.getElementById('inventario-datos').hidden = false;
+        document.getElementById('inventario-fecha').textContent = `Actualizado ${hace(inv.actualizado)} por ${inv.por || '—'}`;
+
+        const general = [
+            ['Fabricante', inv.fabricante], ['Modelo', inv.modelo], ['Número de serie', inv.serial],
+            ['BIOS', [inv.bios, inv.bios_fecha].filter(Boolean).join(' · ')],
+            ['Procesador', inv.procesador + (inv.nucleos ? ` (${inv.nucleos} núcleos / ${inv.hilos} hilos)` : '')],
+            ['Memoria RAM', inv.ram_gb ? `${inv.ram_gb} GB` : ''],
+            ['Sistema operativo', [inv.so, inv.so_version, inv.arquitectura].filter(Boolean).join(' · ')],
+            ['Instalado el', inv.so_instalado],
+            ['Dominio', inv.dominio ? `${inv.dominio}${inv.en_dominio ? '' : ' (grupo de trabajo)'}` : ''],
+            ['Antivirus', (inv.antivirus || []).join(', ')],
+        ];
+        document.getElementById('inventario-general').replaceChildren(...general.flatMap(([k, v]) =>
+            [el('dt', { textContent: k }), el('dd', { textContent: v || '—' })]));
+        document.getElementById('inventario-ram').replaceChildren(...(inv.ram_modulos || []).map((m) =>
+            filaTabla(m.ranura, `${m.capacidad_gb} GB`, m.velocidad ? `${m.velocidad} MHz` : '', m.fabricante)));
+        document.getElementById('inventario-discos').replaceChildren(...(inv.discos || []).map((d) =>
+            filaTabla(d.modelo, `${d.tamano_gb} GB`, [d.tipo, d.interfaz].filter(Boolean).join(' · '), d.salud)));
+        document.getElementById('inventario-red').replaceChildren(...(inv.red || []).map((r) =>
+            filaTabla(r.descripcion || r.nombre, r.mac, r.velocidad)));
+
+        const software = inv.software || [];
+        document.getElementById('inventario-software-total').textContent = software.length;
+        document.getElementById('inventario-software').replaceChildren(...software.map((s) => {
+            const tr = filaTabla(s.nombre, s.version, s.editor);
+            tr.dataset.texto = `${s.nombre} ${s.editor}`.toLowerCase();
+            return tr;
+        }));
+    };
+
+    const buscarSoftware = document.getElementById('inventario-software-buscar');
+    buscarSoftware.addEventListener('input', () => {
+        const texto = buscarSoftware.value.trim().toLowerCase();
+        document.querySelectorAll('#inventario-software tr').forEach((tr) => { tr.hidden = !tr.dataset.texto.includes(texto); });
+    });
 
     // Botones de copiar
     detalle.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
@@ -291,6 +338,10 @@ if (formRdp) {
 
 // ---------- Consola remota (PowerShell como SYSTEM / bash como root) ----------
 
+// La línea con esta marca lleva el inventario en JSON; el panel la lee y actualiza la ficha del equipo
+const MARCA_INVENTARIO = '###INVENTARIO###';
+const NOMBRE_INVENTARIO = 'Inventario del equipo (actualiza la ficha)';
+
 const PLANTILLAS = {
     windows: [
         ['Windows Update: instalar actualizaciones (sin reiniciar)', 3600, `$sesion = New-Object -ComObject Microsoft.Update.Session
@@ -318,7 +369,37 @@ if ($resultado.Updates.Count -eq 0) { 'El equipo está al día.' } else { $resul
     Sort-Object FullName -Descending | Select-Object -First 1
 if (-not $winget) { Write-Output 'winget no está instalado en este equipo.'; exit 1 }
 & $winget.FullName upgrade --all --silent --accept-package-agreements --accept-source-agreements --disable-interactivity`],
-        ['Información del sistema', 300, `Get-ComputerInfo | Select-Object CsName, OsName, OsVersion, OsBuildNumber, CsManufacturer, CsModel, BiosSeralNumber, OsLastBootUpTime | Format-List`],
+        [NOMBRE_INVENTARIO, 300, `$cs = Get-CimInstance Win32_ComputerSystem
+$bios = Get-CimInstance Win32_BIOS
+$so = Get-CimInstance Win32_OperatingSystem
+$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+$ram = Get-CimInstance Win32_PhysicalMemory
+$discos = Get-PhysicalDisk -ErrorAction SilentlyContinue
+$red = Get-NetAdapter -Physical -ErrorAction SilentlyContinue
+$av = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
+$apps = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -and -not $_.SystemComponent } | Sort-Object DisplayName -Unique
+$inv = [ordered]@{
+    fabricante = "$($cs.Manufacturer)".Trim(); modelo = "$($cs.Model)".Trim(); serial = "$($bios.SerialNumber)".Trim()
+    bios = "$($bios.SMBIOSBIOSVersion)"; bios_fecha = if ($bios.ReleaseDate) { $bios.ReleaseDate.ToString('yyyy-MM-dd') } else { '' }
+    procesador = "$($cpu.Name)".Trim(); nucleos = $cpu.NumberOfCores; hilos = $cpu.NumberOfLogicalProcessors
+    ram_gb = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
+    ram_modulos = @($ram | ForEach-Object { [ordered]@{ capacidad_gb = [math]::Round($_.Capacity / 1GB); velocidad = $_.Speed; fabricante = "$($_.Manufacturer)".Trim(); ranura = "$($_.DeviceLocator)" } })
+    so = $so.Caption; so_version = $so.Version; so_compilacion = $so.BuildNumber; arquitectura = $so.OSArchitecture
+    so_instalado = $so.InstallDate.ToString('yyyy-MM-dd'); dominio = $cs.Domain; en_dominio = [bool]$cs.PartOfDomain
+    discos = @($discos | ForEach-Object { [ordered]@{ modelo = $_.FriendlyName; tamano_gb = [math]::Round($_.Size / 1GB); tipo = "$($_.MediaType)"; interfaz = "$($_.BusType)"; salud = "$($_.HealthStatus)" } })
+    red = @($red | ForEach-Object { [ordered]@{ nombre = $_.Name; descripcion = $_.InterfaceDescription; mac = $_.MacAddress; velocidad = "$($_.LinkSpeed)" } })
+    antivirus = @($av | ForEach-Object { $_.displayName })
+    software = @($apps | Select-Object -First 500 | ForEach-Object { [ordered]@{ nombre = $_.DisplayName; version = "$($_.DisplayVersion)"; editor = "$($_.Publisher)" } })
+}
+"Equipo:     $($inv.fabricante) $($inv.modelo) - serie $($inv.serial)"
+"Procesador: $($inv.procesador) ($($inv.nucleos) núcleos / $($inv.hilos) hilos)"
+"Memoria:    $($inv.ram_gb) GB en $($inv.ram_modulos.Count) módulo(s)"
+"Sistema:    $($inv.so) $($inv.so_version) ($($inv.arquitectura))"
+"Discos:     " + (($inv.discos | ForEach-Object { "$($_.modelo) $($_.tamano_gb) GB $($_.tipo)" }) -join '; ')
+"Antivirus:  " + ($inv.antivirus -join ', ')
+"Programas:  $($inv.software.Count) instalados"
+'${MARCA_INVENTARIO}' + ($inv | ConvertTo-Json -Depth 4 -Compress)`],
         ['Espacio en discos', 60, `Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='Usado (GB)';e={[math]::Round($_.Used/1GB,1)}}, @{n='Libre (GB)';e={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize`],
         ['Limpiar archivos temporales de Windows', 300, `$antes = (Get-PSDrive C).Free
 Remove-Item "$env:windir\\Temp\\*" -Recurse -Force -ErrorAction SilentlyContinue
@@ -328,11 +409,50 @@ Remove-Item "$env:windir\\SoftwareDistribution\\Download\\*" -Recurse -Force -Er
 Get-Service -Name Spooler | Format-Table Name, Status -AutoSize`],
     ],
     mac: [
+        [NOMBRE_INVENTARIO, 300, `system_profiler SPHardwareDataType SPSoftwareDataType SPApplicationsDataType -json | /usr/bin/python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+hw, sw = d["SPHardwareDataType"][0], d["SPSoftwareDataType"][0]
+inv = {"fabricante": "Apple", "modelo": hw.get("machine_model", ""), "serial": hw.get("serial_number", ""),
+       "bios": hw.get("boot_rom_version", ""), "procesador": hw.get("chip_type") or hw.get("cpu_type", ""),
+       "nucleos": int(str(hw.get("number_processors", "0")).split()[-1].split(":")[-1] or 0),
+       "ram_gb": float(hw.get("physical_memory", "0 GB").split()[0]), "so": sw.get("os_version", ""),
+       "software": [{"nombre": a.get("_name", ""), "version": a.get("version", ""), "editor": a.get("obtained_from", "")}
+                    for a in d.get("SPApplicationsDataType", [])[:500]]}
+print("Equipo:", inv["modelo"], "- serie", inv["serial"]); print("Procesador:", inv["procesador"])
+print("Memoria:", inv["ram_gb"], "GB"); print("Sistema:", inv["so"]); print("Programas:", len(inv["software"]))
+print("${MARCA_INVENTARIO}" + json.dumps(inv))'`],
         ['Buscar actualizaciones de macOS', 900, 'softwareupdate --list'],
         ['Instalar actualizaciones (sin reiniciar)', 3600, 'softwareupdate --install --all --no-scan 2>&1 | grep -v "^$"'],
         ['Espacio en discos', 60, 'df -h /'],
     ],
     linux: [
+        [NOMBRE_INVENTARIO, 300, `python3 - <<'PY'
+import json, os, platform, subprocess
+def leer(ruta):
+    try: return open(ruta).read().strip()
+    except OSError: return ""
+def correr(*a):
+    try: return subprocess.run(a, capture_output=True, text=True, timeout=30).stdout
+    except Exception: return ""
+cpu = [l.split(":", 1)[1].strip() for l in leer("/proc/cpuinfo").splitlines() if l.startswith("model name")]
+ram_kb = int(next((l.split()[1] for l in leer("/proc/meminfo").splitlines() if l.startswith("MemTotal")), 0))
+so = platform.freedesktop_os_release()
+discos = json.loads(correr("lsblk", "-J", "-d", "-b", "-o", "MODEL,SIZE,ROTA,TRAN,TYPE") or '{"blockdevices": []}')["blockdevices"]
+red = [{"nombre": n, "mac": leer(f"/sys/class/net/{n}/address")} for n in os.listdir("/sys/class/net") if n != "lo"]
+apps = [l.split("\\t") for l in correr("dpkg-query", "-W", "-f=\${Package}\\t\${Version}\\t\${Maintainer}\\n").splitlines()]
+inv = {"fabricante": leer("/sys/class/dmi/id/sys_vendor"), "modelo": leer("/sys/class/dmi/id/product_name"),
+       "serial": leer("/sys/class/dmi/id/product_serial"), "bios": leer("/sys/class/dmi/id/bios_version"),
+       "bios_fecha": leer("/sys/class/dmi/id/bios_date"), "procesador": cpu[0] if cpu else platform.processor(),
+       "hilos": len(cpu), "ram_gb": round(ram_kb / 1048576, 1), "so": so.get("PRETTY_NAME", ""),
+       "so_version": platform.release(), "arquitectura": platform.machine(),
+       "discos": [{"modelo": (d.get("model") or "").strip(), "tamano_gb": int(d.get("size") or 0) // 1000**3,
+                   "tipo": "HDD" if d.get("rota") in (True, 1, "1") else "SSD", "interfaz": d.get("tran") or ""} for d in discos if d.get("type") == "disk"],
+       "red": red, "software": [{"nombre": a[0], "version": a[1] if len(a) > 1 else "", "editor": a[2] if len(a) > 2 else ""} for a in apps[:500]]}
+print("Equipo:", inv["fabricante"], inv["modelo"], "- serie", inv["serial"]); print("Procesador:", inv["procesador"])
+print("Memoria:", inv["ram_gb"], "GB"); print("Sistema:", inv["so"]); print("Paquetes:", len(apps))
+print("${MARCA_INVENTARIO}" + json.dumps(inv))
+PY`],
         ['Actualizar paquetes (apt)', 3600, 'export DEBIAN_FRONTEND=noninteractive\napt-get update -q && apt-get -y -q upgrade\n[ -f /var/run/reboot-required ] && echo "Requiere reinicio (no se reinició)."'],
         ['Paquetes pendientes de actualizar', 300, 'apt-get update -qq && apt list --upgradable 2>/dev/null'],
         ['Espacio en discos', 60, 'df -h -x tmpfs -x squashfs'],
@@ -388,7 +508,13 @@ if (dialogoConsola) {
                 el('span', { className: `tag ${clase}`, textContent: c.codigo != null && c.estado === 'error' ? `${texto} (${c.codigo})` : texto }),
                 el('span', { className: 'consola-cmd', textContent: titulo }),
                 el('span', { className: 'muted-text consola-meta', textContent: `${c.usuario} · ${hace(c.creado)}` }));
+            const auditoria = [
+                `Enviado por ${c.usuario}${c.rol ? ` (${c.rol})` : ''}${c.ip_panel ? ` desde ${c.ip_panel}` : ''}`,
+                c.cuenta_equipo ? `corrió como ${c.cuenta_equipo}` : '',
+                c.cuenta_equipo ? `sesión abierta: ${c.sesion_equipo || 'nadie'}` : '',
+            ].filter(Boolean).join(' · ');
             const cuerpo = el('div', { className: 'consola-detalle' },
+                el('p', { className: 'consola-auditoria', textContent: auditoria }),
                 el('small', { className: 'muted-text', textContent: 'Comando' }),
                 el('pre', { textContent: c.script }),
                 el('small', { className: 'muted-text', textContent: 'Salida' }),
@@ -405,6 +531,17 @@ if (dialogoConsola) {
         try { pintarHistorial((await pedir(url)).comandos); } catch (e) { /* se reintenta */ }
     };
 
+    const enviar = async (texto, segundos, descripcion) => {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ script: texto, tiempo: segundos, descripcion }),
+        });
+        const datos = await r.json();
+        if (!r.ok) throw new Error(datos.error || `Error ${r.status}`);
+        pintarHistorial(datos.comandos);
+    };
+
     ejecutar.addEventListener('click', async () => {
         error.hidden = true;
         const texto = script.value.trim();
@@ -416,14 +553,7 @@ if (dialogoConsola) {
         const plantilla = plantillas[selectPlantilla.value];
         ejecutar.disabled = true;
         try {
-            const r = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                body: JSON.stringify({ script: texto, tiempo: Number(tiempo.value), descripcion: plantilla && plantilla[2] === texto ? plantilla[0] : '' }),
-            });
-            const datos = await r.json();
-            if (!r.ok) throw new Error(datos.error || `Error ${r.status}`);
-            pintarHistorial(datos.comandos);
+            await enviar(texto, Number(tiempo.value), plantilla && plantilla[2] === texto ? plantilla[0] : '');
             const primero = lista.querySelector('details');
             if (primero) primero.open = true;
         } catch (e) {
@@ -433,6 +563,24 @@ if (dialogoConsola) {
             ejecutar.disabled = false;
         }
     });
+
+    // "Actualizar inventario" en la ficha: envía la plantilla de inventario sin abrir la consola
+    const botonInventario = document.getElementById('inventario-actualizar');
+    const inventario = plantillas.find(([nombre]) => nombre === NOMBRE_INVENTARIO);
+    if (botonInventario && inventario) {
+        botonInventario.addEventListener('click', async () => {
+            const etiqueta = botonInventario.lastElementChild;
+            botonInventario.disabled = true;
+            etiqueta.textContent = 'Consultando el equipo…';
+            try {
+                await enviar(inventario[2], inventario[1], inventario[0]);
+                etiqueta.textContent = 'Enviado: llega en unos segundos';
+            } catch (e) {
+                etiqueta.textContent = `No se pudo: ${e.message}`;
+            }
+            setTimeout(() => { etiqueta.textContent = 'Actualizar inventario'; botonInventario.disabled = false; }, 15000);
+        });
+    }
 
     // Mientras la ventana está abierta, el historial se actualiza cada 3 segundos
     const observador = new MutationObserver(() => {

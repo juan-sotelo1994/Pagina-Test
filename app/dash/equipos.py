@@ -144,8 +144,12 @@ def registrar(datos, ip_origen):
     with _lock:
         equipos = cargar()
         nuevo = equipo['id'] not in equipos
+        anterior = equipos.get(equipo['id'], {})
         equipo['visto'] = ahora
-        equipo['primera_vez'] = equipos.get(equipo['id'], {}).get('primera_vez', ahora)
+        equipo['primera_vez'] = anterior.get('primera_vez', ahora)
+        # El inventario llega por comandos, no con cada reporte: se conserva
+        if anterior.get('inventario'):
+            equipo['inventario'] = anterior['inventario']
         equipo['ip_origen'] = _texto(ip_origen, 45)
         equipos[equipo['id']] = equipo
 
@@ -164,6 +168,110 @@ def registrar(datos, ip_origen):
 
 def en_linea(equipo, ahora=None):
     return (ahora or time.time()) - equipo.get('visto', 0) < SEGUNDOS_EN_LINEA
+
+
+# ---------------------------------------------------------------- inventario
+
+MARCA_INVENTARIO = '###INVENTARIO###'
+
+
+def _lista(valor, maximo, convertir):
+    if not isinstance(valor, list):
+        valor = [valor] if isinstance(valor, dict) else []
+    return [convertir(v) for v in valor[:maximo] if isinstance(v, dict)]
+
+
+def limpiar_inventario(datos):
+    """Deja solo campos conocidos, con tipos y tamaños seguros."""
+    if not isinstance(datos, dict):
+        return None
+    texto = lambda clave, largo=120: _texto(datos.get(clave), largo).strip()
+    return {
+        'fabricante': texto('fabricante'),
+        'modelo': texto('modelo'),
+        'serial': texto('serial', 60),
+        'bios': texto('bios', 60),
+        'bios_fecha': texto('bios_fecha', 20),
+        'procesador': texto('procesador'),
+        'nucleos': int(_numero(datos.get('nucleos'), 0, 1024)),
+        'hilos': int(_numero(datos.get('hilos'), 0, 4096)),
+        'ram_gb': round(_numero(datos.get('ram_gb'), 0, 1_000_000), 1),
+        'ram_modulos': _lista(datos.get('ram_modulos'), 32, lambda m: {
+            'capacidad_gb': _numero(m.get('capacidad_gb'), 0, 10_000),
+            'velocidad': int(_numero(m.get('velocidad'), 0, 100_000)),
+            'fabricante': _texto(m.get('fabricante'), 60).strip(),
+            'ranura': _texto(m.get('ranura'), 40).strip(),
+        }),
+        'so': texto('so'),
+        'so_version': texto('so_version', 40),
+        'so_compilacion': texto('so_compilacion', 40),
+        'so_instalado': texto('so_instalado', 20),
+        'arquitectura': texto('arquitectura', 30),
+        'dominio': texto('dominio', 120),
+        'en_dominio': bool(datos.get('en_dominio')),
+        'discos': _lista(datos.get('discos'), 20, lambda d: {
+            'modelo': _texto(d.get('modelo'), 80).strip(),
+            'tamano_gb': int(_numero(d.get('tamano_gb'), 0, 1_000_000)),
+            'tipo': _texto(d.get('tipo'), 20).strip(),
+            'interfaz': _texto(d.get('interfaz'), 20).strip(),
+            'salud': _texto(d.get('salud'), 20).strip(),
+        }),
+        'red': _lista(datos.get('red'), 20, lambda r: {
+            'nombre': _texto(r.get('nombre'), 60).strip(),
+            'descripcion': _texto(r.get('descripcion'), 120).strip(),
+            'mac': _texto(r.get('mac'), 20).strip(),
+            'velocidad': _texto(r.get('velocidad'), 20).strip(),
+        }),
+        'antivirus': [_texto(a, 80) for a in (datos.get('antivirus') or [])[:10] if isinstance(a, str)],
+        'software': _lista(datos.get('software'), 500, lambda s: {
+            'nombre': _texto(s.get('nombre'), 120).strip(),
+            'version': _texto(s.get('version'), 40).strip(),
+            'editor': _texto(s.get('editor'), 80).strip(),
+        }),
+    }
+
+
+def quitar_inventario(salida):
+    # Reemplaza la línea de datos del inventario por un aviso legible
+    lineas = str(salida).splitlines()
+    if not any(l.startswith(MARCA_INVENTARIO) for l in lineas):
+        return salida
+    lineas = [l for l in lineas if not l.startswith(MARCA_INVENTARIO)]
+    return '\n'.join(lineas + ['', '[Inventario guardado en la ficha del equipo]'])
+
+
+def actualizar_inventario(equipo_id, salida, comando):
+    """Busca el bloque ###INVENTARIO### en la salida de un comando y lo guarda.
+
+    Devuelve True si actualizó la ficha del equipo.
+    """
+    lineas = [l for l in str(salida).splitlines() if l.startswith(MARCA_INVENTARIO)]
+    if not lineas:
+        return False
+    try:
+        inventario = limpiar_inventario(json.loads(lineas[-1][len(MARCA_INVENTARIO):]))
+    except ValueError:
+        return False
+    if inventario is None:
+        return False
+    inventario.update(actualizado=time.time(), por=comando.get('usuario', ''), comando=comando.get('id', ''))
+    with _lock:
+        equipo = cargar().get(equipo_id)
+        if equipo is None:
+            return False
+        equipo['inventario'] = inventario
+        guardar()
+    return True
+
+
+def _completar(equipo):
+    # Datos calculados que la página necesita; el inventario completa serie y modelo
+    inv = equipo.get('inventario') or {}
+    equipo['serial'] = equipo.get('serial') or inv.get('serial', '')
+    if inv.get('modelo'):
+        equipo['modelo'] = f"{inv.get('fabricante', '')} {inv['modelo']}".strip()
+    equipo['ip_conexion'] = ip_conexion(equipo)
+    return equipo
 
 
 def ip_conexion(equipo):
@@ -211,7 +319,8 @@ def listar():
         equipos = [dict(e) for e in cargar().values()]
     for e in equipos:
         e['en_linea'] = en_linea(e, ahora)
-        e['ip_conexion'] = ip_conexion(e)
+        _completar(e)
+        e.pop('inventario', None)  # la lista no lo necesita y pesa (programas instalados)
     # Primero los conectados, luego por nombre
     return sorted(equipos, key=lambda e: (not e['en_linea'], e['nombre'].lower()))
 
@@ -224,8 +333,7 @@ def obtener(equipo_id):
         equipo = dict(equipo)
         equipo['historial'] = list(_historial.get(equipo_id, []))
     equipo['en_linea'] = en_linea(equipo)
-    equipo['ip_conexion'] = ip_conexion(equipo)
-    return equipo
+    return _completar(equipo)
 
 
 def eliminar(equipo_id):

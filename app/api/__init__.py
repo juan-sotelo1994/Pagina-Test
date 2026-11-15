@@ -52,6 +52,15 @@ def comando_resultado(equipo_id, comando_id):
     if (request.content_length or 0) > TAMANO_RESULTADO:
         return jsonify(error='Resultado demasiado grande'), 413
     datos = request.get_json(silent=True) or {}
-    if not comandos.registrar_resultado(comando_id, equipo_id.lower(), datos.get('codigo'), datos.get('salida')):
+    equipo_id = equipo_id.lower()
+    salida = str(datos.get('salida') or '')
+
+    # El bloque de inventario (JSON largo) no se guarda en el historial: va a la ficha del equipo
+    comando = comandos.registrar_resultado(comando_id, equipo_id, datos.get('codigo'),
+                                           equipos.quitar_inventario(salida),
+                                           datos.get('cuenta'), datos.get('sesion'))
+    if comando is None:
         return jsonify(error='Comando desconocido o ya terminado'), 404
+    if comando['codigo'] == 0:
+        equipos.actualizar_inventario(equipo_id, salida, comando)
     return jsonify(ok=True)

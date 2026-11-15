@@ -54,6 +54,9 @@
         </form>
     </details>
     {% endif %}
+    {% if puede('equipos', 'editar') %}
+    <a class="tool-btn" href="{{ url_for('dashboard.comandos_historial') }}"><i class="fa-solid fa-clock-rotate-left"></i> Historial de comandos</a>
+    {% endif %}
     <span class="tool-btn live" title="La lista se actualiza sola">
         <span class="live-dot"></span> En vivo
     </span>

@@ -97,6 +97,44 @@
         </section>
     </div>
 
+    <!-- Inventario (se llena con la plantilla "Inventario del equipo" de la consola) -->
+    <section class="card" id="inventario">
+        <div class="card-head">
+            <h2>Inventario</h2>
+            <span class="muted-text inventario-fecha" id="inventario-fecha"></span>
+            {% if puede('equipos', 'editar') %}
+            <button class="tool-btn" type="button" id="inventario-actualizar">
+                <i class="fa-solid fa-rotate"></i> <span>Actualizar inventario</span>
+            </button>
+            {% endif %}
+        </div>
+        <p class="inventario-vacio muted-text" id="inventario-vacio">
+            Aún no hay inventario de este equipo.{% if puede('equipos', 'editar') %} Pulsa “Actualizar inventario”: se consulta en segundo plano, sin molestar al usuario.{% endif %}
+        </p>
+        <div id="inventario-datos" hidden>
+            <dl class="info-list inventario-lista" id="inventario-general"></dl>
+            <div class="inventario-tablas">
+                <div>
+                    <h3>Memoria RAM</h3>
+                    <table class="data-table plain-table"><thead><tr><th>Ranura</th><th>Capacidad</th><th>Velocidad</th><th>Fabricante</th></tr></thead><tbody id="inventario-ram"></tbody></table>
+                </div>
+                <div>
+                    <h3>Discos físicos</h3>
+                    <table class="data-table plain-table"><thead><tr><th>Modelo</th><th>Tamaño</th><th>Tipo</th><th>Salud</th></tr></thead><tbody id="inventario-discos"></tbody></table>
+                </div>
+                <div>
+                    <h3>Tarjetas de red</h3>
+                    <table class="data-table plain-table"><thead><tr><th>Nombre</th><th>MAC</th><th>Velocidad</th></tr></thead><tbody id="inventario-red"></tbody></table>
+                </div>
+            </div>
+            <details class="inventario-software">
+                <summary><i class="fa-solid fa-box-open"></i> Programas instalados (<span id="inventario-software-total">0</span>)</summary>
+                <input type="search" id="inventario-software-buscar" placeholder="Buscar programa…" aria-label="Buscar programa">
+                <table class="data-table plain-table"><thead><tr><th>Programa</th><th>Versión</th><th>Editor</th></tr></thead><tbody id="inventario-software"></tbody></table>
+            </details>
+        </div>
+    </section>
+
     <!-- Interfaces de red -->
     <section class="card">
         <div class="card-head"><h2>Interfaces de red</h2></div>
@@ -191,7 +229,8 @@
                 <button type="button" class="tool-btn btn-save" id="consola-ejecutar"><i class="fa-solid fa-play"></i> Ejecutar</button>
             </div>
 
-            <h3 class="consola-subtitulo">Historial</h3>
+            <h3 class="consola-subtitulo">Historial
+                <a class="link consola-todo" href="{{ url_for('dashboard.comandos_historial', equipo=equipo.id) }}">Ver historial completo y exportar</a></h3>
             <ul class="consola-historial" id="consola-historial">
                 <li class="muted-text">Aún no se han ejecutado comandos en este equipo.</li>
             </ul>

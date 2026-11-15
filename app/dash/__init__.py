@@ -1,7 +1,8 @@
+import csv
 import io
 import re
 from collections import Counter
-from datetime import date
+from datetime import date, datetime
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 
@@ -97,6 +98,11 @@ def resumen(titulo, conteo, colores=None):
 @dashboard_bp.app_template_filter('pesos')
 def formato_pesos(valor):
     return '$ ' + f'{valor:,.0f}'.replace(',', '.')
+
+
+@dashboard_bp.app_template_filter('fecha_hora')
+def formato_fecha_hora(segundos):
+    return datetime.fromtimestamp(segundos).strftime('%Y-%m-%d %H:%M:%S') if segundos else ''
 
 
 @dashboard_bp.context_processor
@@ -439,7 +445,8 @@ def equipo_rdp(equipo_id):
 def equipo_comandos(equipo_id):
     # Consola remota: ejecuta scripts como SYSTEM/root en el equipo. Exige permiso de editar Equipos
     _exigir('equipos', 'editar')
-    if equipos.obtener(equipo_id) is None:
+    equipo = equipos.obtener(equipo_id)
+    if equipo is None:
         abort(404)
     if request.method == 'POST':
         datos = request.get_json(silent=True) or {}
@@ -448,9 +455,57 @@ def equipo_comandos(equipo_id):
             return jsonify(error='Escribe el comando a ejecutar.'), 400
         if len(script) > comandos.LARGO_SCRIPT:
             return jsonify(error='El script es demasiado largo.'), 400
-        comandos.crear(equipo_id, script, int(datos.get('tiempo') or 300), session['usuario'],
+        try:
+            tiempo = int(datos.get('tiempo') or 300)
+        except (TypeError, ValueError):
+            tiempo = 300
+        comandos.crear(equipo_id, equipo['nombre'], script, tiempo, session['usuario'],
+                       permisos.NOMBRES_ROL.get(session['rol'], session['rol']), request.remote_addr,
                        str(datos.get('descripcion', '')))
-    return jsonify(comandos=comandos.historial(equipo_id))
+    return jsonify(comandos=comandos.historial(equipo_id, 20))
+
+
+def _filtrar_historial():
+    lista = comandos.historial()
+    equipo_id = request.args.get('equipo', '')
+    texto = request.args.get('q', '').strip().lower()
+    if equipo_id:
+        lista = [c for c in lista if c['equipo'] == equipo_id]
+    if texto:
+        campos = ('equipo_nombre', 'usuario', 'rol', 'ip_panel', 'cuenta_equipo', 'sesion_equipo', 'descripcion', 'script', 'estado')
+        lista = [c for c in lista if any(texto in str(c.get(k, '')).lower() for k in campos)]
+    return lista
+
+
+@dashboard_bp.route('/equipos/historial')
+@login_requerido
+def comandos_historial():
+    # Auditoría: quién ejecutó qué comando, en qué equipo y con qué cuenta
+    _exigir('equipos', 'editar')
+    lista = _filtrar_historial()
+    return render_template('dash/comandos_historial.html', activo='equipos', comandos=lista[:300],
+                           total=len(lista), equipos_lista=equipos.listar(),
+                           filtro_equipo=request.args.get('equipo', ''), filtro_texto=request.args.get('q', ''))
+
+
+@dashboard_bp.route('/equipos/historial.csv')
+@login_requerido
+def comandos_historial_csv():
+    _exigir('equipos', 'editar')
+    salida = io.StringIO()
+    escritor = csv.writer(salida, delimiter=';')
+    escritor.writerow(['Fecha', 'Equipo', 'Usuario de la plataforma', 'Rol', 'IP del panel', 'Cuenta en el equipo',
+                       'Sesión abierta en el equipo', 'Descripción', 'Comando', 'Estado', 'Código', 'Duración (s)'])
+    for c in _filtrar_historial():
+        duracion = round(c['terminado'] - c['enviado'], 1) if c.get('terminado') and c.get('enviado') else ''
+        escritor.writerow([datetime.fromtimestamp(c['creado']).strftime('%Y-%m-%d %H:%M:%S'), c.get('equipo_nombre', c['equipo']),
+                           c['usuario'], c.get('rol', ''), c.get('ip_panel', ''), c.get('cuenta_equipo', ''),
+                           c.get('sesion_equipo', ''), c.get('descripcion', ''), c['script'], c['estado'],
+                           '' if c.get('codigo') is None else c['codigo'], duracion])
+    # BOM para que Excel abra bien las tildes
+    contenido = '﻿' + salida.getvalue()
+    return send_file(io.BytesIO(contenido.encode('utf-8')), mimetype='text/csv', as_attachment=True,
+                     download_name=f"historial-comandos-{date.today().isoformat()}.csv")
 
 
 @dashboard_bp.route('/equipos/<equipo_id>/eliminar', methods=['POST'])

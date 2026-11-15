@@ -1965,6 +1965,121 @@ code {
     color: #b5f04a;
 }
 
+.consola-auditoria {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #c9cdd2;
+}
+
+.consola-todo {
+    margin-left: 10px;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+/* ---------- Inventario del equipo ---------- */
+
+#inventario .card-head {
+    flex-wrap: wrap;
+}
+
+.inventario-fecha {
+    margin-left: auto;
+    font-size: 13px;
+}
+
+.inventario-vacio {
+    margin: 0;
+    padding: 0 18px 18px;
+}
+
+.inventario-lista {
+    padding: 0 18px;
+}
+
+.inventario-tablas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    padding: 16px 18px;
+}
+
+.inventario-tablas h3,
+.inventario-software summary {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.inventario-tablas .data-table td,
+.inventario-software .data-table td {
+    white-space: normal;
+}
+
+.inventario-software {
+    padding: 0 18px 18px;
+}
+
+.inventario-software summary {
+    cursor: pointer;
+    padding: 8px 0;
+}
+
+.inventario-software input {
+    width: 100%;
+    max-width: 360px;
+    height: 36px;
+    margin: 6px 0 10px;
+    padding: 0 10px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font: inherit;
+}
+
+.inventario-software .data-table {
+    display: block;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+/* ---------- Historial de comandos (auditoría) ---------- */
+
+select.tool-btn {
+    background: var(--panel);
+    color: var(--text);
+}
+
+.audit-table td {
+    vertical-align: top;
+}
+
+.audit-cmd {
+    max-width: 380px;
+    white-space: normal !important;
+}
+
+.audit-cmd summary {
+    cursor: pointer;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.audit-cmd pre {
+    margin: 6px 0;
+    padding: 8px;
+    max-height: 240px;
+    overflow: auto;
+    background: #0f1012;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 /* ---------- Avisos emergentes ---------- */
 
 .toasts {
