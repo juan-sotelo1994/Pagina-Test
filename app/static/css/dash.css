@@ -1879,6 +1879,70 @@ code {
     line-height: 1.4;
 }
 
+/* ---------- Ubicación del equipo ---------- */
+
+.ubicacion-head {
+    flex-wrap: wrap;
+    column-gap: 18px;
+    row-gap: 10px;
+}
+
+.ubicacion-head form {
+    margin-left: auto;
+}
+
+.ubicacion-cuerpo {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+    border-top: 1px solid var(--line);
+}
+
+.ubicacion-mapa {
+    height: 340px;
+    background: var(--surface-2);
+    border-radius: 0 0 0 var(--radius);
+    z-index: 0;
+}
+
+.ubicacion-mapa.sin-datos::after {
+    content: 'Sin coordenadas: el equipo no tiene la ubicación activada en Windows y no se pudo estimar por IP.';
+    display: grid;
+    place-items: center;
+    height: 100%;
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.ubicacion-datos {
+    padding: 16px 18px;
+    border-left: 1px solid var(--line);
+}
+
+.ubicacion-vacia {
+    margin: 0;
+    padding: 0 18px 18px;
+}
+
+.ubicacion-celda i {
+    color: var(--accent);
+}
+
+@media (max-width: 900px) {
+    .ubicacion-cuerpo {
+        grid-template-columns: 1fr;
+    }
+
+    .ubicacion-mapa {
+        border-radius: 0;
+    }
+
+    .ubicacion-datos {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+    }
+}
+
 /* ---------- Consola remota ---------- */
 
 .dialog-wide {

@@ -508,6 +508,19 @@ def comandos_historial_csv():
                      download_name=f"historial-comandos-{date.today().isoformat()}.csv")
 
 
+@dashboard_bp.route('/equipos/<equipo_id>/ubicacion', methods=['POST'])
+@login_requerido
+def equipo_ubicacion(equipo_id):
+    # Activa o desactiva el rastreo de ubicación (queda registrado quién y cuándo)
+    _exigir('equipos', 'editar')
+    activo = request.form.get('activo') == '1'
+    if not equipos.cambiar_rastreo(equipo_id, activo, session['usuario']):
+        abort(404)
+    flash('Ubicación activada: el equipo la enviará en su próximo reporte (unos 20 a 40 segundos).' if activo
+          else 'Ubicación desactivada y última posición borrada.', 'ok')
+    return redirect(url_for('dashboard.equipo_view', equipo_id=equipo_id))
+
+
 @dashboard_bp.route('/equipos/<equipo_id>/eliminar', methods=['POST'])
 @login_requerido
 def equipo_eliminar(equipo_id):

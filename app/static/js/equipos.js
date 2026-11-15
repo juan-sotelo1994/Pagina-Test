@@ -126,6 +126,10 @@ if (filas) {
                 el('div', { className: 'sub', textContent: e.sistema })),
             el('td', {}, icono('fa-user muted'), ' ', e.usuario || '—'),
             el('td', { className: 'mono', textContent: e.ip_conexion || '—' }),
+            el('td', {}, (e.rastreo || {}).activo
+                ? el('span', { className: 'ubicacion-celda', title: e.ubicacion && e.ubicacion.fuente === 'ip' ? 'Aproximada por IP' : 'Wi-Fi / GPS' },
+                    icono('fa-location-dot'), ' ', (e.ubicacion && (e.ubicacion.ciudad || (e.ubicacion.lat != null ? 'Ubicado' : ''))) || 'Esperando…')
+                : el('span', { className: 'muted', textContent: '—', title: 'Ubicación desactivada' })),
             el('td', {}, e.en_linea ? barra(e.cpu) : '—'),
             el('td', {}, e.en_linea && sensores(e).cpu_temp != null
                 ? el('span', { className: `temp ${nivelTemp(sensores(e).cpu_temp)}`, textContent: `${Math.round(sensores(e).cpu_temp)} °C`, title: sensores(e).fuente })
@@ -275,6 +279,47 @@ if (detalle) {
         sparkline('temp', h.filter((p) => p.temp != null).map((p) => p.temp), 100);
 
         pintarInventario(e.inventario);
+        pintarUbicacion(e.ubicacion);
+    };
+
+    // Ubicación en el mapa (solo existe si el rastreo está activado)
+    const contenedorMapa = document.getElementById('ubicacion-mapa');
+    let mapa = null;
+    let marcador = null;
+    let circulo = null;
+    const FUENTES = { windows: 'Wi-Fi / GPS de Windows', ip: 'Aproximada por la IP pública', 'no disponible': 'No disponible' };
+
+    const pintarUbicacion = (u) => {
+        if (!contenedorMapa) return;
+        const dato = (clave, valor) => { const n = detalle.querySelector(`[data-ubicacion="${clave}"]`); if (n) n.textContent = valor || '—'; };
+        if (!u) {
+            dato('lugar', 'Esperando el primer reporte del equipo…');
+            return;
+        }
+        const lugar = [u.ciudad, u.region, u.pais].filter(Boolean).join(', ');
+        dato('lugar', lugar || (u.lat != null ? 'Sin nombre de lugar' : ''));
+        dato('precision', u.precision ? (u.precision >= 1000 ? `± ${(u.precision / 1000).toFixed(1)} km` : `± ${Math.round(u.precision)} m`) : '');
+        dato('fuente', FUENTES[u.fuente] || u.fuente);
+        dato('coordenadas', u.lat != null ? `${u.lat.toFixed(5)}, ${u.lon.toFixed(5)}` : '');
+        dato('momento', u.momento ? `${fecha(u.momento)} (${hace(u.momento)})` : '');
+
+        if (u.lat == null || !window.L) {
+            contenedorMapa.classList.toggle('sin-datos', u.lat == null);
+            return;
+        }
+        const punto = [u.lat, u.lon];
+        if (!mapa) {
+            mapa = L.map(contenedorMapa, { scrollWheelZoom: false }).setView(punto, u.fuente === 'ip' ? 11 : 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '&copy; OpenStreetMap',
+            }).addTo(mapa);
+            marcador = L.marker(punto).addTo(mapa);
+            circulo = L.circle(punto, { radius: u.precision || 50, color: '#2f5bd7', weight: 1, fillOpacity: 0.12 }).addTo(mapa);
+        } else {
+            marcador.setLatLng(punto);
+            circulo.setLatLng(punto).setRadius(u.precision || 50);
+        }
+        marcador.bindPopup(`<strong>${equipo.nombre.replace(/[<>&]/g, '')}</strong><br>${lugar.replace(/[<>&]/g, '') || 'Ubicación actual'}`);
     };
 
     // Inventario: solo se vuelve a dibujar cuando llega uno nuevo (la lista de programas es larga)

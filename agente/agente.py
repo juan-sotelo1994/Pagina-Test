@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 
 import psutil
 
-VERSION = '0.5.0'
+VERSION = '0.6.0'
 INTERVALO = 20           # segundos entre reportes al panel
 INTERVALO_COMANDOS = 5   # segundos entre consultas de comandos remotos
 ES_MAC = sys.platform == 'darwin'
@@ -319,6 +319,79 @@ def sensores():
     return datos
 
 
+# ---------------------------------------------------------------- ubicación (solo si el panel la activa)
+
+UBICACION_CADA = 120        # segundos entre lecturas de ubicación
+CIUDAD_CADA = 1800          # la ciudad por IP cambia poco: se consulta cada 30 minutos
+_ubicacion = {'momento': 0.0, 'datos': None, 'ciudad_momento': 0.0, 'ciudad': None}
+_rastreo = {'activo': False}  # lo actualiza la respuesta del panel a cada reporte
+
+SCRIPT_UBICACION_WINDOWS = r"""
+Add-Type -AssemblyName System.Device
+$w = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::High)
+[void]$w.TryStart($false, [TimeSpan]::FromSeconds(10))
+$fin = (Get-Date).AddSeconds(12)
+while ($w.Status -ne 'Ready' -and (Get-Date) -lt $fin) { Start-Sleep -Milliseconds 300 }
+$c = $w.Position.Location
+$w.Stop()
+if ($c.IsUnknown) { '{}' } else { @{ lat = $c.Latitude; lon = $c.Longitude; precision = $c.HorizontalAccuracy } | ConvertTo-Json -Compress }
+"""
+
+
+def _ubicacion_windows():
+    # Servicio de ubicación de Windows (Wi-Fi / GPS). Requiere la ubicación activada en el equipo
+    salida = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', SCRIPT_UBICACION_WINDOWS],
+                            capture_output=True, text=True, timeout=30, creationflags=0x08000000).stdout
+    datos = json.loads(salida.strip() or '{}')
+    if 'lat' not in datos:
+        return None
+    return {'lat': datos['lat'], 'lon': datos['lon'], 'precision': datos.get('precision') or 0, 'fuente': 'windows'}
+
+
+def _ciudad_por_ip():
+    # Ubicación aproximada por la IP pública (ipinfo.io): ciudad, región y país
+    with urllib.request.urlopen('https://ipinfo.io/json', timeout=8) as r:
+        datos = json.loads(r.read().decode())
+    lat, _, lon = (datos.get('loc') or '').partition(',')
+    return {
+        'ciudad': datos.get('city', ''), 'region': datos.get('region', ''), 'pais': datos.get('country', ''),
+        'lat': float(lat) if lat else None, 'lon': float(lon) if lon else None,
+    }
+
+
+def ubicacion():
+    if not _rastreo['activo']:
+        _ubicacion.update(momento=0.0, datos=None)
+        return None
+    ahora = time.monotonic()
+    if _ubicacion['datos'] is not None and ahora - _ubicacion['momento'] < UBICACION_CADA:
+        return _ubicacion['datos']
+
+    if _ubicacion['ciudad'] is None or ahora - _ubicacion['ciudad_momento'] > CIUDAD_CADA:
+        try:
+            _ubicacion.update(ciudad=_ciudad_por_ip(), ciudad_momento=ahora)
+        except Exception as e:
+            log.debug('No se pudo consultar la ciudad por IP: %s', e)
+    ciudad = _ubicacion['ciudad'] or {}
+
+    precisa = None
+    if ES_WINDOWS:
+        try:
+            precisa = _ubicacion_windows()
+        except Exception as e:
+            log.debug('Servicio de ubicación de Windows no disponible: %s', e)
+
+    if precisa:
+        datos = precisa
+    elif ciudad.get('lat') is not None:
+        datos = {'lat': ciudad['lat'], 'lon': ciudad['lon'], 'precision': 5000, 'fuente': 'ip'}
+    else:
+        datos = {'fuente': 'no disponible'}
+    datos.update({k: ciudad.get(k, '') for k in ('ciudad', 'region', 'pais')}, momento=int(time.time()))
+    _ubicacion.update(momento=ahora, datos=datos)
+    return datos
+
+
 def ip_hacia(servidor):
     # La IP local que usa el equipo para llegar al panel (la que sirve para conectarse)
     url = urlparse(servidor)
@@ -353,6 +426,7 @@ def reporte(fijo, red, servidor):
         },
         'bateria': {'porcentaje': round(bateria.percent), 'cargando': bool(bateria.power_plugged)} if bateria else None,
         'sensores': sensores(),
+        'ubicacion': ubicacion(),
         'remoto': {
             'pantalla': puerto_abierto(5900),  # Compartir pantalla / Gestión remota (VNC)
             'ssh': puerto_abierto(22),         # Sesión remota (SSH)
@@ -371,7 +445,10 @@ def enviar(servidor, token, datos):
         method='POST',
     )
     with urllib.request.urlopen(peticion, timeout=5) as r:
-        return r.status
+        respuesta = json.loads(r.read().decode() or '{}')
+    # El panel indica en cada respuesta si este equipo tiene activado el rastreo de ubicación
+    _rastreo['activo'] = bool(respuesta.get('ubicacion'))
+    return respuesta
 
 
 # ---------------------------------------------------------------- comandos remotos

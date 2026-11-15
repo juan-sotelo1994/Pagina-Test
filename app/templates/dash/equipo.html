@@ -108,6 +108,46 @@
         </section>
     </div>
 
+    <!-- Ubicación (solo si un administrador la activa para este equipo) -->
+    {% set rastreo = equipo.rastreo or {} %}
+    <section class="card" id="ubicacion">
+        <div class="card-head ubicacion-head">
+            <h2>Ubicación</h2>
+            <span class="tag {{ 'tag-full' if rastreo.activo else 'tag-lock' }}" id="ubicacion-estado">
+                {{ 'En tiempo real' if rastreo.activo else 'Desactivada' }}
+            </span>
+            {% if puede('equipos', 'editar') %}
+            <form method="post" action="{{ url_for('dashboard.equipo_ubicacion', equipo_id=equipo.id) }}"
+                  {% if not rastreo.activo %}onsubmit="return confirm('¿Activar la ubicación de este equipo?\n\nEl equipo enviará su posición cada 2 minutos. Úsalo solo en equipos de la empresa y con conocimiento de quien lo usa.')"{% endif %}>
+                <input type="hidden" name="activo" value="{{ '0' if rastreo.activo else '1' }}">
+                <button class="tool-btn {{ '' if rastreo.activo else 'btn-save' }}" type="submit">
+                    <i class="fa-solid {{ 'fa-location-pin-lock' if rastreo.activo else 'fa-location-crosshairs' }}"></i>
+                    {{ 'Desactivar ubicación' if rastreo.activo else 'Activar ubicación' }}
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if rastreo.activo %}
+        <div class="ubicacion-cuerpo">
+            <div class="ubicacion-mapa" id="ubicacion-mapa"></div>
+            <dl class="info-list ubicacion-datos">
+                <dt>Lugar</dt><dd data-ubicacion="lugar">Esperando el primer reporte…</dd>
+                <dt>Precisión</dt><dd data-ubicacion="precision">—</dd>
+                <dt>Fuente</dt><dd data-ubicacion="fuente">—</dd>
+                <dt>Coordenadas</dt><dd class="mono" data-ubicacion="coordenadas">—</dd>
+                <dt>Última lectura</dt><dd data-ubicacion="momento">—</dd>
+                <dt>Activada por</dt><dd>{{ rastreo.por or '—' }}{% if rastreo.desde %} · {{ rastreo.desde | fecha_hora }}{% endif %}</dd>
+            </dl>
+        </div>
+        {% else %}
+        <p class="ubicacion-vacia muted-text">
+            La ubicación está desactivada para este equipo.
+            {% if puede('equipos', 'editar') %}Al activarla, el agente envía su posición cada 2 minutos: por Wi-Fi/GPS de Windows cuando está disponible, o aproximada por la IP pública.{% endif %}
+        </p>
+        {% endif %}
+    </section>
+
     <!-- Inventario (se llena con la plantilla "Inventario del equipo" de la consola) -->
     <section class="card" id="inventario">
         <div class="card-head">
@@ -251,6 +291,11 @@
 {% endif %}
 
 <script type="application/json" id="equipo-inicial">{{ equipo | tojson }}</script>
+{% if (equipo.rastreo or {}).activo %}
+<!-- Mapa (Leaflet + OpenStreetMap) solo cuando la ubicación está activada -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+{% endif %}
 <script src="{{ url_for('static', filename='js/equipos.js') }}" defer></script>
 {% endblock %}
 

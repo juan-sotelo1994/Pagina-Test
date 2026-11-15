@@ -41,6 +41,26 @@ def _numero(valor, minimo=0.0, maximo=float('inf')):
     return min(max(n, minimo), maximo) if n == n else 0.0  # n != n es NaN
 
 
+def _limpiar_ubicacion(u):
+    """Coordenadas válidas o None. fuente: 'windows' (Wi-Fi/GPS), 'ip' (aproximada) o 'no disponible'."""
+    if not isinstance(u, dict):
+        return None
+    limpia = {
+        'fuente': _texto(u.get('fuente'), 20),
+        'ciudad': _texto(u.get('ciudad'), 60),
+        'region': _texto(u.get('region'), 60),
+        'pais': _texto(u.get('pais'), 4),
+        'momento': int(_numero(u.get('momento'))),
+    }
+    try:
+        lat, lon = float(u.get('lat')), float(u.get('lon'))
+    except (TypeError, ValueError):
+        return limpia
+    if -90 <= lat <= 90 and -180 <= lon <= 180:
+        limpia.update(lat=round(lat, 6), lon=round(lon, 6), precision=round(_numero(u.get('precision'), 0, 1_000_000)))
+    return limpia
+
+
 def limpiar(datos):
     """Convierte el JSON del agente en un registro con tipos y tamaños seguros.
 
@@ -120,6 +140,7 @@ def limpiar(datos):
             ],
             'ventiladores_disponible': bool(sensores.get('ventiladores_disponible')),
         },
+        'ubicacion': _limpiar_ubicacion(datos.get('ubicacion')),
         'remoto': {
             'pantalla': bool(remoto.get('pantalla')),
             'ssh': bool(remoto.get('ssh')),
@@ -165,6 +186,12 @@ def registrar(datos, ip_origen):
         # El inventario llega por comandos, no con cada reporte: se conserva
         if anterior.get('inventario'):
             equipo['inventario'] = anterior['inventario']
+        # Ubicación: solo se guarda si un administrador activó el rastreo en este equipo
+        equipo['rastreo'] = anterior.get('rastreo') or {'activo': False}
+        if not equipo['rastreo']['activo']:
+            equipo['ubicacion'] = None
+        elif not equipo['ubicacion']:
+            equipo['ubicacion'] = anterior.get('ubicacion')
         equipo['ip_origen'] = _texto(ip_origen, 45)
         equipos[equipo['id']] = equipo
 
@@ -179,6 +206,24 @@ def registrar(datos, ip_origen):
 
         if nuevo or ahora - _ultimo_guardado > GUARDAR_CADA:
             guardar()
+    return True
+
+
+def rastreo_activo(equipo_id):
+    with _lock:
+        return bool((cargar().get(equipo_id, {}).get('rastreo') or {}).get('activo'))
+
+
+def cambiar_rastreo(equipo_id, activo, usuario):
+    """Activa o desactiva el envío de ubicación de un equipo. Al desactivarlo se borra la última."""
+    with _lock:
+        equipo = cargar().get(equipo_id)
+        if equipo is None:
+            return False
+        equipo['rastreo'] = {'activo': bool(activo), 'por': usuario, 'desde': time.time()}
+        if not activo:
+            equipo['ubicacion'] = None
+        guardar()
     return True
 
 

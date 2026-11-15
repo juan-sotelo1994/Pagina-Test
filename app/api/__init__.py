@@ -35,7 +35,8 @@ def reporte():
     datos = request.get_json(silent=True)
     if not equipos.registrar(datos, request.remote_addr):
         return jsonify(error='Reporte inválido'), 400
-    return jsonify(ok=True)
+    # El agente solo envía su ubicación si un administrador la activó para este equipo
+    return jsonify(ok=True, ubicacion=equipos.rastreo_activo(str(datos.get('id', '')).lower()))
 
 
 @api_bp.route('/comandos/<equipo_id>')
