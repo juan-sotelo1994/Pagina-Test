@@ -17,7 +17,7 @@ ARCHIVO = Path(__file__).resolve().parent.parent / 'data' / 'equipos.json'
 
 SEGUNDOS_EN_LINEA = 60     # sin reportes en este tiempo = desconectado (3 reportes de 20 s)
 GUARDAR_CADA = 30          # segundos entre escrituras al archivo
-PUNTOS_HISTORIAL = 120     # 10 minutos con reportes cada 5 s
+PUNTOS_HISTORIAL = 120     # 40 minutos con reportes cada 20 s
 
 _lock = threading.Lock()
 _equipos = None
@@ -108,6 +108,7 @@ def limpiar(datos):
         'remoto': {
             'pantalla': bool(remoto.get('pantalla')),
             'ssh': bool(remoto.get('ssh')),
+            'rdp': bool(remoto.get('rdp')),
         },
     }
 
@@ -168,6 +169,27 @@ def en_linea(equipo, ahora=None):
 def ip_conexion(equipo):
     # La IP con la que el equipo llega al panel; sirve para Compartir pantalla / SSH
     return equipo.get('ip') or equipo.get('ip_origen', '')
+
+
+def archivo_rdp(equipo):
+    """Contenido de un archivo .rdp para abrir Escritorio remoto contra el equipo.
+
+    Devuelve None si la IP no es válida (solo se aceptan dígitos, puntos y ':'
+    para que no se puedan colar otras líneas en el archivo).
+    """
+    ip = ip_conexion(equipo)
+    if not ip or not re.fullmatch(r'[0-9A-Fa-f.:]{3,45}', ip):
+        return None
+    lineas = [
+        f'full address:s:{ip}:3389',
+        'prompt for credentials:i:1',       # pide usuario y contraseña al conectar
+        'authentication level:i:2',          # avisa si no puede verificar el certificado
+        'screen mode id:i:2',                # pantalla completa
+        'use multimon:i:0',
+        'redirectclipboard:i:1',
+        'audiomode:i:0',
+    ]
+    return '\r\n'.join(lineas) + '\r\n'
 
 
 def listar():

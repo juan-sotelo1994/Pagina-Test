@@ -25,6 +25,11 @@
     box-sizing: border-box;
 }
 
+/* Que el atributo hidden gane siempre, aunque la clase tenga display */
+[hidden] {
+    display: none !important;
+}
+
 html,
 body {
     height: 100%;

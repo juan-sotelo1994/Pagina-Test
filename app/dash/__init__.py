@@ -1,4 +1,5 @@
 import io
+import re
 from collections import Counter
 from datetime import date
 
@@ -414,6 +415,22 @@ def equipo_datos(equipo_id):
     if equipo is None:
         abort(404)
     return jsonify(equipo)
+
+
+@dashboard_bp.route('/equipos/<equipo_id>/rdp')
+@login_requerido
+def equipo_rdp(equipo_id):
+    # Archivo .rdp: al abrirlo, Windows lanza Conexión a Escritorio remoto contra el equipo
+    _exigir('equipos')
+    equipo = equipos.obtener(equipo_id)
+    if equipo is None:
+        abort(404)
+    contenido = equipos.archivo_rdp(equipo)
+    if contenido is None:
+        abort(409, 'El equipo no tiene una IP válida para conectarse.')
+    nombre = re.sub(r'[^A-Za-z0-9_-]', '_', equipo['nombre']) or 'equipo'
+    return send_file(io.BytesIO(contenido.encode('utf-8')), mimetype='application/x-rdp',
+                     as_attachment=True, download_name=f'{nombre}.rdp')
 
 
 @dashboard_bp.route('/equipos/<equipo_id>/eliminar', methods=['POST'])

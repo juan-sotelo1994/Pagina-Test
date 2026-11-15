@@ -17,6 +17,10 @@
             <span class="tag" id="equipo-estado"></span>
         </div>
         <div class="card-foot equipo-acciones">
+            <a class="tool-btn btn-save" id="btn-rdp" href="{{ url_for('dashboard.equipo_rdp', equipo_id=equipo.id) }}"
+               title="Descarga un archivo .rdp que abre Conexión a Escritorio remoto">
+                <i class="fa-brands fa-windows"></i> Escritorio remoto (RDP)
+            </a>
             <a class="tool-btn btn-save" id="btn-pantalla" href="vnc://{{ equipo.ip_conexion }}">
                 <i class="fa-solid fa-display"></i> Compartir pantalla
             </a>
@@ -35,7 +39,7 @@
         </div>
         <p class="remoto-aviso" id="aviso-remoto" hidden>
             <i class="fa-solid fa-triangle-exclamation"></i>
-            Compartir pantalla está desactivado en este Mac. Actívalo en Ajustes del Sistema → General → Compartir.
+            <span id="aviso-remoto-texto"></span>
         </p>
     </section>
 

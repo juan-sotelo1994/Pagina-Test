@@ -44,6 +44,10 @@ function barra(valor) {
 }
 
 const discoPrincipal = (e) => (e.discos || [])[0];
+const esWindows = (e) => (e.sistema || '').startsWith('Windows');
+const esMac = (e) => (e.sistema || '').startsWith('macOS');
+// e.remoto.rdp no existe en reportes de agentes anteriores a la 0.2.0
+const remoto = (e) => ({ pantalla: false, ssh: false, rdp: false, ...e.remoto });
 
 function tieneAlerta(e) {
     if (!e.en_linea) return false;
@@ -85,10 +89,19 @@ if (filas) {
     const fila = (e) => {
         const disco = discoPrincipal(e);
         const enlace = `${base}/${encodeURIComponent(e.id)}`;
-        const remoto = e.en_linea && e.remoto.pantalla && e.ip_conexion
-            ? el('a', { className: 'tool-btn btn-mini', href: `vnc://${e.ip_conexion}`, title: 'Abrir Compartir pantalla' },
-                icono('fa-display'), ' Conectar')
-            : el('span', { className: 'muted', textContent: e.en_linea ? 'Pantalla desactivada' : '—' });
+        const r = remoto(e);
+        let acceso;
+        if (!e.en_linea || !e.ip_conexion) {
+            acceso = el('span', { className: 'muted', textContent: '—' });
+        } else if (r.rdp) {
+            acceso = el('a', { className: 'tool-btn btn-mini', href: `${enlace}/rdp`, title: 'Descargar acceso de Escritorio remoto (.rdp)' },
+                el('i', { className: 'fa-brands fa-windows' }), ' RDP');
+        } else if (r.pantalla) {
+            acceso = el('a', { className: 'tool-btn btn-mini', href: `vnc://${e.ip_conexion}`, title: 'Abrir conexión VNC' },
+                icono('fa-display'), ' Conectar');
+        } else {
+            acceso = el('span', { className: 'muted', textContent: esWindows(e) ? 'RDP desactivado' : 'Pantalla desactivada' });
+        }
 
         const tr = el('tr', { className: e.en_linea ? '' : 'offline' },
             el('td', {},
@@ -103,7 +116,7 @@ if (filas) {
             el('td', {}, disco ? barra(disco.porcentaje) : '—'),
             el('td', { className: 'mono' }, e.en_linea ? `${velocidad(e.red.bajada)} / ${velocidad(e.red.subida)}` : '—'),
             el('td', { textContent: hace(e.visto), title: fecha(e.visto) }),
-            el('td', {}, remoto));
+            el('td', {}, acceso));
         tr.dataset.texto = [e.nombre, e.usuario, e.ip_conexion, e.sistema, e.hostname].join(' ').toLowerCase();
         return tr;
     };
@@ -151,6 +164,8 @@ if (detalle) {
 
     const pintar = () => {
         const e = equipo;
+        const windows = esWindows(e);
+        const r = remoto(e);
         const estado = document.getElementById('equipo-estado');
         estado.className = `tag ${e.en_linea ? 'tag-full' : 'tag-lock'}`;
         estado.replaceChildren(el('span', { className: `status-dot ${e.en_linea ? 'on' : 'off'}` }), e.en_linea ? 'En línea' : 'Desconectado');
@@ -172,17 +187,31 @@ if (detalle) {
         poner('nucleos', e.nucleos);
         poner('arranque', e.arranque ? `${fecha(e.arranque)} (${hace(e.arranque).replace('hace ', '')})` : '');
         poner('bateria', e.bateria ? `${e.bateria.porcentaje}%${e.bateria.cargando ? ' · cargando' : ''}` : 'Sin batería');
-        poner('remoto', `Compartir pantalla: ${e.remoto.pantalla ? 'activo' : 'desactivado'} · SSH: ${e.remoto.ssh ? 'activo' : 'desactivado'}`);
+        const activo = (v) => (v ? 'activo' : 'desactivado');
+        poner('remoto', windows
+            ? `Escritorio remoto: ${activo(r.rdp)} · VNC: ${activo(r.pantalla)} · SSH: ${activo(r.ssh)}`
+            : `Compartir pantalla: ${activo(r.pantalla)} · SSH: ${activo(r.ssh)}`);
         poner('visto', `${fecha(e.visto)} (${hace(e.visto)})`);
         poner('agente', e.agente);
 
-        // Acceso remoto
+        // Acceso remoto: en Windows el principal es Escritorio remoto (RDP); en Mac/Linux, VNC
+        const rdp = document.getElementById('btn-rdp');
+        rdp.hidden = !windows && !r.rdp;
+        rdp.classList.toggle('disabled', !e.en_linea || !r.rdp);
         const pantalla = document.getElementById('btn-pantalla');
         pantalla.href = `vnc://${e.ip_conexion}`;
-        pantalla.classList.toggle('disabled', !e.en_linea || !e.remoto.pantalla);
+        pantalla.hidden = windows && !r.pantalla;
+        pantalla.classList.toggle('disabled', !e.en_linea || !r.pantalla);
         document.getElementById('btn-ssh').dataset.copiar = `ssh ${e.usuario || 'admin'}@${e.ip_conexion}`;
         document.getElementById('btn-ip').dataset.copiar = e.ip_conexion;
-        document.getElementById('aviso-remoto').hidden = !e.en_linea || e.remoto.pantalla;
+
+        const sinAcceso = windows ? !r.rdp : !r.pantalla;
+        document.getElementById('aviso-remoto').hidden = !e.en_linea || !sinAcceso;
+        document.getElementById('aviso-remoto-texto').textContent = windows
+            ? 'Escritorio remoto está desactivado en este equipo. Actívalo en Configuración → Sistema → Escritorio remoto (requiere Windows Pro o superior).'
+            : esMac(e)
+                ? 'Compartir pantalla está desactivado en este Mac. Actívalo en Ajustes del Sistema → General → Compartir.'
+                : 'No hay un servidor VNC activo en este equipo. Instala uno (por ejemplo x11vnc) o conéctate por SSH.';
 
         // Discos
         document.getElementById('equipo-discos').replaceChildren(...(e.discos.length ? e.discos.map((d) =>
