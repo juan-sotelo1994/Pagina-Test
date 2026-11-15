@@ -11,9 +11,13 @@
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/web.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+    {% import 'web/_tema.html' as tema %}
+    {{ tema.script_inicial() }}
 </head>
 
 <body class="login-page">
+
+    {{ tema.boton('login-theme') }}
 
     <a href="{{ url_for('web.inicio') }}" class="brand login-brand">
         <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="" class="brand-logo" width="40" height="40">
@@ -112,6 +116,7 @@
 
     <a href="{{ url_for('web.inicio') }}" class="login-back">← Volver al inicio</a>
 
+    <script src="{{ url_for('static', filename='js/tema.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/login.js') }}" defer></script>
 </body>
 

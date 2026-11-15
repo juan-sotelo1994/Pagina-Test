@@ -13,6 +13,8 @@
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/web.css') }}">
     {% block extra_css %}{% endblock %}
+    {% import 'web/_tema.html' as tema %}
+    {{ tema.script_inicial() }}
 </head>
 
 <body>
@@ -46,6 +48,7 @@
                     Iniciar sesión
                 </a>
                 <a href="#contacto" class="btn btn-primary btn-sm">Solicitar asesoría</a>
+                {{ tema.boton() }}
                 <button class="nav-toggle" id="nav-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="main-nav">
                     <span></span><span></span><span></span>
                 </button>
@@ -94,6 +97,7 @@
         </div>
     </footer>
 
+    <script src="{{ url_for('static', filename='js/tema.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/web.js') }}" defer></script>
     {% block extra_js %}{% endblock %}
 </body>

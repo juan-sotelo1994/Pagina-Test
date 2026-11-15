@@ -38,6 +38,20 @@ if (canvas) {
     let ancho = 0;
     let alto = 0;
 
+    // Colores de la red según el tema (variables --net-line y --net-dot del CSS)
+    let colorLinea = '';
+    let colorPunto = '';
+    const leerColores = () => {
+        const estilos = getComputedStyle(document.documentElement);
+        colorLinea = estilos.getPropertyValue('--net-line').trim();
+        colorPunto = estilos.getPropertyValue('--net-dot').trim();
+    };
+    leerColores();
+    document.addEventListener('cambio-tema', () => {
+        leerColores();
+        if (reducirMovimiento) dibujar();
+    });
+
     const crearPuntos = () => {
         const dpr = window.devicePixelRatio || 1;
         ancho = canvas.offsetWidth;
@@ -72,7 +86,7 @@ if (canvas) {
                 const b = puntos[j];
                 const d = Math.hypot(a.x - b.x, a.y - b.y);
                 if (d < DISTANCIA) {
-                    ctx.strokeStyle = `rgba(43, 179, 163, ${0.22 * (1 - d / DISTANCIA)})`;
+                    ctx.strokeStyle = `rgba(${colorLinea}, ${0.22 * (1 - d / DISTANCIA)})`;
                     ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.moveTo(a.x, a.y);
@@ -83,7 +97,7 @@ if (canvas) {
         }
 
         for (const p of puntos) {
-            ctx.fillStyle = 'rgba(181, 240, 74, 0.55)';
+            ctx.fillStyle = `rgba(${colorPunto}, 0.55)`;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
             ctx.fill();

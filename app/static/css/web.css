@@ -3,15 +3,37 @@
    ========================================================= */
 
 :root {
-    --bg: #0a0f1a;
-    --bg-alt: #0d1422;
-    --surface: #111a2b;
-    --line: rgba(255, 255, 255, 0.08);
-    --text: #e8eef5;
-    --muted: #9aa8b8;
-    --lime: #b5f04a;
-    --teal: #2bb3a3;
-    --teal-dark: #229488;
+    /* Tema claro (por defecto): mismo esquema que el panel */
+    --bg: #f3f7fc;
+    --bg-alt: #e8f0fa;
+    --surface: #ffffff;
+    --line: rgba(19, 33, 60, 0.10);
+    --line-strong: rgba(19, 33, 60, 0.22);
+    --text: #13213c;
+    --text-2: #334155;
+    --muted: #5b6b82;
+    --lime: #3f9d2f;
+    --teal: #1d6fe8;
+    --teal-dark: #1557c0;
+
+    --header-bg: rgba(255, 255, 255, 0.9);
+    --glow: rgba(29, 111, 232, 0.12);
+    --footer-bg: #e8f0fa;
+    --label-bg: rgba(255, 255, 255, 0.85);
+    --caption-bg: rgba(255, 255, 255, 0.8);
+    --orbit-sweep: rgba(63, 157, 47, 0.22);
+    --orbit-fill: rgba(29, 111, 232, 0.10);
+    --orbit-fill-end: rgba(255, 255, 255, 0.6);
+    --orbit-ring: rgba(29, 111, 232, 0.45);
+    --orbit-spoke: rgba(29, 111, 232, 0.30);
+    --core-1: #ffffff;
+    --core-2: #e6eefa;
+    --core-glow: rgba(29, 111, 232, 0.25);
+    --node-glow: rgba(63, 157, 47, 0.35);
+    --shadow-card: 0 24px 60px rgba(19, 33, 60, 0.14);
+    /* Red de puntos del hero (canvas): "r, g, b" */
+    --net-line: 29, 111, 232;
+    --net-dot: 63, 157, 47;
 
     --font-title: 'Sora', system-ui, sans-serif;
     --font-body: 'Inter', system-ui, sans-serif;
@@ -19,6 +41,40 @@
 
     --radius: 10px;
     --header-h: 84px;
+}
+
+/* Tema oscuro: el diseño original del sitio */
+[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0a0f1a;
+    --bg-alt: #0d1422;
+    --surface: #111a2b;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.22);
+    --text: #e8eef5;
+    --text-2: #c9d4e0;
+    --muted: #9aa8b8;
+    --lime: #b5f04a;
+    --teal: #2bb3a3;
+    --teal-dark: #229488;
+
+    --header-bg: rgba(10, 15, 26, 0.88);
+    --glow: rgba(43, 179, 163, 0.10);
+    --footer-bg: #070b14;
+    --label-bg: rgba(10, 15, 26, 0.7);
+    --caption-bg: rgba(17, 26, 43, 0.7);
+    --orbit-sweep: rgba(181, 240, 74, 0.22);
+    --orbit-fill: rgba(43, 179, 163, 0.18);
+    --orbit-fill-end: rgba(10, 15, 26, 0.6);
+    --orbit-ring: rgba(181, 240, 74, 0.55);
+    --orbit-spoke: rgba(43, 179, 163, 0.35);
+    --core-1: #13233a;
+    --core-2: #0a0f1a;
+    --core-glow: rgba(43, 179, 163, 0.35);
+    --node-glow: rgba(181, 240, 74, 0.35);
+    --shadow-card: 0 30px 80px rgba(0, 0, 0, 0.45);
+    --net-line: 43, 179, 163;
+    --net-dot: 181, 240, 74;
 }
 
 *,
@@ -91,7 +147,7 @@ a {
 }
 
 .btn-outline {
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: var(--line-strong);
     color: var(--text);
 }
 
@@ -143,7 +199,7 @@ a {
 }
 
 .site-header.scrolled {
-    background: rgba(10, 15, 26, 0.88);
+    background: var(--header-bg);
     backdrop-filter: blur(12px);
     border-bottom-color: var(--line);
 }
@@ -287,7 +343,7 @@ a {
     align-items: center;
     overflow: hidden;
     background:
-        radial-gradient(ellipse 60% 50% at 80% 40%, rgba(43, 179, 163, 0.10), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 40%, var(--glow), transparent 70%),
         var(--bg);
 }
 
@@ -356,7 +412,7 @@ a {
     align-items: center;
     gap: 10px;
     font-weight: 500;
-    color: #c9d4e0;
+    color: var(--text-2);
 }
 
 .hero-points svg {
@@ -392,8 +448,8 @@ a {
     inset: 1%;
     border-radius: 50%;
     background:
-        conic-gradient(from 0deg, rgba(181, 240, 74, 0.22), transparent 18%, transparent),
-        radial-gradient(circle, rgba(43, 179, 163, 0.18), rgba(10, 15, 26, 0.6) 70%);
+        conic-gradient(from 0deg, var(--orbit-sweep), transparent 18%, transparent),
+        radial-gradient(circle, var(--orbit-fill), var(--orbit-fill-end) 70%);
     animation: spin 9s linear infinite;
 }
 
@@ -406,18 +462,18 @@ a {
 }
 
 .orbit-lines .ring-outer {
-    stroke: rgba(181, 240, 74, 0.55);
+    stroke: var(--orbit-ring);
     stroke-width: .35;
 }
 
 .orbit-lines .ring-inner {
-    stroke: rgba(255, 255, 255, 0.08);
+    stroke: var(--line);
     stroke-width: .25;
     stroke-dasharray: 1 1.5;
 }
 
 .orbit-lines line {
-    stroke: rgba(43, 179, 163, 0.35);
+    stroke: var(--orbit-spoke);
     stroke-width: .25;
 }
 
@@ -431,9 +487,9 @@ a {
     border-radius: 50%;
     display: grid;
     place-items: center;
-    background: radial-gradient(circle, #13233a, #0a0f1a);
+    background: radial-gradient(circle, var(--core-1), var(--core-2));
     border: 2px solid var(--teal);
-    box-shadow: 0 0 0 10px rgba(43, 179, 163, 0.08), 0 0 50px rgba(43, 179, 163, 0.35);
+    box-shadow: 0 0 0 10px rgba(43, 179, 163, 0.08), 0 0 50px var(--core-glow);
     animation: pulse 3s ease-in-out infinite;
 }
 
@@ -464,13 +520,13 @@ a {
     display: grid;
     place-items: center;
     background: var(--bg);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid var(--line-strong);
     transition: border-color .3s, box-shadow .3s;
 }
 
 .orbit-node:hover .node-icon {
     border-color: var(--lime);
-    box-shadow: 0 0 20px rgba(181, 240, 74, 0.35);
+    box-shadow: 0 0 20px var(--node-glow);
 }
 
 .node-icon svg {
@@ -489,7 +545,7 @@ a {
     letter-spacing: .2em;
     text-transform: uppercase;
     color: var(--muted);
-    background: rgba(10, 15, 26, 0.7);
+    background: var(--label-bg);
     padding: 0 4px;
 }
 
@@ -501,7 +557,7 @@ a {
     padding: 12px 20px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(17, 26, 43, 0.7);
+    background: var(--caption-bg);
     font-family: var(--font-mono);
     font-size: 12px;
     letter-spacing: .14em;
@@ -602,7 +658,7 @@ a {
 .site-footer {
     border-top: 1px solid var(--line);
     padding: 72px 0 32px;
-    background: #070b14;
+    background: var(--footer-bg);
 }
 
 .footer-grid {
@@ -789,4 +845,55 @@ a {
         animation: none !important;
         transition: none !important;
     }
+}
+
+
+/* =========================================================
+   Botón de tema (sol / luna)
+   ========================================================= */
+
+.theme-toggle {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color .2s, color .2s;
+}
+
+.theme-toggle:hover {
+    border-color: var(--teal);
+    color: var(--teal);
+}
+
+.theme-toggle svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Luna en claro, sol en oscuro */
+.theme-toggle .icon-sun,
+[data-theme="dark"] .theme-toggle .icon-moon {
+    display: none;
+}
+
+[data-theme="dark"] .theme-toggle .icon-sun {
+    display: block;
+}
+
+.login-theme {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: var(--surface);
 }
