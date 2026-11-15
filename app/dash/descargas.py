@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 CARPETA_AGENTE = Path(__file__).resolve().parents[2] / 'agente'
+INTERVALO = 20  # segundos entre reportes; el panel marca desconectado a los 60 s
 
 PLATAFORMAS = {
     'macos': {
@@ -119,7 +120,7 @@ def construir_zip(plataforma, servidor, empresa):
                 contenido = texto.replace('\r\n', '\n').replace('\n', '\r\n').encode('utf-8')
             _agregar(zipf, f"{datos['carpeta']}/{nombre}", contenido, ejecutable=nombre.endswith('.sh'))
 
-        config = {'servidor': servidor.rstrip('/'), 'token': os.environ.get('AGENT_TOKEN', ''), 'intervalo': 5}
+        config = {'servidor': servidor.rstrip('/'), 'token': os.environ.get('AGENT_TOKEN', ''), 'intervalo': INTERVALO}
         _agregar(zipf, 'config.json', json.dumps(config, indent=2))
 
         pasos = '\n'.join(f'  {i}. {p}' for i, p in enumerate(datos['pasos'], 1))

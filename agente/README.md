@@ -1,6 +1,6 @@
 # Agente de soporte (macOS, Windows, Debian y Ubuntu)
 
-Programa pequeño que se instala en cada equipo al que le das soporte. Cada 5 segundos
+Programa pequeño que se instala en cada equipo al que le das soporte. Cada 20 segundos
 envía al panel (**Soporte → Equipos**):
 
 - Nombre del equipo, modelo, número de serie, sistema operativo y usuario con sesión abierta

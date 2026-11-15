@@ -8,7 +8,7 @@
 param(
     [string]$Servidor = '',
     [string]$Token = $env:AGENT_TOKEN,
-    [int]$Intervalo = 5
+    [int]$Intervalo = 0
 )
 $ErrorActionPreference = 'Stop'
 
@@ -24,7 +24,9 @@ if (Test-Path $configPaquete) {
     $cfg = Get-Content $configPaquete -Raw | ConvertFrom-Json
     if (-not $Servidor) { $Servidor = $cfg.servidor }
     if (-not $Token) { $Token = $cfg.token }
+    if (-not $Intervalo -and $cfg.intervalo) { $Intervalo = [int]$cfg.intervalo }
 }
+if (-not $Intervalo) { $Intervalo = 20 }
 if (-not $Servidor) { $Servidor = Read-Host 'URL del panel (p. ej. http://192.168.1.10:5711)' }
 if (-not $Token) {
     $seguro = Read-Host 'Token del agente' -AsSecureString

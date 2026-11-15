@@ -15,7 +15,7 @@ from pathlib import Path
 
 ARCHIVO = Path(__file__).resolve().parent.parent / 'data' / 'equipos.json'
 
-SEGUNDOS_EN_LINEA = 20     # sin reportes en este tiempo = desconectado
+SEGUNDOS_EN_LINEA = 60     # sin reportes en este tiempo = desconectado (3 reportes de 20 s)
 GUARDAR_CADA = 30          # segundos entre escrituras al archivo
 PUNTOS_HISTORIAL = 120     # 10 minutos con reportes cada 5 s
 

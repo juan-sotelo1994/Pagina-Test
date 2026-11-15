@@ -42,6 +42,7 @@ TOKEN="${AGENT_TOKEN:-}"
 if [[ -f "$ORIGEN/config.json" ]]; then
     SERVIDOR="${SERVIDOR:-$(leer_config servidor)}"
     TOKEN="${TOKEN:-$(leer_config token)}"
+    INTERVALO="${INTERVALO:-$(leer_config intervalo)}"
 fi
 if [[ -z "$SERVIDOR" ]]; then
     read -rp "URL del panel (p. ej. http://192.168.1.10:5711): " SERVIDOR
@@ -50,7 +51,7 @@ if [[ -z "$TOKEN" ]]; then
     read -rsp "Token del agente: " TOKEN
     echo
 fi
-INTERVALO="${INTERVALO:-5}"
+INTERVALO="${INTERVALO:-20}"
 
 echo "→ Copiando el agente a $CARPETA"
 mkdir -p "$CARPETA"

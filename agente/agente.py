@@ -29,6 +29,7 @@ from urllib.parse import urlparse
 import psutil
 
 VERSION = '0.2.0'
+INTERVALO = 20  # segundos entre reportes al panel
 ES_MAC = sys.platform == 'darwin'
 ES_WINDOWS = sys.platform == 'win32'
 # En Windows y Linux el instalador copia el agente a su carpeta y config.json queda al lado
@@ -273,7 +274,7 @@ def cargar_config(args):
         config = json.loads(CONFIG.read_text())
     servidor = args.servidor or config.get('servidor')
     token = args.token or config.get('token')
-    intervalo = args.intervalo or config.get('intervalo', 5)
+    intervalo = args.intervalo or config.get('intervalo', INTERVALO)
     if not args.mostrar and (not servidor or not token):
         sys.exit(f'Falta "servidor" o "token". Revisa {CONFIG} o usa --servidor y --token.')
     return servidor or 'http://127.0.0.1', token, max(int(intervalo), 2)
@@ -283,7 +284,7 @@ def main():
     parser = argparse.ArgumentParser(description='Agente de soporte')
     parser.add_argument('--servidor', help='URL del panel, p. ej. http://192.168.1.10:5711')
     parser.add_argument('--token', help='Token del agente (AGENT_TOKEN del panel)')
-    parser.add_argument('--intervalo', type=int, help='Segundos entre reportes (por defecto 5)')
+    parser.add_argument('--intervalo', type=int, help=f'Segundos entre reportes (por defecto {INTERVALO})')
     parser.add_argument('--una-vez', action='store_true', help='Envía un solo reporte y sale')
     parser.add_argument('--mostrar', action='store_true', help='Imprime el reporte en pantalla')
     parser.add_argument('--log', help='Archivo de registro (en Windows el servicio no tiene consola)')
