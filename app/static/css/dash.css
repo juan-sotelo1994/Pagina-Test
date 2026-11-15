@@ -1732,95 +1732,106 @@ code {
     flex: 1;
 }
 
-/* ---------- Descargas del agente ---------- */
+/* ---------- Descargas del agente (botón desplegable) ---------- */
 
-.downloads-form {
+.dropdown {
+    position: relative;
+}
+
+.dropdown > summary {
+    list-style: none;
+    height: 100%;
+    user-select: none;
+}
+
+.dropdown > summary::-webkit-details-marker {
+    display: none;
+}
+
+.dropdown[open] > summary .fa-caret-down {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 25;
+    width: 340px;
+    max-width: calc(100vw - 32px);
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 0 18px 18px;
-}
-
-.downloads-form .form-field {
-    max-width: 560px;
-}
-
-.downloads-note {
-    margin: 0;
-    padding: 0 18px 18px;
-    color: var(--muted);
-}
-
-.download-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    gap: 10px;
-}
-
-.download-tile {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 18px;
-    background: var(--bg);
+    gap: 6px;
+    padding: 12px;
+    background: var(--side);
     border: 1px solid var(--line);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
+}
+
+.dropdown-menu .form-field {
+    margin-bottom: 6px;
+}
+
+.dropdown-menu .form-field > span {
+    font-size: 13px;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: 1px solid transparent;
     color: var(--text);
     font: inherit;
     text-align: left;
     cursor: pointer;
-    transition: border-color .15s, background .15s;
 }
 
-.download-tile:hover {
+.dropdown-item:hover,
+.dropdown-item:focus-visible {
+    background: var(--side-hover);
     border-color: var(--accent);
-    background: #23252a;
+    outline: none;
 }
 
-.download-tile > i {
-    font-size: 30px;
+.dropdown-item > i:first-child {
+    width: 24px;
+    font-size: 22px;
+    text-align: center;
     color: var(--accent);
-    margin-bottom: 6px;
 }
 
-.download-tile strong {
-    font-size: 18px;
+.dropdown-item > span {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
-.download-tile small {
+.dropdown-item small {
+    font-size: 12px;
     color: var(--muted);
+}
+
+.dropdown-item > i:last-child {
+    color: var(--muted);
+}
+
+.dropdown-warn {
+    margin: 0 0 6px;
+    padding: 8px 10px;
+    border: 1px solid rgba(239, 99, 81, .5);
+    background: rgba(239, 99, 81, .12);
+    color: #ffb4a8;
     font-size: 13px;
 }
 
-.download-cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 10px 0 8px;
-    padding: 7px 12px;
-    background: var(--accent);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.download-steps {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 100%;
-}
-
-.download-steps code {
-    display: block;
-    padding: 5px 8px;
-    background: #17181a;
-    border: 1px solid var(--line);
-    font-family: ui-monospace, Consolas, monospace;
+.dropdown-hint {
+    margin: 4px 0 0;
     font-size: 12px;
-    color: #c9cdd2;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    color: var(--muted);
 }
 
 /* ---------- Avisos emergentes ---------- */

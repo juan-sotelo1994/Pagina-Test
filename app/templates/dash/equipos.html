@@ -25,50 +25,35 @@
     </article>
 </section>
 
-<!-- Descargas del agente -->
-<section class="card agent-downloads">
-    <header class="card-head">
-        <div class="role-icon"><i class="fa-solid fa-download"></i></div>
-        <div>
-            <h2>Instalar el agente</h2>
-            <p>Descarga el instalador para el sistema del equipo que quieres monitorear. Ya viene configurado con la dirección del panel y el token.</p>
-        </div>
-    </header>
-
-    {% if not puede_descargar %}
-    <p class="downloads-note"><i class="fa-solid fa-lock"></i> Tu rol no puede descargar el agente: el paquete incluye el token de acceso. Pídelo a un administrador.</p>
-    {% else %}
-    <form method="get" action="{{ url_for('dashboard.equipos_descargar_agente') }}" class="downloads-form">
-        {% if not token_agente %}
-        <div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i>
-            El panel no tiene AGENT_TOKEN en el .env: los agentes no podrán reportar. Agrégalo y reinicia el panel antes de instalar.</div>
-        {% endif %}
-
-        <label class="form-field {% if error_descarga %}invalid{% endif %}">
-            <span>Dirección del panel que usarán los equipos</span>
-            <input type="url" name="servidor" value="{{ servidor_agente }}" required placeholder="http://192.168.1.10:5711">
-            {% if error_descarga %}<small>{{ error_descarga }}</small>{% else %}<small class="hint">La IP de este servidor en la red (o por VPN). El panel debe correr con HOST=0.0.0.0 en el .env.</small>{% endif %}
-        </label>
-
-        <div class="download-grid">
-            {% for clave, p in plataformas.items() %}
-            <button type="submit" name="plataforma" value="{{ clave }}" class="download-tile">
-                <i class="{{ p.icono }}"></i>
-                <strong>{{ p.nombre }}</strong>
-                <small>{{ p.requisitos }}</small>
-                <span class="download-cta"><i class="fa-solid fa-download"></i> Descargar .zip</span>
-                <span class="download-steps">
-                    {% for paso in p.pasos %}<code>{{ paso }}</code>{% endfor %}
-                </span>
-            </button>
-            {% endfor %}
-        </div>
-    </form>
-    {% endif %}
-</section>
-
 <!-- Barra de herramientas -->
 <div class="toolbar">
+    {% if puede_descargar %}
+    <!-- Descargas del agente: botón desplegable -->
+    <details class="dropdown" {% if error_descarga %}open{% endif %}>
+        <summary class="tool-btn btn-save">
+            <i class="fa-solid fa-download"></i> Descargar agente <i class="fa-solid fa-caret-down"></i>
+        </summary>
+        <form method="get" action="{{ url_for('dashboard.equipos_descargar_agente') }}" class="dropdown-menu">
+            {% if not token_agente %}
+            <p class="dropdown-warn"><i class="fa-solid fa-triangle-exclamation"></i>
+                Falta AGENT_TOKEN en el .env: los agentes no podrán reportar.</p>
+            {% endif %}
+            <label class="form-field {% if error_descarga %}invalid{% endif %}">
+                <span>Dirección del panel para los equipos</span>
+                <input type="url" name="servidor" value="{{ servidor_agente }}" required placeholder="http://192.168.1.10:5711">
+                {% if error_descarga %}<small>{{ error_descarga }}</small>{% endif %}
+            </label>
+            {% for clave, p in plataformas.items() %}
+            <button type="submit" name="plataforma" value="{{ clave }}" class="dropdown-item" title="{{ p.pasos | join(' → ') }}">
+                <i class="{{ p.icono }}"></i>
+                <span><strong>{{ p.nombre }}</strong><small>{{ p.requisitos }}</small></span>
+                <i class="fa-solid fa-download"></i>
+            </button>
+            {% endfor %}
+            <p class="dropdown-hint">Cada .zip trae un LEEME.txt con los pasos de instalación.</p>
+        </form>
+    </details>
+    {% endif %}
     <span class="tool-btn live" title="La lista se actualiza sola">
         <span class="live-dot"></span> En vivo
     </span>

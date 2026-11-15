@@ -62,6 +62,13 @@ document.querySelectorAll('[data-open-dialog]').forEach((boton) => {
     });
 });
 
+// Botones desplegables (<details class="dropdown">): se cierran al hacer clic afuera
+document.addEventListener('click', (e) => {
+    document.querySelectorAll('details.dropdown[open]').forEach((d) => {
+        if (!d.contains(e.target)) d.open = false;
+    });
+});
+
 // Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar
 const confirmar = document.getElementById('confirmar');
 document.querySelectorAll('[data-confirm]').forEach((boton) => {
