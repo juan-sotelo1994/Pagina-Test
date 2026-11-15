@@ -1981,11 +1981,18 @@ code {
 
 #inventario .card-head {
     flex-wrap: wrap;
+    justify-content: flex-start;
+    column-gap: 28px;
+    row-gap: 10px;
 }
 
 .inventario-fecha {
-    margin-left: auto;
     font-size: 13px;
+}
+
+/* El texto de "actualizado" solo ocupa espacio cuando ya hay inventario */
+.inventario-fecha:empty {
+    display: none;
 }
 
 .inventario-vacio {

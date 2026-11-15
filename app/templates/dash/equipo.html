@@ -101,12 +101,12 @@
     <section class="card" id="inventario">
         <div class="card-head">
             <h2>Inventario</h2>
-            <span class="muted-text inventario-fecha" id="inventario-fecha"></span>
             {% if puede('equipos', 'editar') %}
             <button class="tool-btn" type="button" id="inventario-actualizar">
                 <i class="fa-solid fa-rotate"></i> <span>Actualizar inventario</span>
             </button>
             {% endif %}
+            <span class="muted-text inventario-fecha" id="inventario-fecha"></span>
         </div>
         <p class="inventario-vacio muted-text" id="inventario-vacio">
             Aún no hay inventario de este equipo.{% if puede('equipos', 'editar') %} Pulsa “Actualizar inventario”: se consulta en segundo plano, sin molestar al usuario.{% endif %}
