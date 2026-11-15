@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 
 import psutil
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 INTERVALO = 20           # segundos entre reportes al panel
 INTERVALO_COMANDOS = 5   # segundos entre consultas de comandos remotos
 ES_MAC = sys.platform == 'darwin'
@@ -217,6 +217,108 @@ class Red:
         return interfaces
 
 
+# ---------------------------------------------------------------- temperatura y ventiladores
+
+SENSORES_CADA = 60  # segundos: leer sensores en Windows/Mac cuesta más que el resto del reporte
+_sensores = {'momento': 0.0, 'datos': None}
+
+# Windows no tiene una API para esto: se prueba LibreHardwareMonitor (si está instalado y
+# corriendo, da la temperatura real del CPU y los ventiladores) y si no, la zona térmica.
+SCRIPT_SENSORES_WINDOWS = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+$r = @{ fuente = ''; temp = $null; fans = @(); fans_disponible = $false }
+foreach ($ns in 'root/LibreHardwareMonitor', 'root/OpenHardwareMonitor') {
+    $s = Get-CimInstance -Namespace $ns -ClassName Sensor
+    if (-not $s) { continue }
+    $cpu = $s | Where-Object { $_.SensorType -eq 'Temperature' -and $_.Parent -match 'cpu' }
+    $preferida = $cpu | Where-Object { $_.Name -match 'Package|Tctl|Tdie' } | Select-Object -First 1
+    if (-not $preferida) { $preferida = $cpu | Sort-Object Value -Descending | Select-Object -First 1 }
+    if ($preferida) { $r.temp = [double]$preferida.Value; $r.fuente = ($ns -split '/')[1] }
+    $r.fans = @($s | Where-Object SensorType -eq 'Fan' | ForEach-Object { @{ nombre = $_.Name; rpm = [double]$_.Value } })
+    $r.fans_disponible = $true
+    break
+}
+if ($null -eq $r.temp) {
+    $z = Get-CimInstance Win32_PerfFormattedData_Counters_ThermalZoneInformation | Where-Object Temperature -gt 0
+    if ($z) { $r.temp = [math]::Round(($z | Measure-Object Temperature -Maximum).Maximum - 273.15, 1); $r.fuente = 'acpi' }
+}
+if ($null -eq $r.temp) {
+    $z = Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature
+    if ($z) { $r.temp = [math]::Round(($z | Measure-Object CurrentTemperature -Maximum).Maximum / 10 - 273.15, 1); $r.fuente = 'acpi' }
+}
+$r | ConvertTo-Json -Compress -Depth 3
+"""
+
+
+def _sensores_windows():
+    salida = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', SCRIPT_SENSORES_WINDOWS],
+                            capture_output=True, text=True, timeout=20, creationflags=0x08000000).stdout
+    datos = json.loads(salida.strip() or '{}')
+    fans = datos.get('fans') or []
+    if isinstance(fans, dict):  # PowerShell 5 convierte una lista de un elemento en objeto
+        fans = [fans]
+    return {
+        'cpu_temp': datos.get('temp'),
+        # La salida de PowerShell va en ASCII; la etiqueta legible se pone aquí
+        'fuente': {'acpi': 'Zona térmica (ACPI)'}.get(datos.get('fuente'), datos.get('fuente') or ''),
+        'ventiladores': [{'nombre': f.get('nombre', ''), 'rpm': f.get('rpm', 0)} for f in fans],
+        'ventiladores_disponible': bool(datos.get('fans_disponible')),
+    }
+
+
+def _sensores_linux():
+    temp, fuente = None, ''
+    lecturas = psutil.sensors_temperatures() if hasattr(psutil, 'sensors_temperatures') else {}
+    # coretemp = Intel, k10temp = AMD, cpu_thermal = Raspberry/ARM
+    for chip in ('coretemp', 'k10temp', 'zenpower', 'cpu_thermal', 'acpitz'):
+        if lecturas.get(chip):
+            preferidas = [t for t in lecturas[chip] if t.label.startswith(('Package', 'Tctl', 'Tdie'))]
+            temp = round(preferidas[0].current if preferidas else max(t.current for t in lecturas[chip]), 1)
+            fuente = chip
+            break
+    fans = psutil.sensors_fans() if hasattr(psutil, 'sensors_fans') else {}
+    return {
+        'cpu_temp': temp,
+        'fuente': fuente,
+        'ventiladores': [{'nombre': f.label or chip, 'rpm': f.current} for chip, lista in fans.items() for f in lista],
+        'ventiladores_disponible': bool(fans),
+    }
+
+
+def _sensores_mac():
+    # powermetrics necesita root (el agente corre como root). En Intel da la temperatura del CPU
+    # y los ventiladores; en Apple Silicon macOS solo informa el nivel de presión térmica.
+    salida = comando('powermetrics', '--samplers', 'smc,thermal', '-n', '1', '-i', '200')
+    temp, fuente, fans = None, '', []
+    for linea in salida.splitlines():
+        texto = linea.strip()
+        if texto.startswith('CPU die temperature:'):
+            temp, fuente = float(texto.split(':')[1].split()[0]), 'SMC'
+        elif texto.startswith('Fan:'):
+            fans.append({'nombre': 'Ventilador', 'rpm': float(texto.split(':')[1].split()[0])})
+        elif texto.startswith('Current pressure level:') and temp is None:
+            fuente = f"Presión térmica: {texto.split(':')[1].strip()}"
+    return {'cpu_temp': temp, 'fuente': fuente, 'ventiladores': fans, 'ventiladores_disponible': bool(fans)}
+
+
+def sensores():
+    ahora = time.monotonic()
+    if _sensores['datos'] is not None and ahora - _sensores['momento'] < SENSORES_CADA:
+        return _sensores['datos']
+    try:
+        if ES_WINDOWS:
+            datos = _sensores_windows()
+        elif ES_MAC:
+            datos = _sensores_mac()
+        else:
+            datos = _sensores_linux()
+    except Exception as e:
+        log.debug('No se pudieron leer los sensores: %s', e)
+        datos = {'cpu_temp': None, 'fuente': '', 'ventiladores': [], 'ventiladores_disponible': False}
+    _sensores.update(momento=ahora, datos=datos)
+    return datos
+
+
 def ip_hacia(servidor):
     # La IP local que usa el equipo para llegar al panel (la que sirve para conectarse)
     url = urlparse(servidor)
@@ -250,6 +352,7 @@ def reporte(fijo, red, servidor):
             'interfaces': interfaces,
         },
         'bateria': {'porcentaje': round(bateria.percent), 'cargando': bool(bateria.power_plugged)} if bateria else None,
+        'sensores': sensores(),
         'remoto': {
             'pantalla': puerto_abierto(5900),  # Compartir pantalla / Gestión remota (VNC)
             'ssh': puerto_abierto(22),         # Sesión remota (SSH)

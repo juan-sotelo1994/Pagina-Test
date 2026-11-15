@@ -1525,7 +1525,7 @@ button {
 
 .stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
     gap: 10px;
     margin-bottom: 10px;
 }
@@ -1837,6 +1837,27 @@ code {
     margin: 4px 0 0;
     font-size: 12px;
     color: var(--muted);
+}
+
+/* ---------- Temperatura y ventiladores ---------- */
+
+.stat-value.aviso,
+.temp.aviso {
+    color: #f59e0b;
+}
+
+.temp.warn {
+    color: var(--danger);
+}
+
+.temp {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.stat-value-sm {
+    font-size: 20px;
+    line-height: 1.4;
 }
 
 /* ---------- Consola remota ---------- */

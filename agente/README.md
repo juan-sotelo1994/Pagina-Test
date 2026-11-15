@@ -93,6 +93,19 @@ administrador), desinstalar con doble clic en `windows\desinstalar.bat`.
 En **Linux**: reiniciar con `sudo systemctl restart agente-soporte`, desinstalar con
 `sudo ./linux/desinstalar.sh`.
 
+## Temperatura y ventiladores
+
+| Sistema | Temperatura del CPU | Ventiladores |
+| --- | --- | --- |
+| Windows | Zona térmica de ACPI (aproximada) | No disponibles por defecto |
+| Windows con [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | Temperatura real del CPU | Sí, con sus RPM |
+| Linux | Sensores del kernel (coretemp / k10temp) | Si el equipo los expone |
+| Mac Intel | SMC | Sí |
+| Mac Apple Silicon | Solo el nivel de presión térmica | No |
+
+Para LibreHardwareMonitor en Windows: debe quedar abierto (por ejemplo, iniciando con
+Windows) para que publique los sensores; el agente los lee cada 60 segundos.
+
 ## Probar sin instalar
 
 ```bash

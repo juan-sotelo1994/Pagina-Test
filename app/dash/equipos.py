@@ -53,6 +53,12 @@ def limpiar(datos):
     red = datos.get('red') if isinstance(datos.get('red'), dict) else {}
     remoto = datos.get('remoto') if isinstance(datos.get('remoto'), dict) else {}
     bateria = datos.get('bateria') if isinstance(datos.get('bateria'), dict) else None
+    sensores = datos.get('sensores') if isinstance(datos.get('sensores'), dict) else {}
+    temp = sensores.get('cpu_temp')
+    try:
+        temp = round(float(temp), 1) if temp is not None and -20 < float(temp) < 150 else None
+    except (TypeError, ValueError):
+        temp = None
 
     discos = []
     for d in (datos.get('discos') or [])[:20]:
@@ -105,6 +111,15 @@ def limpiar(datos):
             'porcentaje': _numero(bateria.get('porcentaje'), 0, 100),
             'cargando': bool(bateria.get('cargando')),
         } if bateria else None,
+        'sensores': {
+            'cpu_temp': temp,  # None = el equipo no informa temperatura
+            'fuente': _texto(sensores.get('fuente'), 60),
+            'ventiladores': [
+                {'nombre': _texto(v.get('nombre'), 60), 'rpm': int(_numero(v.get('rpm'), 0, 100_000))}
+                for v in (sensores.get('ventiladores') or [])[:12] if isinstance(v, dict)
+            ],
+            'ventiladores_disponible': bool(sensores.get('ventiladores_disponible')),
+        },
         'remoto': {
             'pantalla': bool(remoto.get('pantalla')),
             'ssh': bool(remoto.get('ssh')),
@@ -159,6 +174,7 @@ def registrar(datos, ip_origen):
             'memoria': equipo['memoria']['porcentaje'],
             'bajada': equipo['red']['bajada'],
             'subida': equipo['red']['subida'],
+            'temp': equipo['sensores']['cpu_temp'],
         })
 
         if nuevo or ahora - _ultimo_guardado > GUARDAR_CADA:

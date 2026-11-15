@@ -4,6 +4,8 @@
 
 const REFRESCO_MS = 5000;
 const LIMITE_ALERTA = 90; // % de CPU, memoria o disco que se marca en rojo
+const TEMP_ALERTA = 85;   // °C de CPU que se marca en rojo
+const TEMP_AVISO = 75;    // °C de CPU que se marca en amarillo
 
 // ---------- Formato ----------
 
@@ -48,11 +50,24 @@ const esWindows = (e) => (e.sistema || '').startsWith('Windows');
 const esMac = (e) => (e.sistema || '').startsWith('macOS');
 // e.remoto.rdp no existe en reportes de agentes anteriores a la 0.2.0
 const remoto = (e) => ({ pantalla: false, ssh: false, rdp: false, ...e.remoto });
+// e.sensores llega desde el agente 0.5.0
+const sensores = (e) => ({ cpu_temp: null, fuente: '', ventiladores: [], ventiladores_disponible: false, ...e.sensores });
+
+const nivelTemp = (t) => (t == null ? '' : t >= TEMP_ALERTA ? 'warn' : t >= TEMP_AVISO ? 'aviso' : 'ok');
+
+function textoVentiladores(s) {
+    if (!s.ventiladores_disponible) return ['No disponible', ''];
+    if (!s.ventiladores.length) return ['Sin ventiladores', 'El equipo no reporta ventiladores (pasivo o sin sensor)'];
+    const activos = s.ventiladores.filter((v) => v.rpm > 0).length;
+    const titulo = activos ? `${activos} de ${s.ventiladores.length} activos` : 'Detenidos';
+    return [titulo, s.ventiladores.map((v) => `${v.nombre}: ${v.rpm > 0 ? `${v.rpm} rpm` : 'detenido'}`).join(' · ')];
+}
 
 function tieneAlerta(e) {
     if (!e.en_linea) return false;
     return e.cpu >= LIMITE_ALERTA || e.memoria.porcentaje >= LIMITE_ALERTA
-        || (e.discos || []).some((d) => d.porcentaje >= LIMITE_ALERTA);
+        || (e.discos || []).some((d) => d.porcentaje >= LIMITE_ALERTA)
+        || sensores(e).cpu_temp >= TEMP_ALERTA;
 }
 
 async function pedir(url) {
@@ -112,6 +127,9 @@ if (filas) {
             el('td', {}, icono('fa-user muted'), ' ', e.usuario || '—'),
             el('td', { className: 'mono', textContent: e.ip_conexion || '—' }),
             el('td', {}, e.en_linea ? barra(e.cpu) : '—'),
+            el('td', {}, e.en_linea && sensores(e).cpu_temp != null
+                ? el('span', { className: `temp ${nivelTemp(sensores(e).cpu_temp)}`, textContent: `${Math.round(sensores(e).cpu_temp)} °C`, title: sensores(e).fuente })
+                : '—'),
             el('td', {}, e.en_linea ? barra(e.memoria.porcentaje) : '—'),
             el('td', {}, disco ? barra(disco.porcentaje) : '—'),
             el('td', { className: 'mono' }, e.en_linea ? `${velocidad(e.red.bajada)} / ${velocidad(e.red.subida)}` : '—'),
@@ -178,6 +196,23 @@ if (detalle) {
         poner('bajada', e.en_linea ? velocidad(e.red.bajada) : '–');
         poner('subida', e.en_linea ? velocidad(e.red.subida) : '–');
         campo('cpu').classList.toggle('warn', e.en_linea && e.cpu >= LIMITE_ALERTA);
+
+        // Temperatura y ventiladores
+        const s = sensores(e);
+        const temp = campo('temp');
+        temp.textContent = e.en_linea && s.cpu_temp != null ? `${s.cpu_temp.toFixed(1)} °C` : (s.cpu_temp == null ? 'No disponible' : '–');
+        temp.classList.toggle('warn', e.en_linea && s.cpu_temp >= TEMP_ALERTA);
+        temp.classList.toggle('aviso', e.en_linea && s.cpu_temp >= TEMP_AVISO && s.cpu_temp < TEMP_ALERTA);
+        temp.classList.toggle('stat-value-sm', s.cpu_temp == null);
+        poner('temp-detalle', s.cpu_temp == null
+            ? 'El equipo no informa la temperatura'
+            : `${s.fuente}${s.cpu_temp >= TEMP_ALERTA ? ' · ¡muy caliente!' : s.cpu_temp >= TEMP_AVISO ? ' · caliente' : ''}`);
+        const [fansTitulo, fansDetalle] = textoVentiladores(s);
+        poner('ventiladores', fansTitulo);
+        campo('ventiladores').classList.add('stat-value-sm');
+        poner('ventiladores-detalle', fansDetalle || (esWindows(e)
+            ? 'Windows no informa los ventiladores: instala LibreHardwareMonitor en el equipo'
+            : 'Este equipo no expone sensores de ventiladores'));
         campo('memoria').classList.toggle('warn', e.en_linea && e.memoria.porcentaje >= LIMITE_ALERTA);
 
         poner('usuario', e.usuario);
@@ -237,6 +272,7 @@ if (detalle) {
         sparkline('memoria', h.map((p) => p.memoria), 100);
         sparkline('bajada', h.map((p) => p.bajada));
         sparkline('subida', h.map((p) => p.subida));
+        sparkline('temp', h.filter((p) => p.temp != null).map((p) => p.temp), 100);
 
         pintarInventario(e.inventario);
     };
