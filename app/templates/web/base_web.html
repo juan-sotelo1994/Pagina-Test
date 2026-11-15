@@ -9,7 +9,7 @@
     <!-- Google Fonts: Sora (títulos), Inter (texto), JetBrains Mono (etiquetas) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/web.css') }}">
     {% block extra_css %}{% endblock %}
@@ -18,6 +18,9 @@
 </head>
 
 <body>
+
+    <!-- Red de nodos de fondo (la dibuja web.js) -->
+    <canvas class="page-network" id="hero-network" aria-hidden="true"></canvas>
 
     <!-- Encabezado -->
     <header class="site-header" id="site-header">

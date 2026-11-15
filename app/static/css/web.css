@@ -4,40 +4,48 @@
 
 :root {
     /* Tema claro (por defecto): mismo esquema que el panel */
-    --bg: #f3f7fc;
-    --bg-alt: #e8f0fa;
+    --bg: #f4f7fc;
+    --bg-alt: #eef3fb;
     --surface: #ffffff;
-    --line: rgba(19, 33, 60, 0.10);
-    --line-strong: rgba(19, 33, 60, 0.22);
-    --text: #13213c;
-    --text-2: #334155;
-    --muted: #5b6b82;
-    --lime: #3f9d2f;
-    --teal: #1d6fe8;
-    --teal-dark: #1557c0;
+    --line: rgba(16, 22, 43, 0.08);
+    --line-strong: rgba(16, 22, 43, 0.18);
+    --text: #10162b;
+    --text-2: #4b5568;
+    --muted: #6b7487;
+    --lime: #2f5bd7;
+    --teal: #2f5bd7;
+    --teal-dark: #2449b3;
 
-    --header-bg: rgba(255, 255, 255, 0.9);
-    --glow: rgba(29, 111, 232, 0.12);
-    --footer-bg: #e8f0fa;
-    --label-bg: rgba(255, 255, 255, 0.85);
+    --header-bg: rgba(244, 247, 252, 0.85);
+    --glow: rgba(47, 91, 215, 0.10);
+    --footer-bg: rgba(255, 255, 255, 0.75);
+    --label-bg: rgba(255, 255, 255, 0.9);
     --caption-bg: rgba(255, 255, 255, 0.8);
-    --orbit-sweep: rgba(63, 157, 47, 0.22);
-    --orbit-fill: rgba(29, 111, 232, 0.10);
-    --orbit-fill-end: rgba(255, 255, 255, 0.6);
-    --orbit-ring: rgba(29, 111, 232, 0.45);
-    --orbit-spoke: rgba(29, 111, 232, 0.30);
+    --orbit-sweep: rgba(47, 91, 215, 0.16);
+    --orbit-fill: rgba(47, 91, 215, 0.06);
+    --orbit-fill-end: rgba(255, 255, 255, 0.7);
+    --orbit-ring: rgba(47, 91, 215, 0.35);
+    --orbit-spoke: rgba(47, 91, 215, 0.22);
     --core-1: #ffffff;
-    --core-2: #e6eefa;
-    --core-glow: rgba(29, 111, 232, 0.25);
-    --node-glow: rgba(63, 157, 47, 0.35);
+    --core-2: #eef3fb;
+    --core-glow: rgba(47, 91, 215, 0.22);
+    --node-glow: rgba(47, 91, 215, 0.30);
     --shadow-card: 0 24px 60px rgba(19, 33, 60, 0.14);
     /* Red de puntos del hero (canvas): "r, g, b" */
-    --net-line: 29, 111, 232;
-    --net-dot: 63, 157, 47;
+    --net-line: 47, 91, 215;
+    --net-dot: 47, 91, 215;
 
-    --font-title: 'Sora', system-ui, sans-serif;
-    --font-body: 'Inter', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --marquee-bg: rgba(255, 255, 255, 0.75);
+    --marquee-text: #10162b;
+    --marquee-sep: #2f5bd7;
+    --badge-bg: rgba(47, 91, 215, 0.10);
+    --tile-bg: rgba(47, 91, 215, 0.10);
+    --page-glow-1: rgba(47, 91, 215, 0.10);
+    --page-glow-2: rgba(120, 150, 240, 0.12);
+
+    --font-title: 'Montserrat', system-ui, sans-serif;
+    --font-body: 'Montserrat', system-ui, sans-serif;
+    --font-mono: 'Montserrat', system-ui, sans-serif;
 
     --radius: 10px;
     --header-h: 84px;
@@ -75,6 +83,13 @@
     --shadow-card: 0 30px 80px rgba(0, 0, 0, 0.45);
     --net-line: 43, 179, 163;
     --net-dot: 181, 240, 74;
+    --marquee-bg: #2bb3a3;
+    --marquee-text: #ffffff;
+    --marquee-sep: rgba(255, 255, 255, 0.7);
+    --badge-bg: rgba(181, 240, 74, 0.10);
+    --tile-bg: rgba(43, 179, 163, 0.15);
+    --page-glow-1: rgba(43, 179, 163, 0.10);
+    --page-glow-2: rgba(181, 240, 74, 0.05);
 }
 
 *,
@@ -582,8 +597,8 @@ a {
    ========================================================= */
 
 .marquee {
-    background: var(--teal);
-    color: #fff;
+    background: var(--marquee-bg);
+    color: var(--marquee-text);
     overflow: hidden;
     padding: 26px 0;
 }
@@ -618,7 +633,7 @@ a {
     width: 60px;
     height: 20px;
     fill: none;
-    stroke: rgba(255, 255, 255, 0.7);
+    stroke: var(--marquee-sep);
     stroke-width: 2;
     flex-shrink: 0;
 }
@@ -896,4 +911,237 @@ a {
     top: 16px;
     right: 16px;
     background: var(--surface);
+}
+
+
+/* =========================================================
+   Estilo de la página principal: red de nodos a pantalla
+   completa, etiquetas tipo píldora y características con íconos
+   ========================================================= */
+
+body {
+    background:
+        radial-gradient(ellipse 45% 40% at 85% 25%, var(--page-glow-1), transparent 70%),
+        radial-gradient(ellipse 40% 45% at 10% 80%, var(--page-glow-2), transparent 70%),
+        var(--bg);
+    background-attachment: fixed;
+}
+
+/* La red de nodos queda fija detrás de toda la página */
+.page-network {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+main,
+.site-footer {
+    position: relative;
+    z-index: 1;
+}
+
+.hero {
+    background: transparent;
+}
+
+.section,
+.section-alt {
+    background: transparent;
+}
+
+.section-alt {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+}
+
+/* Etiqueta tipo píldora sobre los títulos */
+.eyebrow {
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: var(--badge-bg);
+    color: var(--teal);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+}
+
+.eyebrow .dot {
+    display: none;
+}
+
+[data-theme="dark"] .eyebrow {
+    color: var(--lime);
+}
+
+/* Títulos y textos */
+.hero h1 {
+    font-weight: 800;
+    font-size: clamp(40px, 5.4vw, 80px);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+}
+
+.hero-lead {
+    font-weight: 500;
+    font-size: clamp(18px, 1.7vw, 24px);
+}
+
+.hero-sub {
+    font-size: 16px;
+    line-height: 1.7;
+}
+
+/* Botones planos con esquinas suaves */
+.btn {
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-weight: 600;
+}
+
+.btn-primary {
+    box-shadow: 0 8px 20px rgba(47, 91, 215, 0.25);
+}
+
+[data-theme="dark"] .btn-primary {
+    box-shadow: none;
+}
+
+.btn-outline {
+    background: var(--surface);
+}
+
+.btn-outline:hover {
+    border-color: var(--teal);
+    color: var(--teal);
+}
+
+.btn-sm {
+    font-size: 13px;
+    letter-spacing: .06em;
+}
+
+/* Menú: Montserrat en mayúsculas, más discreto */
+.main-nav a {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    color: var(--text-2);
+}
+
+.main-nav a:hover {
+    color: var(--teal);
+}
+
+.brand-name {
+    letter-spacing: 0;
+}
+
+.brand-tagline {
+    font-weight: 600;
+    letter-spacing: .2em;
+}
+
+.nav-phone {
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.nav-phone svg {
+    stroke: var(--teal);
+}
+
+/* Botón de tema en forma de píldora translúcida */
+.theme-toggle {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    border-color: var(--line);
+}
+
+[data-theme="dark"] .theme-toggle {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Características con ícono en un cuadrito, título y descripción */
+.hero-points {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 18px;
+    max-width: 560px;
+}
+
+.hero-points li {
+    align-items: flex-start;
+    gap: 14px;
+    font-weight: 400;
+}
+
+.hero-points .tile {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: var(--tile-bg);
+}
+
+.hero-points svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--teal);
+}
+
+.hero-points strong {
+    display: block;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.hero-points small {
+    display: block;
+    color: var(--text-2);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Franja de frentes: clara y con bordes finos */
+.marquee {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(6px);
+}
+
+.marquee-item {
+    font-weight: 800;
+}
+
+/* Diagrama: nodos blancos y etiquetas legibles sobre fondo claro */
+.node-icon {
+    background: var(--surface);
+    box-shadow: 0 4px 14px rgba(16, 22, 43, 0.08);
+}
+
+.node-icon svg {
+    stroke: var(--teal);
+}
+
+[data-theme="dark"] .node-icon {
+    box-shadow: none;
+}
+
+[data-theme="dark"] .node-icon svg {
+    stroke: var(--text);
+}
+
+.node-label,
+.orbit-caption {
+    font-weight: 600;
+}
+
+.site-footer {
+    backdrop-filter: blur(6px);
 }
