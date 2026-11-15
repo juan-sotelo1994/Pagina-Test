@@ -55,9 +55,9 @@ a {
 
 .container {
     width: 100%;
-    max-width: 1560px;
+    max-width: 1800px;
     margin: 0 auto;
-    padding: 0 clamp(24px, 4vw, 64px);
+    padding: 0 clamp(24px, 4vw, 72px);
 }
 
 /* ---------- Botones ---------- */
@@ -304,7 +304,7 @@ a {
     display: grid;
     grid-template-columns: 1.1fr 1fr;
     align-items: center;
-    gap: clamp(48px, 8vw, 160px);
+    gap: clamp(48px, 12vw, 260px);
 }
 
 .hero h1 {
