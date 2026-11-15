@@ -101,7 +101,7 @@
                 <select name="cliente_id" required>
                     <option value="">Selecciona la empresa</option>
                     {% for c in clientes_lista %}
-                    <option value="{{ c.id }}" {% if (formulario.cliente_id or filtro_cliente) == c.id %}selected{% endif %}>{{ c.nombre }} · NIT {{ c.nit }}</option>
+                    <option value="{{ c.id }}" {% if (formulario.cliente_id or filtro_cliente) == c.id %}selected{% endif %}>{{ c.nombre }} · {{ documento_de(c) }}</option>
                     {% endfor %}
                 </select>
                 {% if errores.cliente_id %}<small>{{ errores.cliente_id }}</small>{% endif %}

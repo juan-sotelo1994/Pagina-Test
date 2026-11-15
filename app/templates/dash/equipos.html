@@ -154,7 +154,7 @@
                 <span>Empresa (grupo)</span>
                 <select id="asignar-cliente">
                     <option value="">Selecciona la empresa</option>
-                    {% for c in clientes_lista %}<option value="{{ c.id }}">{{ c.nombre }} · NIT {{ c.nit }}</option>{% endfor %}
+                    {% for c in clientes_lista %}<option value="{{ c.id }}">{{ c.nombre }} · {{ documento_de(c) }}</option>{% endfor %}
                 </select>
             </label>
             <p class="note"><i class="fa-solid fa-circle-info"></i> Si un equipo ya pertenece a otra empresa, se mueve a esta. Quedan registrados en Inventario › Equipos de clientes con su serial.</p>

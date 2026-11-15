@@ -2048,13 +2048,101 @@ code {
     grid-template-columns: 2fr 1fr 1fr;
 }
 
+/* Opciones grandes tipo tarjeta (tipo de cliente, relación) */
+.opciones {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.opciones-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.opciones legend {
+    margin-bottom: 8px;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.opcion {
+    position: relative;
+    cursor: pointer;
+}
+
+.opcion input {
+    position: absolute;
+    opacity: 0;
+}
+
+.opcion > span {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 10px;
+    align-items: center;
+    height: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    transition: border-color .15s, background .15s;
+}
+
+.opcion i {
+    grid-row: span 2;
+    font-size: 20px;
+    color: var(--muted);
+}
+
+.opcion small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.opcion input:checked + span {
+    border-color: var(--accent);
+    background: rgba(29, 111, 232, .07);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.opcion input:checked + span i {
+    color: var(--accent);
+}
+
+.opcion input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.form-documento {
+    display: flex;
+    gap: 10px;
+}
+
+.form-documento > .form-field:first-child:not([hidden]) {
+    flex: 0 0 42%;
+}
+
+.form-documento > .form-field:last-child {
+    flex: 1;
+}
+
 .form-field input[type="file"] {
     height: auto;
     padding: 8px;
 }
 
 @media (max-width: 900px) {
-    .form-row-3 {
+    .form-row-3,
+    .opciones,
+    .opciones-3 {
         grid-template-columns: 1fr;
     }
 }

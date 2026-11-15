@@ -121,6 +121,7 @@ def datos_panel():
         'puede': lambda modulo, accion='ver': permisos.puede(rol, modulo, accion),
         'alertas': sum(1 for f in FACTURAS if f['estado'] == 'Vencida'),
         'alertas_tickets': alertas_tickets,
+        'documento_de': clientes.documento_de,  # "NIT 900123456-7" / "CC 1020304050"
     }
 
 
@@ -608,8 +609,9 @@ def equipo_eliminar(equipo_id):
 
 # ---------------------------------------------------------------- Clientes y sus equipos
 
-CAMPOS_CLIENTE = ('nombre', 'nit', 'representante_legal', 'representante_ti', 'ti_correo', 'ti_telefono',
-                  'contrato_numero', 'contrato_inicio', 'contrato_fin')
+CAMPOS_CLIENTE = ('tipo_persona', 'nombre', 'tipo_documento', 'documento', 'representante_legal', 'representante_ti',
+                  'ti_correo', 'ti_telefono', 'relacion', 'contrato_numero', 'contrato_inicio', 'contrato_fin',
+                  'compra_referencia', 'compra_fecha')
 CAMPOS_ACTIVO = ('cliente_id', 'tipo', 'marca_modelo', 'serial', 'discos', 'responsable', 'notas')
 
 
@@ -628,8 +630,17 @@ def _resumen_clientes():
 
 def _pagina_clientes(**extra):
     rol = session['rol']
+    filtro_tipo = request.args.get('tipo', '')
+    filtro_relacion = request.args.get('relacion', '')
+    lista = [c for c in clientes.listar_clientes()
+             if (not filtro_tipo or c.get('tipo_persona', 'juridica') == filtro_tipo)
+             and (not filtro_relacion or c.get('relacion', 'contrato') == filtro_relacion)]
     datos = {
-        'activo': 'clientes', 'lista': clientes.listar_clientes(), 'resumen': _resumen_clientes(),
+        'activo': 'clientes', 'lista': lista, 'resumen': _resumen_clientes(),
+        'total_clientes': len(clientes.listar_clientes()),
+        'filtro_tipo': filtro_tipo, 'filtro_relacion': filtro_relacion,
+        'tipos_persona': clientes.TIPOS_PERSONA, 'tipos_documento': clientes.TIPOS_DOCUMENTO,
+        'relaciones': clientes.RELACIONES,
         'puede_crear': permisos.puede(rol, 'clientes', 'crear'),
         'puede_editar': permisos.puede(rol, 'clientes', 'editar'),
         'puede_eliminar': permisos.puede(rol, 'clientes', 'eliminar'),

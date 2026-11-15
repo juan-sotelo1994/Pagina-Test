@@ -227,7 +227,7 @@
                 <span>Empresa</span>
                 <select name="cliente_id" required>
                     <option value="">Selecciona la empresa</option>
-                    {% for c in clientes_lista %}<option value="{{ c.id }}">{{ c.nombre }} · NIT {{ c.nit }}</option>{% endfor %}
+                    {% for c in clientes_lista %}<option value="{{ c.id }}">{{ c.nombre }} · {{ documento_de(c) }}</option>{% endfor %}
                 </select>
             </label>
             <div class="form-row">

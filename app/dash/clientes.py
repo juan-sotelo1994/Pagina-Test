@@ -20,7 +20,18 @@ CARPETA_CONTRATOS = almacen.CARPETA / 'contratos'
 TAMANO_CONTRATO = 10 * 1024 * 1024  # 10 MB
 
 TIPOS_EQUIPO = ['Portátil', 'Escritorio', 'Servidor', 'Todo en uno', 'Mac', 'Otro']
+
+TIPOS_PERSONA = {'juridica': 'Empresa', 'natural': 'Persona natural'}
+TIPOS_DOCUMENTO = {'NIT': 'NIT', 'CC': 'Cédula de ciudadanía', 'CE': 'Cédula de extranjería', 'PA': 'Pasaporte'}
+RELACIONES = {'contrato': 'Contrato', 'compra': 'Compra', 'soporte': 'Soporte por demanda'}
+
 PATRON_NIT = re.compile(r'^\d{6,10}(-\d)?$')       # 900123456 o 900123456-7 (sin puntos)
+PATRONES_DOCUMENTO = {
+    'NIT': PATRON_NIT,
+    'CC': re.compile(r'^\d{5,10}$'),
+    'CE': re.compile(r'^[A-Za-z0-9]{5,12}$'),
+    'PA': re.compile(r'^[A-Za-z0-9]{5,15}$'),
+}
 PATRON_CORREO = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 PATRON_SERIAL = re.compile(r'^[A-Za-z0-9._/\- ]{3,60}$')
 
@@ -51,21 +62,47 @@ def obtener_cliente(cliente_id):
     return next((c for c in almacen.leer(ARCHIVO_CLIENTES, []) if c['id'] == cliente_id), None)
 
 
+def documento_de(cliente):
+    """'NIT 900123456-7' o 'CC 1020304050' (también para clientes guardados con el formato anterior)."""
+    return f"{cliente.get('tipo_documento') or 'NIT'} {cliente.get('documento') or cliente.get('nit', '')}".strip()
+
+
 def validar_cliente(datos, cliente_id=None):
     errores = {}
+    juridica = datos['tipo_persona'] == 'juridica'
+    if datos['tipo_persona'] not in TIPOS_PERSONA:
+        errores['tipo_persona'] = 'Elige si es empresa o persona natural.'
     if len(datos['nombre'].strip()) < 3:
-        errores['nombre'] = 'Escribe el nombre de la empresa.'
-    nit = normalizar_nit(datos['nit'])
-    if not PATRON_NIT.match(nit):
-        errores['nit'] = 'NIT no válido. Ejemplo: 900.123.456-7'
-    elif any(normalizar_nit(c['nit']) == nit and c['id'] != cliente_id for c in almacen.leer(ARCHIVO_CLIENTES, [])):
-        errores['nit'] = 'Ya existe un cliente con ese NIT.'
-    if len(datos['representante_legal'].strip()) < 3:
-        errores['representante_legal'] = 'Escribe el nombre del representante legal.'
-    if len(datos['representante_ti'].strip()) < 3:
-        errores['representante_ti'] = 'Escribe el nombre del representante de TI.'
+        errores['nombre'] = 'Escribe la razón social.' if juridica else 'Escribe el nombre completo.'
+
+    # Documento: las empresas siempre se identifican con NIT
+    tipo_doc = 'NIT' if juridica else datos['tipo_documento']
+    documento = normalizar_nit(datos['documento'])
+    if tipo_doc not in TIPOS_DOCUMENTO:
+        errores['tipo_documento'] = 'Elige el tipo de documento.'
+    elif not PATRONES_DOCUMENTO[tipo_doc].match(documento):
+        errores['documento'] = 'NIT no válido. Ejemplo: 900.123.456-7' if tipo_doc == 'NIT' else 'Número de documento no válido.'
+    elif any(documento_de(c) == f'{tipo_doc} {documento}' and c['id'] != cliente_id
+             for c in almacen.leer(ARCHIVO_CLIENTES, [])):
+        errores['documento'] = 'Ya existe un cliente con ese documento.'
+
+    if juridica:
+        if len(datos['representante_legal'].strip()) < 3:
+            errores['representante_legal'] = 'Escribe el nombre del representante legal.'
+        if len(datos['representante_ti'].strip()) < 3:
+            errores['representante_ti'] = 'Escribe el nombre del representante de TI.'
     if datos['ti_correo'].strip() and not PATRON_CORREO.match(datos['ti_correo'].strip()):
         errores['ti_correo'] = 'Correo no válido.'
+
+    if datos['relacion'] not in RELACIONES:
+        errores['relacion'] = 'Elige el tipo de relación con el cliente.'
+    elif datos['relacion'] == 'contrato':
+        if not datos['contrato_numero'].strip():
+            errores['contrato_numero'] = 'Escribe el número del contrato.'
+        if datos['contrato_inicio'] and datos['contrato_fin'] and datos['contrato_fin'] < datos['contrato_inicio']:
+            errores['contrato_fin'] = 'La fecha de fin es anterior al inicio.'
+    elif datos['relacion'] == 'compra' and not datos['compra_referencia'].strip():
+        errores['compra_referencia'] = 'Escribe el número de factura u orden de compra.'
     return errores
 
 
@@ -102,16 +139,24 @@ def ruta_contrato(cliente):
 
 def guardar_cliente(datos, contrato=None, cliente_id=None, usuario=''):
     """Crea (cliente_id=None) o actualiza un cliente. Devuelve el cliente."""
+    juridica = datos['tipo_persona'] == 'juridica'
+    relacion = datos['relacion']
     campos = {
+        'tipo_persona': datos['tipo_persona'],
         'nombre': datos['nombre'].strip(),
-        'nit': normalizar_nit(datos['nit']),
-        'representante_legal': datos['representante_legal'].strip(),
+        'tipo_documento': 'NIT' if juridica else datos['tipo_documento'],
+        'documento': normalizar_nit(datos['documento']),
+        'representante_legal': datos['representante_legal'].strip() if juridica else '',
         'representante_ti': datos['representante_ti'].strip(),
         'ti_correo': datos['ti_correo'].strip().lower(),
         'ti_telefono': datos['ti_telefono'].strip(),
-        'contrato_numero': datos['contrato_numero'].strip(),
-        'contrato_inicio': datos['contrato_inicio'].strip(),
-        'contrato_fin': datos['contrato_fin'].strip(),
+        'relacion': relacion,
+        # Solo se guardan los datos de la relación elegida
+        'contrato_numero': datos['contrato_numero'].strip() if relacion == 'contrato' else '',
+        'contrato_inicio': datos['contrato_inicio'].strip() if relacion == 'contrato' else '',
+        'contrato_fin': datos['contrato_fin'].strip() if relacion == 'contrato' else '',
+        'compra_referencia': datos['compra_referencia'].strip() if relacion != 'contrato' else '',
+        'compra_fecha': datos['compra_fecha'].strip() if relacion != 'contrato' else '',
     }
     with _lock:
         lista = almacen.leer(ARCHIVO_CLIENTES, [])
