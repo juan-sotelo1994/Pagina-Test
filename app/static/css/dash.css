@@ -3,21 +3,39 @@
    ========================================================= */
 
 :root {
-    --bg: #1e1f21;
-    --panel: #262729;
-    --side: #2f3033;
-    --side-hover: #3a3b3f;
-    --line: #3d3e42;
-    --text: #e4e6e8;
-    --muted: #a3a7ad;
-    --accent: #2bb3a3;
-    --accent-dark: #228f83;
-    --lime: #b5f04a;
-    --danger: #ef6351;
+    /* Contenido: fondo gris azulado, tarjetas blancas */
+    --bg: #eef3fa;
+    --panel: #ffffff;
+    --surface-2: #f5f8fd;
+    --surface-3: #e9eff8;
+    --hover: #eef4fd;
+    --track: #e4ebf5;
+    --line: #e1e8f2;
+    --text: #13213c;
+    --text-2: #334155;
+    --muted: #64748b;
+    --accent: #1d6fe8;
+    --accent-dark: #1557c0;
+    --lime: #3f9d2f;
+    --green: #5cc94a;
+    --danger: #e5484d;
+    --code-bg: #0f1b2d;
+    --shadow: 0 2px 12px rgba(19, 33, 60, .06);
+    --shadow-pop: 0 12px 32px rgba(19, 33, 60, .16);
+    --radius: 12px;
+
+    /* Menú lateral: azul marino con degradado */
+    --side: linear-gradient(180deg, #0c2d62 0%, #0a2250 55%, #081a3d 100%);
+    --side-hover: rgba(255, 255, 255, .08);
+    --side-fav: rgba(255, 255, 255, .06);
+    --side-text: #ffffff;
+    --side-text-2: rgba(255, 255, 255, .82);
+    --side-muted: rgba(255, 255, 255, .55);
+    --side-line: rgba(255, 255, 255, .08);
 
     --side-w: 290px;
     --side-w-mini: 58px;
-    --top-h: 56px;
+    --top-h: 60px;
     --status-h: 42px;
 }
 
@@ -134,7 +152,7 @@ button {
 }
 
 .group-fav summary {
-    background: #38393c;
+    background: var(--side-fav);
     font-weight: 700;
 }
 
@@ -150,7 +168,7 @@ button {
     height: 40px;
     padding: 0 16px 0 52px;
     font-size: 15px;
-    color: #d3d6da;
+    color: var(--side-text-2);
     white-space: nowrap;
     transition: background .15s;
 }
@@ -288,7 +306,7 @@ button {
 }
 
 .icon-btn:hover {
-    background: var(--side-hover);
+    background: var(--hover);
 }
 
 .badge-top {
@@ -323,7 +341,7 @@ button {
 }
 
 .user-btn:hover {
-    background: var(--side-hover);
+    background: var(--hover);
 }
 
 .user-btn .fa-circle-user {
@@ -337,10 +355,10 @@ button {
     z-index: 20;
     min-width: 240px;
     padding: 6px 0;
-    background: var(--side);
+    background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, .45);
+    box-shadow: 0 16px 40px rgba(19, 33, 60, .16);
 }
 
 .user-email {
@@ -360,7 +378,7 @@ button {
 }
 
 .user-dropdown a:hover {
-    background: var(--side-hover);
+    background: var(--hover);
 }
 
 .content {
@@ -388,8 +406,8 @@ button {
     height: 22px;
     margin-right: 6px;
     border-radius: 11px;
-    background: #fff;
-    color: #111;
+    background: var(--surface-3);
+    color: var(--text);
     font-size: 13px;
     font-weight: 700;
 }
@@ -424,7 +442,7 @@ button {
 
 .donut-track {
     fill: none;
-    stroke: #333438;
+    stroke: var(--track);
     stroke-width: 7;
 }
 
@@ -499,8 +517,8 @@ button {
     height: 20px;
     padding: 0 6px;
     border-radius: 10px;
-    background: #fff;
-    color: #111;
+    background: var(--surface-3);
+    color: var(--text);
     font-size: 12px;
     font-weight: 700;
     display: grid;
@@ -578,7 +596,7 @@ button {
     position: sticky;
     top: 0;
     padding: 12px 14px;
-    background: #2c2d30;
+    background: var(--surface-2);
     border-right: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
     font-size: 16px;
@@ -618,7 +636,7 @@ button {
 }
 
 .data-table tbody tr:hover {
-    background: #2e3034;
+    background: var(--hover);
 }
 
 .link {
@@ -650,7 +668,7 @@ button {
 .bar {
     width: 110px;
     height: 12px;
-    background: #333438;
+    background: var(--track);
 }
 
 .bar span {
@@ -722,13 +740,13 @@ button {
 .flash-ok {
     border-color: rgba(76, 175, 110, .5);
     background: rgba(76, 175, 110, .12);
-    color: #9fe3b5;
+    color: #15803d;
 }
 
 .flash-error {
     border-color: rgba(239, 99, 81, .5);
     background: rgba(239, 99, 81, .12);
-    color: #ffb4a8;
+    color: #b42318;
 }
 
 /* ---------- Roles y permisos ---------- */
@@ -841,8 +859,8 @@ button {
 
 .group-row td {
     padding: 8px 14px;
-    background: #222326;
-    color: var(--lime);
+    background: var(--surface-2);
+    color: var(--accent);
     font-size: 12px;
     font-weight: 600;
     letter-spacing: .12em;
@@ -878,7 +896,7 @@ button {
     position: absolute;
     inset: 0;
     border-radius: 12px;
-    background: #44464b;
+    background: #cbd5e1;
     transition: background .2s;
 }
 
@@ -928,17 +946,17 @@ button {
 
 .tag-full {
     background: rgba(76, 175, 110, .18);
-    color: #7fd99d;
+    color: #15803d;
 }
 
 .tag-read {
     background: rgba(59, 130, 246, .18);
-    color: #93bbfb;
+    color: #1d4ed8;
 }
 
 .tag-part {
     background: rgba(245, 158, 11, .18);
-    color: #fbc66b;
+    color: #b45309;
 }
 
 .tag-none {
@@ -946,13 +964,13 @@ button {
 }
 
 .tag-lock {
-    background: #3a3b3f;
+    background: var(--surface-3);
     color: var(--muted);
 }
 
 .tag-danger {
     background: rgba(239, 99, 81, .18);
-    color: #ff9d8f;
+    color: #c8372d;
 }
 
 .muted-text {
@@ -962,7 +980,7 @@ button {
 .flash-info {
     border-color: rgba(59, 130, 246, .45);
     background: rgba(59, 130, 246, .1);
-    color: #a9c8fc;
+    color: #1d4ed8;
 }
 
 /* ---------- Ventana para formularios ---------- */
@@ -973,11 +991,11 @@ button {
     background: var(--panel);
     color: var(--text);
     border: 1px solid var(--line);
-    box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+    box-shadow: 0 30px 80px rgba(19, 33, 60, .35);
 }
 
 .dialog::backdrop {
-    background: rgba(0, 0, 0, .6);
+    background: rgba(19, 33, 60, .35);
 }
 
 .dialog-head {
@@ -1064,7 +1082,7 @@ button {
 
 .form-field small {
     font-size: 13px;
-    color: #ff9d8f;
+    color: #c8372d;
 }
 
 .form-field small.hint {
@@ -1100,7 +1118,7 @@ button {
 
 .kpi:hover,
 .kpi.active {
-    background: #2e3034;
+    background: var(--hover);
 }
 
 .kpi i {
@@ -1209,7 +1227,7 @@ button {
     position: relative;
     height: 500px;
     overflow: hidden;
-    background: #1b1c1f;
+    background: #dfe7f2;
 }
 
 .office-tall .office-stage {
@@ -1273,9 +1291,9 @@ button {
     z-index: 5;
     max-width: 280px;
     padding: 12px 14px;
-    background: var(--side);
+    background: var(--panel);
     border: 1px solid var(--line);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+    box-shadow: 0 12px 30px rgba(19, 33, 60, .16);
     pointer-events: none;
 }
 
@@ -1293,7 +1311,7 @@ button {
 .office-tooltip small {
     display: block;
     font-size: 12px;
-    color: #c9cdd2;
+    color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1373,7 +1391,7 @@ button {
 }
 
 .office-stats a:hover {
-    background: #2e3034;
+    background: var(--hover);
 }
 
 .office-stats strong {
@@ -1406,7 +1424,7 @@ button {
 }
 
 .agent-list a:hover {
-    background: #2e3034;
+    background: var(--hover);
 }
 
 .agent-dot {
@@ -1430,7 +1448,7 @@ button {
     min-width: 24px;
     padding: 1px 7px;
     border-radius: 999px;
-    background: #3a3b3f;
+    background: var(--surface-3);
     font-size: 12px;
     font-weight: 700;
     text-align: center;
@@ -1643,7 +1661,7 @@ div.empty p {
 
 code {
     padding: 1px 6px;
-    background: #333438;
+    background: var(--track);
     font-size: 13px;
 }
 
@@ -1680,7 +1698,7 @@ code {
     padding: 12px 18px;
     border-top: 1px solid var(--line);
     background: rgba(245, 158, 11, .12);
-    color: #fbc66b;
+    color: #b45309;
     font-size: 14px;
 }
 
@@ -1768,9 +1786,9 @@ code {
     flex-direction: column;
     gap: 6px;
     padding: 12px;
-    background: var(--side);
+    background: var(--panel);
     border: 1px solid var(--line);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
+    box-shadow: 0 16px 40px rgba(19, 33, 60, .16);
 }
 
 .dropdown-menu .form-field {
@@ -1797,7 +1815,7 @@ code {
 
 .dropdown-item:hover,
 .dropdown-item:focus-visible {
-    background: var(--side-hover);
+    background: var(--hover);
     border-color: var(--accent);
     outline: none;
 }
@@ -1829,7 +1847,7 @@ code {
     padding: 8px 10px;
     border: 1px solid rgba(239, 99, 81, .5);
     background: rgba(239, 99, 81, .12);
-    color: #ffb4a8;
+    color: #b42318;
     font-size: 13px;
 }
 
@@ -1880,7 +1898,7 @@ code {
     background: rgba(43, 179, 163, .1);
     border: 1px solid rgba(43, 179, 163, .35);
     font-size: 14px;
-    color: #a9e3dc;
+    color: #0f766e;
 }
 
 .consola-opciones {
@@ -1891,13 +1909,13 @@ code {
     font-family: ui-monospace, Consolas, 'Cascadia Mono', monospace;
     font-size: 13px;
     line-height: 1.5;
-    background: #0f1012;
+    background: var(--code-bg);
     color: #e4e6e8;
 }
 
 .consola-error {
     margin: 0;
-    color: #ff9d8f;
+    color: #c8372d;
     font-size: 14px;
 }
 
@@ -1946,7 +1964,7 @@ code {
 }
 
 .consola-historial summary:hover {
-    background: var(--side-hover);
+    background: var(--hover);
 }
 
 .consola-cmd {
@@ -1973,7 +1991,7 @@ code {
     padding: 10px;
     max-height: 260px;
     overflow: auto;
-    background: #0f1012;
+    background: var(--code-bg);
     border: 1px solid var(--line);
     font-family: ui-monospace, Consolas, monospace;
     font-size: 12px;
@@ -1989,7 +2007,7 @@ code {
 .consola-auditoria {
     margin: 0 0 8px;
     font-size: 13px;
-    color: #c9cdd2;
+    color: var(--text-2);
 }
 
 .consola-todo {
@@ -2101,7 +2119,7 @@ select.tool-btn {
     padding: 8px;
     max-height: 240px;
     overflow: auto;
-    background: #0f1012;
+    background: var(--code-bg);
     border: 1px solid var(--line);
     font-size: 12px;
     white-space: pre-wrap;
@@ -2125,10 +2143,10 @@ select.tool-btn {
     display: flex;
     gap: 12px;
     padding: 14px 16px;
-    background: var(--side);
+    background: var(--panel);
     border: 1px solid var(--line);
     border-left: 4px solid #3b82f6;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
+    box-shadow: 0 16px 40px rgba(19, 33, 60, .16);
     animation: toast-in .3s ease-out;
 }
 
@@ -2190,7 +2208,7 @@ select.tool-btn {
         position: fixed;
         inset: 0;
         z-index: 30;
-        background: rgba(0, 0, 0, .5);
+        background: rgba(19, 33, 60, .16);
     }
 
     /* En celular el modo mini no aplica */
@@ -2284,4 +2302,185 @@ select.tool-btn {
     .info-list dd {
         margin-bottom: 8px;
     }
+}
+
+
+/* =========================================================
+   Esquema claro: tarjetas, menú azul marino y botones
+   ========================================================= */
+
+.sidebar {
+    color: var(--side-text);
+    border-right: 0;
+    box-shadow: 4px 0 24px rgba(8, 26, 61, .18);
+}
+
+.sidebar-head,
+.sidebar-foot {
+    border-color: var(--side-line);
+}
+
+.sidebar .chevron,
+.sidebar .group summary > i:first-child,
+.sidebar .foot-version {
+    color: var(--side-muted);
+}
+
+.sidebar .group-fav summary {
+    color: var(--side-text);
+}
+
+.sidebar .item {
+    margin: 2px 10px;
+    padding-left: 42px;
+    border-radius: 8px;
+}
+
+.sidebar .item.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(29, 111, 232, .35);
+}
+
+.panel.mini .sidebar .item {
+    margin: 2px 6px;
+    padding-left: 13px;
+}
+
+.topbar,
+.statusbar {
+    background: var(--panel);
+    border-color: var(--line);
+}
+
+.topbar-title {
+    color: var(--text);
+}
+
+.content {
+    padding: 16px;
+}
+
+.widget,
+.card,
+.table-wrap,
+.stat,
+.kpi,
+.search,
+.office-card {
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border-color: var(--line);
+}
+
+.card .table-wrap {
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: none;
+}
+
+.widgets,
+.stats,
+.kpis,
+.toolbar {
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.tool-btn,
+.mini-btn,
+.role-tab,
+.filter-tabs {
+    border-radius: 8px;
+}
+
+.filter-tabs a:first-child {
+    border-radius: 8px 0 0 8px;
+}
+
+.filter-tabs a:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+.tool-btn {
+    background: var(--panel);
+    box-shadow: var(--shadow);
+}
+
+.btn-save {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.btn-save:hover {
+    background: var(--accent-dark);
+}
+
+.btn-danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #c93b3f;
+}
+
+.data-table th {
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-weight: 600;
+}
+
+.dialog,
+.user-dropdown,
+.dropdown-menu,
+.toast,
+.office-tooltip {
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-pop);
+}
+
+.dialog-head,
+.card-foot {
+    border-color: var(--line);
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea,
+.inventario-software input {
+    background: var(--panel);
+    border-radius: 8px;
+}
+
+.consola-detalle pre,
+.audit-cmd pre,
+#consola-script {
+    border-radius: 8px;
+    color: #e4e6e8;
+}
+
+.role-icon {
+    background: rgba(29, 111, 232, .1);
+    color: var(--accent);
+}
+
+.flash {
+    border-radius: 10px;
+}
+
+.consola-aviso {
+    background: rgba(29, 111, 232, .07);
+    border-color: rgba(29, 111, 232, .25);
+    color: #1e3a8a;
+    border-radius: 10px;
+}
+
+.consola-salida {
+    color: #9be15d;
+}
+
+.office-tooltip small {
+    color: var(--text-2);
 }

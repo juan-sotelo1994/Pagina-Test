@@ -44,8 +44,8 @@
     escenario.prepend(renderer.domElement);
 
     const escena = new THREE.Scene();
-    escena.background = new THREE.Color(0x1b1c1f);
-    escena.fog = new THREE.Fog(0x1b1c1f, 38, 70);
+    escena.background = new THREE.Color(0xdfe7f2);
+    escena.fog = new THREE.Fog(0xdfe7f2, 40, 75);
 
     const camara = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
     camara.position.set(13, 12, 17);
@@ -61,7 +61,7 @@
     controles.autoRotateSpeed = 0.35;
     controles.addEventListener('start', () => { controles.autoRotate = false; });
 
-    escena.add(new THREE.HemisphereLight(0xdfe8ff, 0x202124, 0.65));
+    escena.add(new THREE.HemisphereLight(0xffffff, 0x8796ab, 0.8));
 
     const sol = new THREE.DirectionalLight(0xffffff, 0.75);
     sol.position.set(12, 22, 10);
@@ -107,17 +107,17 @@
 
     // ---------- Sala ----------
 
-    const piso = new THREE.Mesh(new THREE.PlaneGeometry(ancho, fondo), material(0x2a2c30, { roughness: 0.95 }));
+    const piso = new THREE.Mesh(new THREE.PlaneGeometry(ancho, fondo), material(0xc8d3e2, { roughness: 0.95 }));
     piso.rotation.x = -Math.PI / 2;
     piso.receiveShadow = true;
     escena.add(piso);
 
-    const rejilla = new THREE.GridHelper(ancho, Math.round(ancho / 1.5), 0x34363b, 0x2f3135);
+    const rejilla = new THREE.GridHelper(ancho, Math.round(ancho / 1.5), 0xb3c1d4, 0xbcc9da);
     rejilla.scale.z = fondo / ancho;
     rejilla.position.y = 0.01;
     escena.add(rejilla);
 
-    const matPared = material(0x313338);
+    const matPared = material(0xaebdd2);
     escena.add(caja(ancho, 6, 0.3, matPared, 0, 3, -fondo / 2));
     escena.add(caja(0.3, 6, fondo, matPared, -ancho / 2, 3, 0));
 
@@ -195,7 +195,7 @@
 
     // ---------- Escritorios y agentes ----------
 
-    const matMesa = material(0x3d4046);
+    const matMesa = material(0x5b6b82);
     const matPata = material(0x26272a);
     const matSilla = material(0x1f2023);
     const matTeclado = material(0x18191b);
