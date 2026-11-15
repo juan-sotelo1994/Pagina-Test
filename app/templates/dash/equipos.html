@@ -60,6 +60,19 @@
     <span class="tool-btn live" title="La lista se actualiza sola">
         <span class="live-dot"></span> En vivo
     </span>
+    {% if ver_grupos %}
+    <!-- Filtro por empresa: cada cliente es un grupo de equipos -->
+    <label class="filtro-empresa" title="Filtrar por empresa">
+        <i class="fa-solid fa-building"></i>
+        <select id="filtro-empresa" data-grupo="{{ grupo }}" aria-label="Filtrar por empresa">
+            <option value="" data-nombre="Todas las empresas">Todas las empresas</option>
+            {% for c in clientes_lista %}
+            <option value="{{ c.id }}" data-nombre="{{ c.nombre }}">{{ c.nombre }}</option>
+            {% endfor %}
+            <option value="sin-cliente" data-nombre="Sin empresa">Sin empresa</option>
+        </select>
+    </label>
+    {% endif %}
     <label class="search">
         <i class="fa-solid fa-magnifying-glass"></i>
         <input type="search" id="equipos-buscar" placeholder="Buscar por nombre, usuario o IP" aria-label="Buscar equipos">
@@ -67,21 +80,15 @@
 </div>
 
 {% if ver_grupos %}
-<!-- Grupos por empresa: cada cliente es un grupo de equipos -->
-<nav class="grupos" id="grupos" data-grupo="{{ grupo }}" aria-label="Filtrar por empresa">
-    <span class="grupos-titulo"><i class="fa-solid fa-building"></i> Empresas</span>
-    <button type="button" class="grupo" data-grupo-id=""><i class="fa-solid fa-layer-group"></i> Todos <span class="grupo-n" data-n=""></span></button>
-    {% for c in clientes_lista %}
-    <button type="button" class="grupo" data-grupo-id="{{ c.id }}">{{ c.nombre }} <span class="grupo-n" data-n="{{ c.id }}"></span></button>
-    {% endfor %}
-    <button type="button" class="grupo" data-grupo-id="sin-cliente"><i class="fa-regular fa-circle-question"></i> Sin empresa <span class="grupo-n" data-n="sin-cliente"></span></button>
-    {% if puede('clientes', 'crear') %}
-    <a class="grupo-enlace link" href="{{ url_for('dashboard.clientes_view') }}"><i class="fa-solid fa-plus"></i> Nueva empresa</a>
-    {% endif %}
+<!-- Accesos de la empresa filtrada -->
+<p class="filtro-enlaces">
     {% if puede('activos', 'ver') %}
-    <a class="grupo-enlace link" id="grupo-inventario" href="{{ url_for('dashboard.activos_view') }}"><i class="fa-solid fa-laptop-file"></i> Inventario de la empresa</a>
+    <a class="link" id="grupo-inventario" href="{{ url_for('dashboard.activos_view') }}" hidden><i class="fa-solid fa-laptop-file"></i> Inventario de esta empresa</a>
     {% endif %}
-</nav>
+    {% if puede('clientes', 'crear') and not clientes_lista %}
+    <a class="link" href="{{ url_for('dashboard.clientes_view') }}"><i class="fa-solid fa-plus"></i> Crear la primera empresa</a>
+    {% endif %}
+</p>
 {% endif %}
 
 {% if puede_asignar or puede_masivo %}

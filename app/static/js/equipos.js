@@ -136,7 +136,7 @@ if (filas) {
                 el('div', { className: 'sub', textContent: e.sistema })),
             el('td', {}, e.cliente
                 ? el('span', { className: 'tag tag-read', textContent: e.cliente.nombre })
-                : el('span', { className: 'muted', textContent: 'Sin cliente', title: 'Su número de serie no está en el inventario de ningún cliente' })),
+                : el('span', { className: 'muted', textContent: 'Sin empresa', title: 'Todavía no está asignado a ninguna empresa' })),
             el('td', {}, icono('fa-user muted'), ' ', e.usuario || '—'),
             el('td', { className: 'mono', textContent: e.ip_conexion || '—' }),
             el('td', {}, (e.rastreo || {}).activo
@@ -156,18 +156,22 @@ if (filas) {
         return tr;
     };
 
-    // Grupos por cliente ('' = todos, 'sin-cliente' = sin asignar)
-    const barraGrupos = document.getElementById('grupos');
-    let grupo = barraGrupos ? barraGrupos.dataset.grupo : '';
+    // Filtro por empresa ('' = todas, 'sin-cliente' = sin empresa)
+    const filtroEmpresa = document.getElementById('filtro-empresa');
+    let grupo = filtroEmpresa ? filtroEmpresa.dataset.grupo : '';
+    if (filtroEmpresa) filtroEmpresa.value = grupo;
+    if (filtroEmpresa && filtroEmpresa.value !== grupo) grupo = filtroEmpresa.value; // empresa que ya no existe
     const enGrupo = (e) => !grupo || (grupo === 'sin-cliente' ? !e.cliente : (e.cliente && e.cliente.id === grupo));
 
     const pintarGrupos = () => {
-        if (!barraGrupos) return;
-        barraGrupos.querySelectorAll('[data-grupo-id]').forEach((b) => b.classList.toggle('active', b.dataset.grupoId === grupo));
-        barraGrupos.querySelectorAll('[data-n]').forEach((n) => {
-            const id = n.dataset.n;
-            n.textContent = equipos.filter((e) => (!id ? true : id === 'sin-cliente' ? !e.cliente : e.cliente && e.cliente.id === id)).length;
+        if (!filtroEmpresa) return;
+        // Cada opción muestra cuántos equipos tiene
+        [...filtroEmpresa.options].forEach((o) => {
+            const id = o.value;
+            const n = equipos.filter((e) => (!id ? true : id === 'sin-cliente' ? !e.cliente : e.cliente && e.cliente.id === id)).length;
+            o.textContent = `${o.dataset.nombre} (${n})`;
         });
+        filtroEmpresa.parentElement.classList.toggle('activo', !!grupo);
         const enlace = document.getElementById('grupo-inventario');
         if (enlace) {
             enlace.hidden = !grupo || grupo === 'sin-cliente';
@@ -175,15 +179,15 @@ if (filas) {
         }
     };
 
-    if (barraGrupos) {
-        barraGrupos.querySelectorAll('[data-grupo-id]').forEach((b) => b.addEventListener('click', () => {
-            grupo = b.dataset.grupoId;
-            // El grupo queda en la dirección para poder compartirla o recargar
+    if (filtroEmpresa) {
+        filtroEmpresa.addEventListener('change', () => {
+            grupo = filtroEmpresa.value;
+            // El filtro queda en la dirección para poder compartirla o recargar
             const url = new URL(location.href);
             if (grupo) url.searchParams.set('cliente', grupo); else url.searchParams.delete('cliente');
             history.replaceState(null, '', url);
             pintar();
-        }));
+        });
     }
 
     // Destino de las acciones: los marcados o, si no hay ninguno, toda la empresa elegida
@@ -192,13 +196,7 @@ if (filas) {
         return grupo ? equipos.filter(enGrupo) : [];
     };
 
-    const nombreGrupo = () => {
-        const boton = barraGrupos && barraGrupos.querySelector(`[data-grupo-id="${grupo}"]`);
-        if (!boton) return '';
-        const copia = boton.cloneNode(true);
-        copia.querySelectorAll('.grupo-n').forEach((n) => n.remove());
-        return copia.textContent.trim();
-    };
+    const nombreGrupo = () => (filtroEmpresa && filtroEmpresa.selectedOptions[0] ? filtroEmpresa.selectedOptions[0].dataset.nombre : '');
 
     const pintarBarra = () => {
         if (!barraMasivo) return;
