@@ -1,0 +1,25 @@
+{% extends 'dash/base_dash.html' %}
+
+{# Inicio para los roles que aún no tienen uno propio #}
+
+{% block title %}Vista general{% endblock %}
+{% block page_title %}Vista general{% endblock %}
+
+{% block content %}
+
+{% if not puede('facturas') %}
+<div class="placeholder">
+    <i class="fa-solid fa-hand"></i>
+    <h2>Hola, {{ usuario }}</h2>
+    <p>Usa el menú de la izquierda para ir a tus secciones.</p>
+</div>
+{% else %}
+{% include 'dash/parciales/facturas.html' %}
+{% endif %}
+
+{% endblock %}
+
+{% block status %}
+{{ super() }}
+{% if puede('facturas') %}<span class="status-right" id="row-count">{{ facturas | length }}</span>{% endif %}
+{% endblock %}

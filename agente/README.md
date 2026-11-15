@@ -1,16 +1,33 @@
-# Agente de soporte (macOS)
+# Agente de soporte (macOS, Windows, Debian y Ubuntu)
 
-Programa pequeño que se instala en cada Mac al que le das soporte. Cada 5 segundos
+Programa pequeño que se instala en cada equipo al que le das soporte. Cada 20 segundos
 envía al panel (**Soporte → Equipos**):
 
-- Nombre del equipo, modelo, número de serie, versión de macOS y usuario con sesión abierta
+- Nombre del equipo, modelo, número de serie, sistema operativo y usuario con sesión abierta
 - CPU, memoria y discos (uso y espacio)
 - Red: velocidad de bajada/subida en tiempo real por interfaz y su IP
 - Batería y tiempo encendido
-- Si **Compartir pantalla** (VNC) y **SSH** están activos, para poder conectarte
+- Si **VNC / Compartir pantalla**, **SSH** y **Escritorio remoto** (RDP) están activos
 
-El agente corre como servicio del sistema (LaunchDaemon, usuario root): arranca solo
-al encender el Mac, sin que nadie inicie sesión, y se reinicia si se cae.
+El agente corre como servicio del sistema y arranca solo al encender el equipo:
+
+| Sistema | Cómo corre | Carpeta | Registro |
+| --- | --- | --- | --- |
+| macOS | LaunchDaemon (root) | `/Library/Application Support/AgenteSoporte` | `/Library/Logs/AgenteSoporte.log` |
+| Windows | Tarea programada (SYSTEM) | `C:\ProgramData\AgenteSoporte` | `C:\ProgramData\AgenteSoporte\agente.log` |
+| Debian / Ubuntu | Servicio systemd `agente-soporte` | `/opt/agente-soporte` | `journalctl -u agente-soporte -f` |
+
+## La forma fácil: descargar desde el panel
+
+En **Soporte → Equipos → Instalar el agente** escribe la dirección del panel en la red y
+pulsa el botón del sistema. El `.zip` ya trae `config.json` con la dirección y el token,
+así que la instalación no pregunta nada:
+
+- **macOS:** `cd macos && sudo ./instalar.sh`
+- **Windows:** doble clic en `windows\instalar.bat` (si no hay Python, lo instala con winget)
+- **Debian / Ubuntu:** `cd linux && sudo ./instalar.sh` (instala `python3-venv` con apt si falta)
+
+Los pasos de abajo son para instalar a mano desde esta carpeta.
 
 ## 1. Preparar el panel
 
@@ -70,6 +87,24 @@ en el panel.
 | Reiniciar el agente | `sudo launchctl kickstart -k system/com.agentesoporte.agente` |
 | Actualizar | volver a ejecutar `sudo ./instalar.sh http://IP-DEL-PANEL:5711` |
 | Desinstalar | `sudo ./desinstalar.sh` |
+
+En **Windows**: reiniciar con `Restart-ScheduledTask AgenteSoporte` (PowerShell como
+administrador), desinstalar con doble clic en `windows\desinstalar.bat`.
+En **Linux**: reiniciar con `sudo systemctl restart agente-soporte`, desinstalar con
+`sudo ./linux/desinstalar.sh`.
+
+## Temperatura y ventiladores
+
+| Sistema | Temperatura del CPU | Ventiladores |
+| --- | --- | --- |
+| Windows | Zona térmica de ACPI (aproximada) | No disponibles por defecto |
+| Windows con [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | Temperatura real del CPU | Sí, con sus RPM |
+| Linux | Sensores del kernel (coretemp / k10temp) | Si el equipo los expone |
+| Mac Intel | SMC | Sí |
+| Mac Apple Silicon | Solo el nivel de presión térmica | No |
+
+Para LibreHardwareMonitor en Windows: debe quedar abierto (por ejemplo, iniciando con
+Windows) para que publique los sensores; el agente los lee cada 60 segundos.
 
 ## Probar sin instalar
 

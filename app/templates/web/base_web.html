@@ -9,13 +9,18 @@
     <!-- Google Fonts: Sora (títulos), Inter (texto), JetBrains Mono (etiquetas) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/web.css') }}">
     {% block extra_css %}{% endblock %}
+    {% import 'web/_tema.html' as tema %}
+    {{ tema.script_inicial() }}
 </head>
 
 <body>
+
+    <!-- Red de nodos de fondo (la dibuja web.js) -->
+    <canvas class="page-network" id="hero-network" aria-hidden="true"></canvas>
 
     <!-- Encabezado -->
     <header class="site-header" id="site-header">
@@ -46,6 +51,7 @@
                     Iniciar sesión
                 </a>
                 <a href="#contacto" class="btn btn-primary btn-sm">Solicitar asesoría</a>
+                {{ tema.boton() }}
                 <button class="nav-toggle" id="nav-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="main-nav">
                     <span></span><span></span><span></span>
                 </button>
@@ -94,6 +100,7 @@
         </div>
     </footer>
 
+    <script src="{{ url_for('static', filename='js/tema.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/web.js') }}" defer></script>
     {% block extra_js %}{% endblock %}
 </body>

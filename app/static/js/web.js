@@ -38,6 +38,20 @@ if (canvas) {
     let ancho = 0;
     let alto = 0;
 
+    // Colores de la red según el tema (variables --net-line y --net-dot del CSS)
+    let colorLinea = '';
+    let colorPunto = '';
+    const leerColores = () => {
+        const estilos = getComputedStyle(document.documentElement);
+        colorLinea = estilos.getPropertyValue('--net-line').trim();
+        colorPunto = estilos.getPropertyValue('--net-dot').trim();
+    };
+    leerColores();
+    document.addEventListener('cambio-tema', () => {
+        leerColores();
+        if (reducirMovimiento) dibujar();
+    });
+
     const crearPuntos = () => {
         const dpr = window.devicePixelRatio || 1;
         ancho = canvas.offsetWidth;
@@ -46,14 +60,19 @@ if (canvas) {
         canvas.height = alto * dpr;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        const cantidad = Math.min(70, Math.floor((ancho * alto) / 22000));
-        puntos = Array.from({ length: cantidad }, () => ({
-            x: Math.random() * ancho,
-            y: Math.random() * alto,
-            vx: (Math.random() - 0.5) * 0.25,
-            vy: (Math.random() - 0.5) * 0.25,
-            r: Math.random() * 1.6 + 0.8,
-        }));
+        // Red densa a pantalla completa, con algunos nodos más grandes y brillantes
+        const cantidad = Math.min(130, Math.floor((ancho * alto) / 11000));
+        puntos = Array.from({ length: cantidad }, () => {
+            const grande = Math.random() < 0.12;
+            return {
+                x: Math.random() * ancho,
+                y: Math.random() * alto,
+                vx: (Math.random() - 0.5) * 0.2,
+                vy: (Math.random() - 0.5) * 0.2,
+                r: grande ? Math.random() * 2 + 3 : Math.random() * 1.6 + 1,
+                alfa: grande ? 0.75 : Math.random() * 0.35 + 0.35,
+            };
+        });
     };
 
     const dibujar = () => {
@@ -72,7 +91,7 @@ if (canvas) {
                 const b = puntos[j];
                 const d = Math.hypot(a.x - b.x, a.y - b.y);
                 if (d < DISTANCIA) {
-                    ctx.strokeStyle = `rgba(43, 179, 163, ${0.22 * (1 - d / DISTANCIA)})`;
+                    ctx.strokeStyle = `rgba(${colorLinea}, ${0.28 * (1 - d / DISTANCIA)})`;
                     ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.moveTo(a.x, a.y);
@@ -83,7 +102,14 @@ if (canvas) {
         }
 
         for (const p of puntos) {
-            ctx.fillStyle = 'rgba(181, 240, 74, 0.55)';
+            if (p.r > 3) {
+                // Halo suave alrededor de los nodos grandes
+                ctx.fillStyle = `rgba(${colorPunto}, 0.10)`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r * 3.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = `rgba(${colorPunto}, ${p.alfa})`;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
             ctx.fill();

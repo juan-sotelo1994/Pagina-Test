@@ -3,22 +3,93 @@
    ========================================================= */
 
 :root {
+    /* Tema claro (por defecto): mismo esquema que el panel */
+    --bg: #f4f7fc;
+    --bg-alt: #eef3fb;
+    --surface: #ffffff;
+    --line: rgba(16, 22, 43, 0.08);
+    --line-strong: rgba(16, 22, 43, 0.18);
+    --text: #10162b;
+    --text-2: #4b5568;
+    --muted: #6b7487;
+    --lime: #2f5bd7;
+    --teal: #2f5bd7;
+    --teal-dark: #2449b3;
+
+    --header-bg: rgba(244, 247, 252, 0.85);
+    --glow: rgba(47, 91, 215, 0.10);
+    --footer-bg: rgba(255, 255, 255, 0.75);
+    --label-bg: rgba(255, 255, 255, 0.9);
+    --caption-bg: rgba(255, 255, 255, 0.8);
+    --orbit-sweep: rgba(47, 91, 215, 0.16);
+    --orbit-fill: rgba(47, 91, 215, 0.06);
+    --orbit-fill-end: rgba(255, 255, 255, 0.7);
+    --orbit-ring: rgba(47, 91, 215, 0.35);
+    --orbit-spoke: rgba(47, 91, 215, 0.22);
+    --core-1: #ffffff;
+    --core-2: #eef3fb;
+    --core-glow: rgba(47, 91, 215, 0.22);
+    --node-glow: rgba(47, 91, 215, 0.30);
+    --shadow-card: 0 24px 60px rgba(19, 33, 60, 0.14);
+    /* Red de puntos del hero (canvas): "r, g, b" */
+    --net-line: 47, 91, 215;
+    --net-dot: 47, 91, 215;
+
+    --marquee-bg: rgba(255, 255, 255, 0.75);
+    --marquee-text: #10162b;
+    --marquee-sep: #2f5bd7;
+    --badge-bg: rgba(47, 91, 215, 0.10);
+    --tile-bg: rgba(47, 91, 215, 0.10);
+    --page-glow-1: rgba(47, 91, 215, 0.10);
+    --page-glow-2: rgba(120, 150, 240, 0.12);
+
+    --font-title: 'Montserrat', system-ui, sans-serif;
+    --font-body: 'Montserrat', system-ui, sans-serif;
+    --font-mono: 'Montserrat', system-ui, sans-serif;
+
+    --radius: 10px;
+    --header-h: 84px;
+}
+
+/* Tema oscuro: el diseño original del sitio */
+[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #0a0f1a;
     --bg-alt: #0d1422;
     --surface: #111a2b;
     --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.22);
     --text: #e8eef5;
+    --text-2: #c9d4e0;
     --muted: #9aa8b8;
     --lime: #b5f04a;
     --teal: #2bb3a3;
     --teal-dark: #229488;
 
-    --font-title: 'Sora', system-ui, sans-serif;
-    --font-body: 'Inter', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-
-    --radius: 10px;
-    --header-h: 84px;
+    --header-bg: rgba(10, 15, 26, 0.88);
+    --glow: rgba(43, 179, 163, 0.10);
+    --footer-bg: #070b14;
+    --label-bg: rgba(10, 15, 26, 0.7);
+    --caption-bg: rgba(17, 26, 43, 0.7);
+    --orbit-sweep: rgba(181, 240, 74, 0.22);
+    --orbit-fill: rgba(43, 179, 163, 0.18);
+    --orbit-fill-end: rgba(10, 15, 26, 0.6);
+    --orbit-ring: rgba(181, 240, 74, 0.55);
+    --orbit-spoke: rgba(43, 179, 163, 0.35);
+    --core-1: #13233a;
+    --core-2: #0a0f1a;
+    --core-glow: rgba(43, 179, 163, 0.35);
+    --node-glow: rgba(181, 240, 74, 0.35);
+    --shadow-card: 0 30px 80px rgba(0, 0, 0, 0.45);
+    --net-line: 43, 179, 163;
+    --net-dot: 181, 240, 74;
+    --marquee-bg: #2bb3a3;
+    --marquee-text: #ffffff;
+    --marquee-sep: rgba(255, 255, 255, 0.7);
+    --badge-bg: rgba(181, 240, 74, 0.10);
+    --tile-bg: rgba(43, 179, 163, 0.15);
+    --page-glow-1: rgba(43, 179, 163, 0.10);
+    --page-glow-2: rgba(181, 240, 74, 0.05);
 }
 
 *,
@@ -55,9 +126,9 @@ a {
 
 .container {
     width: 100%;
-    max-width: 1240px;
+    max-width: 1800px;
     margin: 0 auto;
-    padding: 0 24px;
+    padding: 0 clamp(24px, 4vw, 72px);
 }
 
 /* ---------- Botones ---------- */
@@ -91,7 +162,7 @@ a {
 }
 
 .btn-outline {
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: var(--line-strong);
     color: var(--text);
 }
 
@@ -143,7 +214,7 @@ a {
 }
 
 .site-header.scrolled {
-    background: rgba(10, 15, 26, 0.88);
+    background: var(--header-bg);
     backdrop-filter: blur(12px);
     border-bottom-color: var(--line);
 }
@@ -287,7 +358,7 @@ a {
     align-items: center;
     overflow: hidden;
     background:
-        radial-gradient(ellipse 60% 50% at 80% 40%, rgba(43, 179, 163, 0.10), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 40%, var(--glow), transparent 70%),
         var(--bg);
 }
 
@@ -304,7 +375,7 @@ a {
     display: grid;
     grid-template-columns: 1.1fr 1fr;
     align-items: center;
-    gap: 48px;
+    gap: clamp(48px, 12vw, 260px);
 }
 
 .hero h1 {
@@ -356,7 +427,7 @@ a {
     align-items: center;
     gap: 10px;
     font-weight: 500;
-    color: #c9d4e0;
+    color: var(--text-2);
 }
 
 .hero-points svg {
@@ -375,7 +446,7 @@ a {
 .hero-visual {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-end;  /* el diagrama se pega al lado derecho */
     gap: 28px;
 }
 
@@ -392,8 +463,8 @@ a {
     inset: 1%;
     border-radius: 50%;
     background:
-        conic-gradient(from 0deg, rgba(181, 240, 74, 0.22), transparent 18%, transparent),
-        radial-gradient(circle, rgba(43, 179, 163, 0.18), rgba(10, 15, 26, 0.6) 70%);
+        conic-gradient(from 0deg, var(--orbit-sweep), transparent 18%, transparent),
+        radial-gradient(circle, var(--orbit-fill), var(--orbit-fill-end) 70%);
     animation: spin 9s linear infinite;
 }
 
@@ -406,18 +477,18 @@ a {
 }
 
 .orbit-lines .ring-outer {
-    stroke: rgba(181, 240, 74, 0.55);
+    stroke: var(--orbit-ring);
     stroke-width: .35;
 }
 
 .orbit-lines .ring-inner {
-    stroke: rgba(255, 255, 255, 0.08);
+    stroke: var(--line);
     stroke-width: .25;
     stroke-dasharray: 1 1.5;
 }
 
 .orbit-lines line {
-    stroke: rgba(43, 179, 163, 0.35);
+    stroke: var(--orbit-spoke);
     stroke-width: .25;
 }
 
@@ -431,9 +502,9 @@ a {
     border-radius: 50%;
     display: grid;
     place-items: center;
-    background: radial-gradient(circle, #13233a, #0a0f1a);
+    background: radial-gradient(circle, var(--core-1), var(--core-2));
     border: 2px solid var(--teal);
-    box-shadow: 0 0 0 10px rgba(43, 179, 163, 0.08), 0 0 50px rgba(43, 179, 163, 0.35);
+    box-shadow: 0 0 0 10px rgba(43, 179, 163, 0.08), 0 0 50px var(--core-glow);
     animation: pulse 3s ease-in-out infinite;
 }
 
@@ -464,13 +535,13 @@ a {
     display: grid;
     place-items: center;
     background: var(--bg);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid var(--line-strong);
     transition: border-color .3s, box-shadow .3s;
 }
 
 .orbit-node:hover .node-icon {
     border-color: var(--lime);
-    box-shadow: 0 0 20px rgba(181, 240, 74, 0.35);
+    box-shadow: 0 0 20px var(--node-glow);
 }
 
 .node-icon svg {
@@ -489,7 +560,7 @@ a {
     letter-spacing: .2em;
     text-transform: uppercase;
     color: var(--muted);
-    background: rgba(10, 15, 26, 0.7);
+    background: var(--label-bg);
     padding: 0 4px;
 }
 
@@ -501,7 +572,7 @@ a {
     padding: 12px 20px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(17, 26, 43, 0.7);
+    background: var(--caption-bg);
     font-family: var(--font-mono);
     font-size: 12px;
     letter-spacing: .14em;
@@ -526,8 +597,8 @@ a {
    ========================================================= */
 
 .marquee {
-    background: var(--teal);
-    color: #fff;
+    background: var(--marquee-bg);
+    color: var(--marquee-text);
     overflow: hidden;
     padding: 26px 0;
 }
@@ -562,7 +633,7 @@ a {
     width: 60px;
     height: 20px;
     fill: none;
-    stroke: rgba(255, 255, 255, 0.7);
+    stroke: var(--marquee-sep);
     stroke-width: 2;
     flex-shrink: 0;
 }
@@ -602,7 +673,7 @@ a {
 .site-footer {
     border-top: 1px solid var(--line);
     padding: 72px 0 32px;
-    background: #070b14;
+    background: var(--footer-bg);
 }
 
 .footer-grid {
@@ -665,6 +736,10 @@ a {
 
     .hero-grid {
         grid-template-columns: 1fr;
+    }
+
+    .hero-visual {
+        align-items: center;
     }
 
     .orbit {
@@ -785,4 +860,288 @@ a {
         animation: none !important;
         transition: none !important;
     }
+}
+
+
+/* =========================================================
+   Botón de tema (sol / luna)
+   ========================================================= */
+
+.theme-toggle {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color .2s, color .2s;
+}
+
+.theme-toggle:hover {
+    border-color: var(--teal);
+    color: var(--teal);
+}
+
+.theme-toggle svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Luna en claro, sol en oscuro */
+.theme-toggle .icon-sun,
+[data-theme="dark"] .theme-toggle .icon-moon {
+    display: none;
+}
+
+[data-theme="dark"] .theme-toggle .icon-sun {
+    display: block;
+}
+
+.login-theme {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: var(--surface);
+}
+
+
+/* =========================================================
+   Estilo de la página principal: red de nodos a pantalla
+   completa, etiquetas tipo píldora y características con íconos
+   ========================================================= */
+
+body {
+    background:
+        radial-gradient(ellipse 45% 40% at 85% 25%, var(--page-glow-1), transparent 70%),
+        radial-gradient(ellipse 40% 45% at 10% 80%, var(--page-glow-2), transparent 70%),
+        var(--bg);
+    background-attachment: fixed;
+}
+
+/* La red de nodos queda fija detrás de toda la página */
+.page-network {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+main,
+.site-footer {
+    position: relative;
+    z-index: 1;
+}
+
+.hero {
+    background: transparent;
+}
+
+.section,
+.section-alt {
+    background: transparent;
+}
+
+.section-alt {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+}
+
+/* Etiqueta tipo píldora sobre los títulos */
+.eyebrow {
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: var(--badge-bg);
+    color: var(--teal);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+}
+
+.eyebrow .dot {
+    display: none;
+}
+
+[data-theme="dark"] .eyebrow {
+    color: var(--lime);
+}
+
+/* Títulos y textos */
+.hero h1 {
+    font-weight: 800;
+    font-size: clamp(40px, 5.4vw, 80px);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+}
+
+.hero-lead {
+    font-weight: 500;
+    font-size: clamp(18px, 1.7vw, 24px);
+}
+
+.hero-sub {
+    font-size: 16px;
+    line-height: 1.7;
+}
+
+/* Botones planos con esquinas suaves */
+.btn {
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-weight: 600;
+}
+
+.btn-primary {
+    box-shadow: 0 8px 20px rgba(47, 91, 215, 0.25);
+}
+
+[data-theme="dark"] .btn-primary {
+    box-shadow: none;
+}
+
+.btn-outline {
+    background: var(--surface);
+}
+
+.btn-outline:hover {
+    border-color: var(--teal);
+    color: var(--teal);
+}
+
+.btn-sm {
+    font-size: 13px;
+    letter-spacing: .06em;
+}
+
+/* Menú: Montserrat en mayúsculas, más discreto */
+.main-nav a {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    color: var(--text-2);
+}
+
+.main-nav a:hover {
+    color: var(--teal);
+}
+
+.brand-name {
+    letter-spacing: 0;
+}
+
+.brand-tagline {
+    font-weight: 600;
+    letter-spacing: .2em;
+}
+
+.nav-phone {
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.nav-phone svg {
+    stroke: var(--teal);
+}
+
+/* Botón de tema en forma de píldora translúcida */
+.theme-toggle {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    border-color: var(--line);
+}
+
+[data-theme="dark"] .theme-toggle {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Características con ícono en un cuadrito, título y descripción */
+.hero-points {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 18px;
+    max-width: 560px;
+}
+
+.hero-points li {
+    align-items: flex-start;
+    gap: 14px;
+    font-weight: 400;
+}
+
+.hero-points .tile {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: var(--tile-bg);
+}
+
+.hero-points svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--teal);
+}
+
+.hero-points strong {
+    display: block;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.hero-points small {
+    display: block;
+    color: var(--text-2);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Franja de frentes: clara y con bordes finos */
+.marquee {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(6px);
+}
+
+.marquee-item {
+    font-weight: 800;
+}
+
+/* Diagrama: nodos blancos y etiquetas legibles sobre fondo claro */
+.node-icon {
+    background: var(--surface);
+    box-shadow: 0 4px 14px rgba(16, 22, 43, 0.08);
+}
+
+.node-icon svg {
+    stroke: var(--teal);
+}
+
+[data-theme="dark"] .node-icon {
+    box-shadow: none;
+}
+
+[data-theme="dark"] .node-icon svg {
+    stroke: var(--text);
+}
+
+.node-label,
+.orbit-caption {
+    font-weight: 600;
+}
+
+.site-footer {
+    backdrop-filter: blur(6px);
 }

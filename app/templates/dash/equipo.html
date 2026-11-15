@@ -17,6 +17,14 @@
             <span class="tag" id="equipo-estado"></span>
         </div>
         <div class="card-foot equipo-acciones">
+            <button class="tool-btn btn-save" type="button" id="btn-rdp" data-open-dialog="dialogo-rdp">
+                <i class="fa-brands fa-windows"></i> Escritorio remoto (RDP)
+            </button>
+            {% if puede('equipos', 'editar') %}
+            <button class="tool-btn" type="button" id="btn-consola" data-open-dialog="dialogo-consola">
+                <i class="fa-solid fa-terminal"></i> <span id="btn-consola-texto">PowerShell (administrador)</span>
+            </button>
+            {% endif %}
             <a class="tool-btn btn-save" id="btn-pantalla" href="vnc://{{ equipo.ip_conexion }}">
                 <i class="fa-solid fa-display"></i> Compartir pantalla
             </a>
@@ -35,7 +43,7 @@
         </div>
         <p class="remoto-aviso" id="aviso-remoto" hidden>
             <i class="fa-solid fa-triangle-exclamation"></i>
-            Compartir pantalla está desactivado en este Mac. Actívalo en Ajustes del Sistema → General → Compartir.
+            <span id="aviso-remoto-texto"></span>
         </p>
     </section>
 
@@ -51,6 +59,17 @@
             <strong class="stat-value" data-campo="memoria">–</strong>
             <span class="stat-sub" data-campo="memoria-detalle"></span>
             <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark="memoria"/></svg>
+        </article>
+        <article class="stat">
+            <span class="stat-label"><i class="fa-solid fa-temperature-half"></i> Temperatura CPU</span>
+            <strong class="stat-value" data-campo="temp">–</strong>
+            <span class="stat-sub" data-campo="temp-detalle"></span>
+            <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark="temp"/></svg>
+        </article>
+        <article class="stat">
+            <span class="stat-label"><i class="fa-solid fa-fan"></i> Ventiladores</span>
+            <strong class="stat-value" data-campo="ventiladores">–</strong>
+            <span class="stat-sub" data-campo="ventiladores-detalle"></span>
         </article>
         <article class="stat">
             <span class="stat-label"><i class="fa-solid fa-arrow-down"></i> Red bajada</span>
@@ -89,6 +108,84 @@
         </section>
     </div>
 
+    <!-- Ubicación (solo si un administrador la activa para este equipo) -->
+    {% set rastreo = equipo.rastreo or {} %}
+    <section class="card" id="ubicacion">
+        <div class="card-head ubicacion-head">
+            <h2>Ubicación</h2>
+            <span class="tag {{ 'tag-full' if rastreo.activo else 'tag-lock' }}" id="ubicacion-estado">
+                {{ 'En tiempo real' if rastreo.activo else 'Desactivada' }}
+            </span>
+            {% if puede('equipos', 'editar') %}
+            <form method="post" action="{{ url_for('dashboard.equipo_ubicacion', equipo_id=equipo.id) }}"
+                  {% if not rastreo.activo %}onsubmit="return confirm('¿Activar la ubicación de este equipo?\n\nEl equipo enviará su posición cada 2 minutos. Úsalo solo en equipos de la empresa y con conocimiento de quien lo usa.')"{% endif %}>
+                <input type="hidden" name="activo" value="{{ '0' if rastreo.activo else '1' }}">
+                <button class="tool-btn {{ '' if rastreo.activo else 'btn-save' }}" type="submit">
+                    <i class="fa-solid {{ 'fa-location-pin-lock' if rastreo.activo else 'fa-location-crosshairs' }}"></i>
+                    {{ 'Desactivar ubicación' if rastreo.activo else 'Activar ubicación' }}
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if rastreo.activo %}
+        <div class="ubicacion-cuerpo">
+            <div class="ubicacion-mapa" id="ubicacion-mapa"></div>
+            <dl class="info-list ubicacion-datos">
+                <dt>Lugar</dt><dd data-ubicacion="lugar">Esperando el primer reporte…</dd>
+                <dt>Precisión</dt><dd data-ubicacion="precision">—</dd>
+                <dt>Fuente</dt><dd data-ubicacion="fuente">—</dd>
+                <dt>Coordenadas</dt><dd class="mono" data-ubicacion="coordenadas">—</dd>
+                <dt>Última lectura</dt><dd data-ubicacion="momento">—</dd>
+                <dt>Activada por</dt><dd>{{ rastreo.por or '—' }}{% if rastreo.desde %} · {{ rastreo.desde | fecha_hora }}{% endif %}</dd>
+            </dl>
+        </div>
+        {% else %}
+        <p class="ubicacion-vacia muted-text">
+            La ubicación está desactivada para este equipo.
+            {% if puede('equipos', 'editar') %}Al activarla, el agente envía su posición cada 2 minutos: por Wi-Fi/GPS de Windows cuando está disponible, o aproximada por la IP pública.{% endif %}
+        </p>
+        {% endif %}
+    </section>
+
+    <!-- Inventario (se llena con la plantilla "Inventario del equipo" de la consola) -->
+    <section class="card" id="inventario">
+        <div class="card-head">
+            <h2>Inventario</h2>
+            {% if puede('equipos', 'editar') %}
+            <button class="tool-btn" type="button" id="inventario-actualizar">
+                <i class="fa-solid fa-rotate"></i> <span>Actualizar inventario</span>
+            </button>
+            {% endif %}
+            <span class="muted-text inventario-fecha" id="inventario-fecha"></span>
+        </div>
+        <p class="inventario-vacio muted-text" id="inventario-vacio">
+            Aún no hay inventario de este equipo.{% if puede('equipos', 'editar') %} Pulsa “Actualizar inventario”: se consulta en segundo plano, sin molestar al usuario.{% endif %}
+        </p>
+        <div id="inventario-datos" hidden>
+            <dl class="info-list inventario-lista" id="inventario-general"></dl>
+            <div class="inventario-tablas">
+                <div>
+                    <h3>Memoria RAM</h3>
+                    <table class="data-table plain-table"><thead><tr><th>Ranura</th><th>Capacidad</th><th>Velocidad</th><th>Fabricante</th></tr></thead><tbody id="inventario-ram"></tbody></table>
+                </div>
+                <div>
+                    <h3>Discos físicos</h3>
+                    <table class="data-table plain-table"><thead><tr><th>Modelo</th><th>Tamaño</th><th>Tipo</th><th>Salud</th></tr></thead><tbody id="inventario-discos"></tbody></table>
+                </div>
+                <div>
+                    <h3>Tarjetas de red</h3>
+                    <table class="data-table plain-table"><thead><tr><th>Nombre</th><th>MAC</th><th>Velocidad</th></tr></thead><tbody id="inventario-red"></tbody></table>
+                </div>
+            </div>
+            <details class="inventario-software">
+                <summary><i class="fa-solid fa-box-open"></i> Programas instalados (<span id="inventario-software-total">0</span>)</summary>
+                <input type="search" id="inventario-software-buscar" placeholder="Buscar programa…" aria-label="Buscar programa">
+                <table class="data-table plain-table"><thead><tr><th>Programa</th><th>Versión</th><th>Editor</th></tr></thead><tbody id="inventario-software"></tbody></table>
+            </details>
+        </div>
+    </section>
+
     <!-- Interfaces de red -->
     <section class="card">
         <div class="card-head"><h2>Interfaces de red</h2></div>
@@ -101,7 +198,104 @@
     </section>
 </div>
 
+<!-- Ventana: conexión de Escritorio remoto -->
+<dialog class="dialog" id="dialogo-rdp" aria-labelledby="dialogo-rdp-titulo">
+    <form method="dialog" id="form-rdp" data-url="{{ url_for('dashboard.equipo_rdp', equipo_id=equipo.id) }}">
+        <header class="dialog-head">
+            <h2 id="dialogo-rdp-titulo"><i class="fa-brands fa-windows"></i> Escritorio remoto · {{ equipo.nombre }}</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <div class="form-row">
+                <label class="form-field">
+                    <span>Equipo</span>
+                    <input type="text" id="rdp-ip" value="{{ equipo.ip_conexion }}" readonly>
+                </label>
+                <label class="form-field">
+                    <span>Tamaño de pantalla</span>
+                    <select id="rdp-pantalla">
+                        <option value="completa">Pantalla completa</option>
+                        <option value="1920x1080">1920 × 1080</option>
+                        <option value="1600x900">1600 × 900</option>
+                        <option value="1280x720">1280 × 720</option>
+                    </select>
+                </label>
+            </div>
+            <label class="form-field">
+                <span>Usuario</span>
+                <input type="text" id="rdp-usuario" value=".\{{ equipo.usuario }}" maxlength="104" autocomplete="off">
+                <small class="hint">Cuenta local: <code>.\usuario</code> · dominio: <code>EMPRESA\usuario</code> · cuenta Microsoft: el correo. La contraseña la pide Windows al conectar y no se guarda.</small>
+            </label>
+            <p class="note"><i class="fa-solid fa-circle-info"></i>
+                Se abrirá la Conexión a Escritorio remoto de tu equipo. Si el usuario del equipo tiene la sesión abierta, Windows la cerrará para él mientras estés conectado:
+                para trabajar sin interrumpirlo usa la consola de PowerShell.</p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-copiar-rdp>
+                <i class="fa-solid fa-copy"></i> <span>Copiar comando mstsc</span>
+            </button>
+            <button type="button" class="tool-btn btn-save" id="rdp-conectar">
+                <i class="fa-solid fa-plug"></i> Conectar
+            </button>
+        </footer>
+    </form>
+</dialog>
+
+{% if puede('equipos', 'editar') %}
+<!-- Ventana: consola remota (PowerShell como SYSTEM / bash como root) -->
+<dialog class="dialog dialog-wide" id="dialogo-consola" aria-labelledby="dialogo-consola-titulo"
+        data-url="{{ url_for('dashboard.equipo_comandos', equipo_id=equipo.id) }}">
+    <div class="consola">
+        <header class="dialog-head">
+            <h2 id="dialogo-consola-titulo"><i class="fa-solid fa-terminal"></i> <span id="consola-titulo">PowerShell como administrador</span> · {{ equipo.nombre }}</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <p class="consola-aviso"><i class="fa-solid fa-shield-halved"></i>
+                <span><span id="consola-aviso">Se ejecuta en segundo plano con la cuenta SYSTEM: el usuario no ve ventanas ni se interrumpe su sesión.</span>
+                Queda registrado quién lo ejecutó.</span></p>
+
+            <div class="form-row consola-opciones">
+                <label class="form-field">
+                    <span>Plantilla</span>
+                    <select id="consola-plantilla"><option value="">Escribir mi propio comando…</option></select>
+                </label>
+                <label class="form-field">
+                    <span>Tiempo máximo</span>
+                    <select id="consola-tiempo">
+                        <option value="60">1 minuto</option>
+                        <option value="300" selected>5 minutos</option>
+                        <option value="900">15 minutos</option>
+                        <option value="3600">1 hora (actualizaciones)</option>
+                    </select>
+                </label>
+            </div>
+            <label class="form-field">
+                <span>Comando</span>
+                <textarea id="consola-script" rows="7" spellcheck="false" placeholder="Get-Service | Where-Object Status -eq 'Running'"></textarea>
+            </label>
+            <p class="consola-error" id="consola-error" hidden></p>
+            <div class="consola-acciones">
+                <span class="muted-text" id="consola-espera"></span>
+                <button type="button" class="tool-btn btn-save" id="consola-ejecutar"><i class="fa-solid fa-play"></i> Ejecutar</button>
+            </div>
+
+            <h3 class="consola-subtitulo">Historial
+                <a class="link consola-todo" href="{{ url_for('dashboard.comandos_historial', equipo=equipo.id) }}">Ver historial completo y exportar</a></h3>
+            <ul class="consola-historial" id="consola-historial">
+                <li class="muted-text">Aún no se han ejecutado comandos en este equipo.</li>
+            </ul>
+        </div>
+    </div>
+</dialog>
+{% endif %}
+
 <script type="application/json" id="equipo-inicial">{{ equipo | tojson }}</script>
+{% if (equipo.rastreo or {}).activo %}
+<!-- Mapa (Leaflet + OpenStreetMap) solo cuando la ubicación está activada -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+{% endif %}
 <script src="{{ url_for('static', filename='js/equipos.js') }}" defer></script>
 {% endblock %}
 

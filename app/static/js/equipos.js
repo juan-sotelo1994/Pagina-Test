@@ -4,6 +4,8 @@
 
 const REFRESCO_MS = 5000;
 const LIMITE_ALERTA = 90; // % de CPU, memoria o disco que se marca en rojo
+const TEMP_ALERTA = 85;   // °C de CPU que se marca en rojo
+const TEMP_AVISO = 75;    // °C de CPU que se marca en amarillo
 
 // ---------- Formato ----------
 
@@ -44,11 +46,28 @@ function barra(valor) {
 }
 
 const discoPrincipal = (e) => (e.discos || [])[0];
+const esWindows = (e) => (e.sistema || '').startsWith('Windows');
+const esMac = (e) => (e.sistema || '').startsWith('macOS');
+// e.remoto.rdp no existe en reportes de agentes anteriores a la 0.2.0
+const remoto = (e) => ({ pantalla: false, ssh: false, rdp: false, ...e.remoto });
+// e.sensores llega desde el agente 0.5.0
+const sensores = (e) => ({ cpu_temp: null, fuente: '', ventiladores: [], ventiladores_disponible: false, ...e.sensores });
+
+const nivelTemp = (t) => (t == null ? '' : t >= TEMP_ALERTA ? 'warn' : t >= TEMP_AVISO ? 'aviso' : 'ok');
+
+function textoVentiladores(s) {
+    if (!s.ventiladores_disponible) return ['No disponible', ''];
+    if (!s.ventiladores.length) return ['Sin ventiladores', 'El equipo no reporta ventiladores (pasivo o sin sensor)'];
+    const activos = s.ventiladores.filter((v) => v.rpm > 0).length;
+    const titulo = activos ? `${activos} de ${s.ventiladores.length} activos` : 'Detenidos';
+    return [titulo, s.ventiladores.map((v) => `${v.nombre}: ${v.rpm > 0 ? `${v.rpm} rpm` : 'detenido'}`).join(' · ')];
+}
 
 function tieneAlerta(e) {
     if (!e.en_linea) return false;
     return e.cpu >= LIMITE_ALERTA || e.memoria.porcentaje >= LIMITE_ALERTA
-        || (e.discos || []).some((d) => d.porcentaje >= LIMITE_ALERTA);
+        || (e.discos || []).some((d) => d.porcentaje >= LIMITE_ALERTA)
+        || sensores(e).cpu_temp >= TEMP_ALERTA;
 }
 
 async function pedir(url) {
@@ -85,10 +104,19 @@ if (filas) {
     const fila = (e) => {
         const disco = discoPrincipal(e);
         const enlace = `${base}/${encodeURIComponent(e.id)}`;
-        const remoto = e.en_linea && e.remoto.pantalla && e.ip_conexion
-            ? el('a', { className: 'tool-btn btn-mini', href: `vnc://${e.ip_conexion}`, title: 'Abrir Compartir pantalla' },
-                icono('fa-display'), ' Conectar')
-            : el('span', { className: 'muted', textContent: e.en_linea ? 'Pantalla desactivada' : '—' });
+        const r = remoto(e);
+        let acceso;
+        if (!e.en_linea || !e.ip_conexion) {
+            acceso = el('span', { className: 'muted', textContent: '—' });
+        } else if (r.rdp) {
+            acceso = el('a', { className: 'tool-btn btn-mini', href: `${enlace}/rdp`, title: 'Descargar acceso de Escritorio remoto (.rdp)' },
+                el('i', { className: 'fa-brands fa-windows' }), ' RDP');
+        } else if (r.pantalla) {
+            acceso = el('a', { className: 'tool-btn btn-mini', href: `vnc://${e.ip_conexion}`, title: 'Abrir conexión VNC' },
+                icono('fa-display'), ' Conectar');
+        } else {
+            acceso = el('span', { className: 'muted', textContent: esWindows(e) ? 'RDP desactivado' : 'Pantalla desactivada' });
+        }
 
         const tr = el('tr', { className: e.en_linea ? '' : 'offline' },
             el('td', {},
@@ -98,12 +126,19 @@ if (filas) {
                 el('div', { className: 'sub', textContent: e.sistema })),
             el('td', {}, icono('fa-user muted'), ' ', e.usuario || '—'),
             el('td', { className: 'mono', textContent: e.ip_conexion || '—' }),
+            el('td', {}, (e.rastreo || {}).activo
+                ? el('span', { className: 'ubicacion-celda', title: e.ubicacion && e.ubicacion.fuente === 'ip' ? 'Aproximada por IP' : 'Wi-Fi / GPS' },
+                    icono('fa-location-dot'), ' ', (e.ubicacion && (e.ubicacion.ciudad || (e.ubicacion.lat != null ? 'Ubicado' : ''))) || 'Esperando…')
+                : el('span', { className: 'muted', textContent: '—', title: 'Ubicación desactivada' })),
             el('td', {}, e.en_linea ? barra(e.cpu) : '—'),
+            el('td', {}, e.en_linea && sensores(e).cpu_temp != null
+                ? el('span', { className: `temp ${nivelTemp(sensores(e).cpu_temp)}`, textContent: `${Math.round(sensores(e).cpu_temp)} °C`, title: sensores(e).fuente })
+                : '—'),
             el('td', {}, e.en_linea ? barra(e.memoria.porcentaje) : '—'),
             el('td', {}, disco ? barra(disco.porcentaje) : '—'),
             el('td', { className: 'mono' }, e.en_linea ? `${velocidad(e.red.bajada)} / ${velocidad(e.red.subida)}` : '—'),
             el('td', { textContent: hace(e.visto), title: fecha(e.visto) }),
-            el('td', {}, remoto));
+            el('td', {}, acceso));
         tr.dataset.texto = [e.nombre, e.usuario, e.ip_conexion, e.sistema, e.hostname].join(' ').toLowerCase();
         return tr;
     };
@@ -151,6 +186,8 @@ if (detalle) {
 
     const pintar = () => {
         const e = equipo;
+        const windows = esWindows(e);
+        const r = remoto(e);
         const estado = document.getElementById('equipo-estado');
         estado.className = `tag ${e.en_linea ? 'tag-full' : 'tag-lock'}`;
         estado.replaceChildren(el('span', { className: `status-dot ${e.en_linea ? 'on' : 'off'}` }), e.en_linea ? 'En línea' : 'Desconectado');
@@ -163,6 +200,23 @@ if (detalle) {
         poner('bajada', e.en_linea ? velocidad(e.red.bajada) : '–');
         poner('subida', e.en_linea ? velocidad(e.red.subida) : '–');
         campo('cpu').classList.toggle('warn', e.en_linea && e.cpu >= LIMITE_ALERTA);
+
+        // Temperatura y ventiladores
+        const s = sensores(e);
+        const temp = campo('temp');
+        temp.textContent = e.en_linea && s.cpu_temp != null ? `${s.cpu_temp.toFixed(1)} °C` : (s.cpu_temp == null ? 'No disponible' : '–');
+        temp.classList.toggle('warn', e.en_linea && s.cpu_temp >= TEMP_ALERTA);
+        temp.classList.toggle('aviso', e.en_linea && s.cpu_temp >= TEMP_AVISO && s.cpu_temp < TEMP_ALERTA);
+        temp.classList.toggle('stat-value-sm', s.cpu_temp == null);
+        poner('temp-detalle', s.cpu_temp == null
+            ? 'El equipo no informa la temperatura'
+            : `${s.fuente}${s.cpu_temp >= TEMP_ALERTA ? ' · ¡muy caliente!' : s.cpu_temp >= TEMP_AVISO ? ' · caliente' : ''}`);
+        const [fansTitulo, fansDetalle] = textoVentiladores(s);
+        poner('ventiladores', fansTitulo);
+        campo('ventiladores').classList.add('stat-value-sm');
+        poner('ventiladores-detalle', fansDetalle || (esWindows(e)
+            ? 'Windows no informa los ventiladores: instala LibreHardwareMonitor en el equipo'
+            : 'Este equipo no expone sensores de ventiladores'));
         campo('memoria').classList.toggle('warn', e.en_linea && e.memoria.porcentaje >= LIMITE_ALERTA);
 
         poner('usuario', e.usuario);
@@ -172,17 +226,31 @@ if (detalle) {
         poner('nucleos', e.nucleos);
         poner('arranque', e.arranque ? `${fecha(e.arranque)} (${hace(e.arranque).replace('hace ', '')})` : '');
         poner('bateria', e.bateria ? `${e.bateria.porcentaje}%${e.bateria.cargando ? ' · cargando' : ''}` : 'Sin batería');
-        poner('remoto', `Compartir pantalla: ${e.remoto.pantalla ? 'activo' : 'desactivado'} · SSH: ${e.remoto.ssh ? 'activo' : 'desactivado'}`);
+        const activo = (v) => (v ? 'activo' : 'desactivado');
+        poner('remoto', windows
+            ? `Escritorio remoto: ${activo(r.rdp)} · VNC: ${activo(r.pantalla)} · SSH: ${activo(r.ssh)}`
+            : `Compartir pantalla: ${activo(r.pantalla)} · SSH: ${activo(r.ssh)}`);
         poner('visto', `${fecha(e.visto)} (${hace(e.visto)})`);
         poner('agente', e.agente);
 
-        // Acceso remoto
+        // Acceso remoto: en Windows el principal es Escritorio remoto (RDP); en Mac/Linux, VNC
+        const rdp = document.getElementById('btn-rdp');
+        rdp.hidden = !windows && !r.rdp;
+        rdp.classList.toggle('disabled', !e.en_linea || !r.rdp);
         const pantalla = document.getElementById('btn-pantalla');
         pantalla.href = `vnc://${e.ip_conexion}`;
-        pantalla.classList.toggle('disabled', !e.en_linea || !e.remoto.pantalla);
+        pantalla.hidden = windows && !r.pantalla;
+        pantalla.classList.toggle('disabled', !e.en_linea || !r.pantalla);
         document.getElementById('btn-ssh').dataset.copiar = `ssh ${e.usuario || 'admin'}@${e.ip_conexion}`;
         document.getElementById('btn-ip').dataset.copiar = e.ip_conexion;
-        document.getElementById('aviso-remoto').hidden = !e.en_linea || e.remoto.pantalla;
+
+        const sinAcceso = windows ? !r.rdp : !r.pantalla;
+        document.getElementById('aviso-remoto').hidden = !e.en_linea || !sinAcceso;
+        document.getElementById('aviso-remoto-texto').textContent = windows
+            ? 'Escritorio remoto está desactivado en este equipo. Actívalo en Configuración → Sistema → Escritorio remoto (requiere Windows Pro o superior).'
+            : esMac(e)
+                ? 'Compartir pantalla está desactivado en este Mac. Actívalo en Ajustes del Sistema → General → Compartir.'
+                : 'No hay un servidor VNC activo en este equipo. Instala uno (por ejemplo x11vnc) o conéctate por SSH.';
 
         // Discos
         document.getElementById('equipo-discos').replaceChildren(...(e.discos.length ? e.discos.map((d) =>
@@ -208,7 +276,96 @@ if (detalle) {
         sparkline('memoria', h.map((p) => p.memoria), 100);
         sparkline('bajada', h.map((p) => p.bajada));
         sparkline('subida', h.map((p) => p.subida));
+        sparkline('temp', h.filter((p) => p.temp != null).map((p) => p.temp), 100);
+
+        pintarInventario(e.inventario);
+        pintarUbicacion(e.ubicacion);
     };
+
+    // Ubicación en el mapa (solo existe si el rastreo está activado)
+    const contenedorMapa = document.getElementById('ubicacion-mapa');
+    let mapa = null;
+    let marcador = null;
+    let circulo = null;
+    const FUENTES = { windows: 'Wi-Fi / GPS de Windows', ip: 'Aproximada por la IP pública', 'no disponible': 'No disponible' };
+
+    const pintarUbicacion = (u) => {
+        if (!contenedorMapa) return;
+        const dato = (clave, valor) => { const n = detalle.querySelector(`[data-ubicacion="${clave}"]`); if (n) n.textContent = valor || '—'; };
+        if (!u) {
+            dato('lugar', 'Esperando el primer reporte del equipo…');
+            return;
+        }
+        const lugar = [u.ciudad, u.region, u.pais].filter(Boolean).join(', ');
+        dato('lugar', lugar || (u.lat != null ? 'Sin nombre de lugar' : ''));
+        dato('precision', u.precision ? (u.precision >= 1000 ? `± ${(u.precision / 1000).toFixed(1)} km` : `± ${Math.round(u.precision)} m`) : '');
+        dato('fuente', FUENTES[u.fuente] || u.fuente);
+        dato('coordenadas', u.lat != null ? `${u.lat.toFixed(5)}, ${u.lon.toFixed(5)}` : '');
+        dato('momento', u.momento ? `${fecha(u.momento)} (${hace(u.momento)})` : '');
+
+        if (u.lat == null || !window.L) {
+            contenedorMapa.classList.toggle('sin-datos', u.lat == null);
+            return;
+        }
+        const punto = [u.lat, u.lon];
+        if (!mapa) {
+            mapa = L.map(contenedorMapa, { scrollWheelZoom: false }).setView(punto, u.fuente === 'ip' ? 11 : 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '&copy; OpenStreetMap',
+            }).addTo(mapa);
+            marcador = L.marker(punto).addTo(mapa);
+            circulo = L.circle(punto, { radius: u.precision || 50, color: '#2f5bd7', weight: 1, fillOpacity: 0.12 }).addTo(mapa);
+        } else {
+            marcador.setLatLng(punto);
+            circulo.setLatLng(punto).setRadius(u.precision || 50);
+        }
+        marcador.bindPopup(`<strong>${equipo.nombre.replace(/[<>&]/g, '')}</strong><br>${lugar.replace(/[<>&]/g, '') || 'Ubicación actual'}`);
+    };
+
+    // Inventario: solo se vuelve a dibujar cuando llega uno nuevo (la lista de programas es larga)
+    let inventarioPintado = null;
+    const filaTabla = (...celdas) => el('tr', {}, ...celdas.map((c) => el('td', { textContent: c || '—' })));
+
+    const pintarInventario = (inv) => {
+        if (!inv || inv.actualizado === inventarioPintado) return;
+        inventarioPintado = inv.actualizado;
+        document.getElementById('inventario-vacio').hidden = true;
+        document.getElementById('inventario-datos').hidden = false;
+        document.getElementById('inventario-fecha').textContent = `Actualizado ${hace(inv.actualizado)} por ${inv.por || '—'}`;
+
+        const general = [
+            ['Fabricante', inv.fabricante], ['Modelo', inv.modelo], ['Número de serie', inv.serial],
+            ['BIOS', [inv.bios, inv.bios_fecha].filter(Boolean).join(' · ')],
+            ['Procesador', inv.procesador + (inv.nucleos ? ` (${inv.nucleos} núcleos / ${inv.hilos} hilos)` : '')],
+            ['Memoria RAM', inv.ram_gb ? `${inv.ram_gb} GB` : ''],
+            ['Sistema operativo', [inv.so, inv.so_version, inv.arquitectura].filter(Boolean).join(' · ')],
+            ['Instalado el', inv.so_instalado],
+            ['Dominio', inv.dominio ? `${inv.dominio}${inv.en_dominio ? '' : ' (grupo de trabajo)'}` : ''],
+            ['Antivirus', (inv.antivirus || []).join(', ')],
+        ];
+        document.getElementById('inventario-general').replaceChildren(...general.flatMap(([k, v]) =>
+            [el('dt', { textContent: k }), el('dd', { textContent: v || '—' })]));
+        document.getElementById('inventario-ram').replaceChildren(...(inv.ram_modulos || []).map((m) =>
+            filaTabla(m.ranura, `${m.capacidad_gb} GB`, m.velocidad ? `${m.velocidad} MHz` : '', m.fabricante)));
+        document.getElementById('inventario-discos').replaceChildren(...(inv.discos || []).map((d) =>
+            filaTabla(d.modelo, `${d.tamano_gb} GB`, [d.tipo, d.interfaz].filter(Boolean).join(' · '), d.salud)));
+        document.getElementById('inventario-red').replaceChildren(...(inv.red || []).map((r) =>
+            filaTabla(r.descripcion || r.nombre, r.mac, r.velocidad)));
+
+        const software = inv.software || [];
+        document.getElementById('inventario-software-total').textContent = software.length;
+        document.getElementById('inventario-software').replaceChildren(...software.map((s) => {
+            const tr = filaTabla(s.nombre, s.version, s.editor);
+            tr.dataset.texto = `${s.nombre} ${s.editor}`.toLowerCase();
+            return tr;
+        }));
+    };
+
+    const buscarSoftware = document.getElementById('inventario-software-buscar');
+    buscarSoftware.addEventListener('input', () => {
+        const texto = buscarSoftware.value.trim().toLowerCase();
+        document.querySelectorAll('#inventario-software tr').forEach((tr) => { tr.hidden = !tr.dataset.texto.includes(texto); });
+    });
 
     // Botones de copiar
     detalle.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
@@ -227,4 +384,292 @@ if (detalle) {
         equipo = await pedir(detalle.dataset.url);
         pintar();
     });
+}
+
+// ---------- Ventana de Escritorio remoto ----------
+
+const formRdp = document.getElementById('form-rdp');
+
+if (formRdp) {
+    const usuarioRdp = document.getElementById('rdp-usuario');
+    const ipRdp = document.getElementById('rdp-ip');
+
+    document.getElementById('rdp-conectar').addEventListener('click', () => {
+        const parametros = new URLSearchParams({
+            usuario: usuarioRdp.value.trim(),
+            pantalla: document.getElementById('rdp-pantalla').value,
+        });
+        // Descarga el .rdp; el navegador lo abre con Conexión a Escritorio remoto
+        window.location.href = `${formRdp.dataset.url}?${parametros}`;
+        document.getElementById('dialogo-rdp').close();
+    });
+
+    const copiar = formRdp.querySelector('[data-copiar-rdp]');
+    copiar.addEventListener('click', async () => {
+        const texto = `mstsc /v:${ipRdp.value}`;
+        try {
+            await navigator.clipboard.writeText(texto);
+            copiar.lastElementChild.textContent = 'Copiado';
+            setTimeout(() => { copiar.lastElementChild.textContent = 'Copiar comando mstsc'; }, 1500);
+        } catch (e) {
+            prompt('Copia este comando:', texto);
+        }
+    });
+}
+
+// ---------- Consola remota (PowerShell como SYSTEM / bash como root) ----------
+
+// La línea con esta marca lleva el inventario en JSON; el panel la lee y actualiza la ficha del equipo
+const MARCA_INVENTARIO = '###INVENTARIO###';
+const NOMBRE_INVENTARIO = 'Inventario del equipo (actualiza la ficha)';
+
+const PLANTILLAS = {
+    windows: [
+        ['Windows Update: instalar actualizaciones (sin reiniciar)', 3600, `$sesion = New-Object -ComObject Microsoft.Update.Session
+$buscador = $sesion.CreateUpdateSearcher()
+Write-Output 'Buscando actualizaciones...'
+$resultado = $buscador.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+if ($resultado.Updates.Count -eq 0) { Write-Output 'El equipo está al día.'; exit 0 }
+$lista = New-Object -ComObject Microsoft.Update.UpdateColl
+foreach ($u in $resultado.Updates) {
+    if (-not $u.EulaAccepted) { $u.AcceptEula() }
+    [void]$lista.Add($u)
+    Write-Output "- $($u.Title)"
+}
+Write-Output 'Descargando...'
+$descarga = $sesion.CreateUpdateDownloader(); $descarga.Updates = $lista; [void]$descarga.Download()
+Write-Output 'Instalando...'
+$instalador = $sesion.CreateUpdateInstaller(); $instalador.Updates = $lista
+$fin = $instalador.Install()
+Write-Output "Resultado: $($fin.ResultCode) (2 = correcto, 3 = correcto con errores)"
+if ($fin.RebootRequired) { Write-Output 'Requiere reinicio. El equipo NO se reinició: coordina el reinicio con el usuario.' }`],
+        ['Windows Update: solo buscar (no instala)', 900, `$buscador = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher()
+$resultado = $buscador.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+if ($resultado.Updates.Count -eq 0) { 'El equipo está al día.' } else { $resultado.Updates | ForEach-Object { "- $($_.Title)" } }`],
+        ['Actualizar aplicaciones con winget', 3600, `$winget = Get-ChildItem "$env:ProgramFiles\\WindowsApps\\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\\winget.exe" -ErrorAction SilentlyContinue |
+    Sort-Object FullName -Descending | Select-Object -First 1
+if (-not $winget) { Write-Output 'winget no está instalado en este equipo.'; exit 1 }
+& $winget.FullName upgrade --all --silent --accept-package-agreements --accept-source-agreements --disable-interactivity`],
+        [NOMBRE_INVENTARIO, 300, `$cs = Get-CimInstance Win32_ComputerSystem
+$bios = Get-CimInstance Win32_BIOS
+$so = Get-CimInstance Win32_OperatingSystem
+$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+$ram = Get-CimInstance Win32_PhysicalMemory
+$discos = Get-PhysicalDisk -ErrorAction SilentlyContinue
+$red = Get-NetAdapter -Physical -ErrorAction SilentlyContinue
+$av = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
+$apps = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -and -not $_.SystemComponent } | Sort-Object DisplayName -Unique
+$inv = [ordered]@{
+    fabricante = "$($cs.Manufacturer)".Trim(); modelo = "$($cs.Model)".Trim(); serial = "$($bios.SerialNumber)".Trim()
+    bios = "$($bios.SMBIOSBIOSVersion)"; bios_fecha = if ($bios.ReleaseDate) { $bios.ReleaseDate.ToString('yyyy-MM-dd') } else { '' }
+    procesador = "$($cpu.Name)".Trim(); nucleos = $cpu.NumberOfCores; hilos = $cpu.NumberOfLogicalProcessors
+    ram_gb = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
+    ram_modulos = @($ram | ForEach-Object { [ordered]@{ capacidad_gb = [math]::Round($_.Capacity / 1GB); velocidad = $_.Speed; fabricante = "$($_.Manufacturer)".Trim(); ranura = "$($_.DeviceLocator)" } })
+    so = $so.Caption; so_version = $so.Version; so_compilacion = $so.BuildNumber; arquitectura = $so.OSArchitecture
+    so_instalado = $so.InstallDate.ToString('yyyy-MM-dd'); dominio = $cs.Domain; en_dominio = [bool]$cs.PartOfDomain
+    discos = @($discos | ForEach-Object { [ordered]@{ modelo = $_.FriendlyName; tamano_gb = [math]::Round($_.Size / 1GB); tipo = "$($_.MediaType)"; interfaz = "$($_.BusType)"; salud = "$($_.HealthStatus)" } })
+    red = @($red | ForEach-Object { [ordered]@{ nombre = $_.Name; descripcion = $_.InterfaceDescription; mac = $_.MacAddress; velocidad = "$($_.LinkSpeed)" } })
+    antivirus = @($av | ForEach-Object { $_.displayName })
+    software = @($apps | Select-Object -First 500 | ForEach-Object { [ordered]@{ nombre = $_.DisplayName; version = "$($_.DisplayVersion)"; editor = "$($_.Publisher)" } })
+}
+"Equipo:     $($inv.fabricante) $($inv.modelo) - serie $($inv.serial)"
+"Procesador: $($inv.procesador) ($($inv.nucleos) núcleos / $($inv.hilos) hilos)"
+"Memoria:    $($inv.ram_gb) GB en $($inv.ram_modulos.Count) módulo(s)"
+"Sistema:    $($inv.so) $($inv.so_version) ($($inv.arquitectura))"
+"Discos:     " + (($inv.discos | ForEach-Object { "$($_.modelo) $($_.tamano_gb) GB $($_.tipo)" }) -join '; ')
+"Antivirus:  " + ($inv.antivirus -join ', ')
+"Programas:  $($inv.software.Count) instalados"
+'${MARCA_INVENTARIO}' + ($inv | ConvertTo-Json -Depth 4 -Compress)`],
+        ['Espacio en discos', 60, `Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='Usado (GB)';e={[math]::Round($_.Used/1GB,1)}}, @{n='Libre (GB)';e={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize`],
+        ['Limpiar archivos temporales de Windows', 300, `$antes = (Get-PSDrive C).Free
+Remove-Item "$env:windir\\Temp\\*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:windir\\SoftwareDistribution\\Download\\*" -Recurse -Force -ErrorAction SilentlyContinue
+"Espacio liberado: {0:N1} MB" -f (((Get-PSDrive C).Free - $antes) / 1MB)`],
+        ['Reiniciar la cola de impresión', 60, `Restart-Service -Name Spooler -Force
+Get-Service -Name Spooler | Format-Table Name, Status -AutoSize`],
+    ],
+    mac: [
+        [NOMBRE_INVENTARIO, 300, `system_profiler SPHardwareDataType SPSoftwareDataType SPApplicationsDataType -json | /usr/bin/python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+hw, sw = d["SPHardwareDataType"][0], d["SPSoftwareDataType"][0]
+inv = {"fabricante": "Apple", "modelo": hw.get("machine_model", ""), "serial": hw.get("serial_number", ""),
+       "bios": hw.get("boot_rom_version", ""), "procesador": hw.get("chip_type") or hw.get("cpu_type", ""),
+       "nucleos": int(str(hw.get("number_processors", "0")).split()[-1].split(":")[-1] or 0),
+       "ram_gb": float(hw.get("physical_memory", "0 GB").split()[0]), "so": sw.get("os_version", ""),
+       "software": [{"nombre": a.get("_name", ""), "version": a.get("version", ""), "editor": a.get("obtained_from", "")}
+                    for a in d.get("SPApplicationsDataType", [])[:500]]}
+print("Equipo:", inv["modelo"], "- serie", inv["serial"]); print("Procesador:", inv["procesador"])
+print("Memoria:", inv["ram_gb"], "GB"); print("Sistema:", inv["so"]); print("Programas:", len(inv["software"]))
+print("${MARCA_INVENTARIO}" + json.dumps(inv))'`],
+        ['Buscar actualizaciones de macOS', 900, 'softwareupdate --list'],
+        ['Instalar actualizaciones (sin reiniciar)', 3600, 'softwareupdate --install --all --no-scan 2>&1 | grep -v "^$"'],
+        ['Espacio en discos', 60, 'df -h /'],
+    ],
+    linux: [
+        [NOMBRE_INVENTARIO, 300, `python3 - <<'PY'
+import json, os, platform, subprocess
+def leer(ruta):
+    try: return open(ruta).read().strip()
+    except OSError: return ""
+def correr(*a):
+    try: return subprocess.run(a, capture_output=True, text=True, timeout=30).stdout
+    except Exception: return ""
+cpu = [l.split(":", 1)[1].strip() for l in leer("/proc/cpuinfo").splitlines() if l.startswith("model name")]
+ram_kb = int(next((l.split()[1] for l in leer("/proc/meminfo").splitlines() if l.startswith("MemTotal")), 0))
+so = platform.freedesktop_os_release()
+discos = json.loads(correr("lsblk", "-J", "-d", "-b", "-o", "MODEL,SIZE,ROTA,TRAN,TYPE") or '{"blockdevices": []}')["blockdevices"]
+red = [{"nombre": n, "mac": leer(f"/sys/class/net/{n}/address")} for n in os.listdir("/sys/class/net") if n != "lo"]
+apps = [l.split("\\t") for l in correr("dpkg-query", "-W", "-f=\${Package}\\t\${Version}\\t\${Maintainer}\\n").splitlines()]
+inv = {"fabricante": leer("/sys/class/dmi/id/sys_vendor"), "modelo": leer("/sys/class/dmi/id/product_name"),
+       "serial": leer("/sys/class/dmi/id/product_serial"), "bios": leer("/sys/class/dmi/id/bios_version"),
+       "bios_fecha": leer("/sys/class/dmi/id/bios_date"), "procesador": cpu[0] if cpu else platform.processor(),
+       "hilos": len(cpu), "ram_gb": round(ram_kb / 1048576, 1), "so": so.get("PRETTY_NAME", ""),
+       "so_version": platform.release(), "arquitectura": platform.machine(),
+       "discos": [{"modelo": (d.get("model") or "").strip(), "tamano_gb": int(d.get("size") or 0) // 1000**3,
+                   "tipo": "HDD" if d.get("rota") in (True, 1, "1") else "SSD", "interfaz": d.get("tran") or ""} for d in discos if d.get("type") == "disk"],
+       "red": red, "software": [{"nombre": a[0], "version": a[1] if len(a) > 1 else "", "editor": a[2] if len(a) > 2 else ""} for a in apps[:500]]}
+print("Equipo:", inv["fabricante"], inv["modelo"], "- serie", inv["serial"]); print("Procesador:", inv["procesador"])
+print("Memoria:", inv["ram_gb"], "GB"); print("Sistema:", inv["so"]); print("Paquetes:", len(apps))
+print("${MARCA_INVENTARIO}" + json.dumps(inv))
+PY`],
+        ['Actualizar paquetes (apt)', 3600, 'export DEBIAN_FRONTEND=noninteractive\napt-get update -q && apt-get -y -q upgrade\n[ -f /var/run/reboot-required ] && echo "Requiere reinicio (no se reinició)."'],
+        ['Paquetes pendientes de actualizar', 300, 'apt-get update -qq && apt list --upgradable 2>/dev/null'],
+        ['Espacio en discos', 60, 'df -h -x tmpfs -x squashfs'],
+    ],
+};
+
+const dialogoConsola = document.getElementById('dialogo-consola');
+
+if (dialogoConsola) {
+    const datosEquipo = JSON.parse(document.getElementById('equipo-inicial').textContent);
+    const sistema = esWindows(datosEquipo) ? 'windows' : esMac(datosEquipo) ? 'mac' : 'linux';
+    const plantillas = PLANTILLAS[sistema];
+    const url = dialogoConsola.dataset.url;
+    const selectPlantilla = document.getElementById('consola-plantilla');
+    const script = document.getElementById('consola-script');
+    const tiempo = document.getElementById('consola-tiempo');
+    const error = document.getElementById('consola-error');
+    const espera = document.getElementById('consola-espera');
+    const lista = document.getElementById('consola-historial');
+    const ejecutar = document.getElementById('consola-ejecutar');
+    let temporizador = null;
+
+    if (sistema !== 'windows') {
+        document.getElementById('btn-consola-texto').textContent = 'Terminal (root)';
+        document.getElementById('consola-titulo').textContent = 'Terminal como root';
+        document.getElementById('consola-aviso').textContent = 'Se ejecuta en segundo plano como root: el usuario no ve ventanas ni se interrumpe su sesión.';
+        script.placeholder = 'df -h';
+    }
+
+    plantillas.forEach(([nombre], i) => selectPlantilla.append(el('option', { value: i, textContent: nombre })));
+    selectPlantilla.addEventListener('change', () => {
+        const p = plantillas[selectPlantilla.value];
+        if (!p) return;
+        script.value = p[2];
+        tiempo.value = String(p[1]);
+    });
+
+    const ESTADOS = {
+        pendiente: ['tag-read', 'Esperando al equipo'],
+        enviado: ['tag-part', 'Ejecutando'],
+        terminado: ['tag-full', 'Terminado'],
+        error: ['tag-danger', 'Error'],
+        'sin respuesta': ['tag-lock', 'Sin respuesta'],
+    };
+
+    const pintarHistorial = (comandos) => {
+        if (!comandos.length) return;
+        const abiertos = new Set([...lista.querySelectorAll('details[open]')].map((d) => d.dataset.id));
+        lista.replaceChildren(...comandos.map((c) => {
+            const [clase, texto] = ESTADOS[c.estado] || ['tag-lock', c.estado];
+            const titulo = c.descripcion || c.script.split('\n')[0];
+            const resumen = el('summary', {},
+                el('span', { className: `tag ${clase}`, textContent: c.codigo != null && c.estado === 'error' ? `${texto} (${c.codigo})` : texto }),
+                el('span', { className: 'consola-cmd', textContent: titulo }),
+                el('span', { className: 'muted-text consola-meta', textContent: `${c.usuario} · ${hace(c.creado)}` }));
+            const auditoria = [
+                `Enviado por ${c.usuario}${c.rol ? ` (${c.rol})` : ''}${c.ip_panel ? ` desde ${c.ip_panel}` : ''}`,
+                c.cuenta_equipo ? `corrió como ${c.cuenta_equipo}` : '',
+                c.cuenta_equipo ? `sesión abierta: ${c.sesion_equipo || 'nadie'}` : '',
+            ].filter(Boolean).join(' · ');
+            const cuerpo = el('div', { className: 'consola-detalle' },
+                el('p', { className: 'consola-auditoria', textContent: auditoria }),
+                el('small', { className: 'muted-text', textContent: 'Comando' }),
+                el('pre', { textContent: c.script }),
+                el('small', { className: 'muted-text', textContent: 'Salida' }),
+                el('pre', { className: 'consola-salida', textContent: c.salida || (c.estado === 'enviado' ? 'Ejecutando…' : c.estado === 'pendiente' ? 'El equipo lo recogerá en unos segundos…' : '(sin salida)') }));
+            const item = el('details', { open: abiertos.has(c.id) }, resumen, cuerpo);
+            item.dataset.id = c.id;
+            return el('li', {}, item);
+        }));
+        const activos = comandos.some((c) => c.estado === 'pendiente' || c.estado === 'enviado');
+        espera.textContent = activos ? 'Hay comandos en curso: la salida aparece aquí al terminar.' : '';
+    };
+
+    const actualizar = async () => {
+        try { pintarHistorial((await pedir(url)).comandos); } catch (e) { /* se reintenta */ }
+    };
+
+    const enviar = async (texto, segundos, descripcion) => {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ script: texto, tiempo: segundos, descripcion }),
+        });
+        const datos = await r.json();
+        if (!r.ok) throw new Error(datos.error || `Error ${r.status}`);
+        pintarHistorial(datos.comandos);
+    };
+
+    ejecutar.addEventListener('click', async () => {
+        error.hidden = true;
+        const texto = script.value.trim();
+        if (!texto) {
+            error.textContent = 'Escribe un comando o elige una plantilla.';
+            error.hidden = false;
+            return;
+        }
+        const plantilla = plantillas[selectPlantilla.value];
+        ejecutar.disabled = true;
+        try {
+            await enviar(texto, Number(tiempo.value), plantilla && plantilla[2] === texto ? plantilla[0] : '');
+            const primero = lista.querySelector('details');
+            if (primero) primero.open = true;
+        } catch (e) {
+            error.textContent = `No se pudo enviar: ${e.message}`;
+            error.hidden = false;
+        } finally {
+            ejecutar.disabled = false;
+        }
+    });
+
+    // "Actualizar inventario" en la ficha: envía la plantilla de inventario sin abrir la consola
+    const botonInventario = document.getElementById('inventario-actualizar');
+    const inventario = plantillas.find(([nombre]) => nombre === NOMBRE_INVENTARIO);
+    if (botonInventario && inventario) {
+        botonInventario.addEventListener('click', async () => {
+            const etiqueta = botonInventario.lastElementChild;
+            botonInventario.disabled = true;
+            etiqueta.textContent = 'Consultando el equipo…';
+            try {
+                await enviar(inventario[2], inventario[1], inventario[0]);
+                etiqueta.textContent = 'Enviado: llega en unos segundos';
+            } catch (e) {
+                etiqueta.textContent = `No se pudo: ${e.message}`;
+            }
+            setTimeout(() => { etiqueta.textContent = 'Actualizar inventario'; botonInventario.disabled = false; }, 15000);
+        });
+    }
+
+    // Mientras la ventana está abierta, el historial se actualiza cada 3 segundos
+    const observador = new MutationObserver(() => {
+        clearInterval(temporizador);
+        if (dialogoConsola.open) {
+            actualizar();
+            temporizador = setInterval(actualizar, 3000);
+        }
+    });
+    observador.observe(dialogoConsola, { attributes: true, attributeFilter: ['open'] });
 }

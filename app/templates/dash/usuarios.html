@@ -1,0 +1,121 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Usuarios{% endblock %}
+{% block page_title %}Usuarios y accesos › Usuarios{% endblock %}
+
+{% block content %}
+
+<div class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="nuevo-usuario">
+        <i class="fa-solid fa-user-plus"></i> Nuevo usuario
+    </button>
+    {% endif %}
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar" aria-label="Buscar usuarios">
+    </label>
+</div>
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">Nombre</th>
+                <th data-sort="text">Correo</th>
+                <th data-sort="text">Rol</th>
+                <th data-sort="text">Estado</th>
+                <th data-sort="text">Creado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if admin_correo %}
+            <tr>
+                <td><i class="fa-solid fa-crown muted"></i> Administrador del sistema</td>
+                <td>{{ admin_correo }}</td>
+                <td><span class="tag tag-full">Superadministrador</span></td>
+                <td><span class="status"><span class="status-dot" style="background: #4caf6e"></span>Activo</span></td>
+                <td class="muted-text">Archivo .env</td>
+            </tr>
+            {% endif %}
+            {% for u in lista %}
+            <tr>
+                <td><i class="fa-solid fa-user muted"></i> {{ u.nombre }}</td>
+                <td>{{ u.correo }}</td>
+                <td><span class="tag {% if u.rol in ('superadmin', 'admin') %}tag-full{% else %}tag-read{% endif %}">{{ nombres_rol.get(u.rol, u.rol) }}</span></td>
+                <td>
+                    <span class="status"><span class="status-dot" style="background: {{ '#4caf6e' if u.activo else '#6b6f75' }}"></span>{{ 'Activo' if u.activo else 'Inactivo' }}</span>
+                </td>
+                <td class="mono">{{ u.creado }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" hidden>No hay resultados para esa búsqueda.</p>
+</div>
+
+{% if not lista %}
+<p class="note"><i class="fa-solid fa-circle-info"></i> Aún no hay usuarios creados. Usa “Nuevo usuario” para agregar a tu equipo.</p>
+{% endif %}
+
+{% if puede_crear %}
+<!-- Formulario de nuevo usuario -->
+<dialog class="dialog" id="nuevo-usuario" {% if errores %}data-open-on-load{% endif %} aria-labelledby="nuevo-usuario-titulo">
+    <form method="post" class="dialog-form" novalidate>
+        <header class="dialog-head">
+            <h2 id="nuevo-usuario-titulo"><i class="fa-solid fa-user-plus"></i> Nuevo usuario</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+
+        <div class="dialog-body">
+            <label class="form-field {% if errores.nombre %}invalid{% endif %}">
+                <span>Nombre completo</span>
+                <input type="text" name="nombre" value="{{ formulario.nombre }}" required autocomplete="off">
+                {% if errores.nombre %}<small>{{ errores.nombre }}</small>{% endif %}
+            </label>
+
+            <label class="form-field {% if errores.correo %}invalid{% endif %}">
+                <span>Correo electrónico</span>
+                <input type="email" name="correo" value="{{ formulario.correo }}" required autocomplete="off">
+                {% if errores.correo %}<small>{{ errores.correo }}</small>{% endif %}
+            </label>
+
+            <label class="form-field {% if errores.rol %}invalid{% endif %}">
+                <span>Rol</span>
+                <select name="rol" required>
+                    <option value="">Selecciona un rol</option>
+                    {% for clave, nombre, descripcion in roles_asignables %}
+                    <option value="{{ clave }}" {% if formulario.rol == clave %}selected{% endif %}>{{ nombre }} — {{ descripcion }}</option>
+                    {% endfor %}
+                </select>
+                {% if errores.rol %}<small>{{ errores.rol }}</small>{% endif %}
+            </label>
+
+            <div class="form-row">
+                <label class="form-field {% if errores.contrasena %}invalid{% endif %}">
+                    <span>Contraseña</span>
+                    <input type="password" name="contrasena" required minlength="{{ largo_minimo }}" autocomplete="new-password">
+                    {% if errores.contrasena %}<small>{{ errores.contrasena }}</small>{% else %}<small class="hint">Mínimo {{ largo_minimo }} caracteres.</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.confirmacion %}invalid{% endif %}">
+                    <span>Confirmar contraseña</span>
+                    <input type="password" name="confirmacion" required autocomplete="new-password">
+                    {% if errores.confirmacion %}<small>{{ errores.confirmacion }}</small>{% endif %}
+                </label>
+            </div>
+        </div>
+
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Crear usuario</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-users"></i> {{ lista | length + (1 if admin_correo else 0) }} usuarios</span>
+<span class="status-right" id="row-count">{{ lista | length + (1 if admin_correo else 0) }}</span>
+{% endblock %}

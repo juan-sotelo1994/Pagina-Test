@@ -1,0 +1,4 @@
+# Los scripts de bash fallan con saltos de línea de Windows; los de Windows los necesitan
+*.sh  text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf

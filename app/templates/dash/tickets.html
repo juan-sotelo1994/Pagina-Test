@@ -1,0 +1,159 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Tickets{% endblock %}
+{% block page_title %}Soporte › Tickets (GLPI){% endblock %}
+
+{% set colores_estado = {1: '#3b82f6', 2: '#2bb3a3', 3: '#2bb3a3', 4: '#f59e0b', 5: '#4caf6e', 6: '#6b6f75'} %}
+{% set colores_prioridad = {1: 'tag-none', 2: 'tag-read', 3: 'tag-read', 4: 'tag-part', 5: 'tag-danger', 6: 'tag-danger'} %}
+
+{% block content %}
+
+{% if origen == 'ejemplo' %}
+<div class="flash flash-info">
+    <i class="fa-solid fa-circle-info"></i>
+    Mostrando tickets de ejemplo. Para ver los reales, configura GLPI_URL, GLPI_APP_TOKEN y GLPI_USER_TOKEN en el archivo .env.
+</div>
+{% endif %}
+{% if error %}
+<div class="flash flash-error"><i class="fa-solid fa-plug-circle-xmark"></i> {{ error }}</div>
+{% endif %}
+
+<!-- Contadores -->
+<section class="kpis">
+    <a href="{{ url_for('dashboard.tickets', estado='nuevos') }}" class="kpi kpi-new {% if filtro == 'nuevos' %}active{% endif %}">
+        <i class="fa-solid fa-bell"></i>
+        <span class="kpi-num">{{ resumen.nuevos }}</span>
+        <span class="kpi-label">Nuevos</span>
+    </a>
+    <a href="{{ url_for('dashboard.tickets', estado='pendientes') }}" class="kpi kpi-pending {% if filtro == 'pendientes' %}active{% endif %}">
+        <i class="fa-solid fa-hourglass-half"></i>
+        <span class="kpi-num">{{ resumen.pendientes }}</span>
+        <span class="kpi-label">Pendientes</span>
+    </a>
+    <a href="{{ url_for('dashboard.tickets', estado='en_curso') }}" class="kpi kpi-progress {% if filtro == 'en_curso' %}active{% endif %}">
+        <i class="fa-solid fa-gears"></i>
+        <span class="kpi-num">{{ resumen.en_curso }}</span>
+        <span class="kpi-label">En curso</span>
+    </a>
+</section>
+
+<div class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="nuevo-ticket">
+        <i class="fa-solid fa-plus"></i> Nuevo ticket
+    </button>
+    {% endif %}
+    <button class="tool-btn" onclick="location.reload()"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+    <nav class="filter-tabs" aria-label="Filtrar tickets">
+        {% for clave, texto in [('alertas', 'Nuevos y pendientes'), ('todos', 'Todos los abiertos')] %}
+        <a href="{{ url_for('dashboard.tickets', estado=clave) }}" class="{% if filtro == clave %}active{% endif %}">{{ texto }}</a>
+        {% endfor %}
+    </nav>
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar" aria-label="Buscar tickets">
+    </label>
+</div>
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table" data-tickets-vistos="{{ ultimo_nuevo }}">
+        <thead>
+            <tr>
+                <th data-sort="number">ID</th>
+                <th data-sort="text">Título</th>
+                <th data-sort="text">Solicitante</th>
+                <th data-sort="text">Técnico</th>
+                <th data-sort="number">Prioridad</th>
+                <th data-sort="text">Estado</th>
+                <th data-sort="text">Apertura</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tickets %}
+            <tr>
+                <td data-value="{{ t.id }}">
+                    {% set enlace = url_ticket(t.id) %}
+                    {% if enlace %}<a href="{{ enlace }}" target="_blank" rel="noopener" class="link">#{{ t.id }}</a>{% else %}#{{ t.id }}{% endif %}
+                </td>
+                <td>{{ t.titulo }}</td>
+                <td>{{ t.solicitante or '—' }}</td>
+                <td>{% if t.tecnico %}<i class="fa-solid fa-user-gear muted"></i> {{ t.tecnico }}{% else %}<span class="muted-text">Sin asignar</span>{% endif %}</td>
+                <td data-value="{{ t.prioridad }}"><span class="tag {{ colores_prioridad.get(t.prioridad, 'tag-none') }}">{{ prioridades.get(t.prioridad, '—') }}</span></td>
+                <td><span class="status"><span class="status-dot" style="background: {{ colores_estado.get(t.estado, '#6b6f75') }}"></span>{{ estados.get(t.estado, t.estado) }}</span></td>
+                <td class="mono">{{ t.fecha }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if tickets %}hidden{% endif %}>No hay tickets en esta vista.</p>
+</div>
+
+{% if puede_crear %}
+<!-- Formulario de nuevo ticket -->
+<dialog class="dialog" id="nuevo-ticket" {% if errores %}data-open-on-load{% endif %} aria-labelledby="nuevo-ticket-titulo">
+    <form method="post" class="dialog-form" novalidate>
+        <header class="dialog-head">
+            <h2 id="nuevo-ticket-titulo"><i class="fa-solid fa-ticket"></i> Nuevo ticket en GLPI</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+
+        <div class="dialog-body">
+            {% if errores.general %}
+            <div class="flash flash-error"><i class="fa-solid fa-circle-exclamation"></i> {{ errores.general }}</div>
+            {% elif not glpi_configurado %}
+            <div class="flash flash-info"><i class="fa-solid fa-circle-info"></i> GLPI aún no está configurado en el .env, así que el ticket no se podrá enviar.</div>
+            {% endif %}
+
+            <label class="form-field {% if errores.titulo %}invalid{% endif %}">
+                <span>Título</span>
+                <input type="text" name="titulo" value="{{ formulario.titulo }}" maxlength="250" required placeholder="Ej.: No hay internet en la sede norte">
+                {% if errores.titulo %}<small>{{ errores.titulo }}</small>{% endif %}
+            </label>
+
+            <div class="form-row">
+                <label class="form-field {% if errores.tipo %}invalid{% endif %}">
+                    <span>Tipo</span>
+                    <select name="tipo" required>
+                        {% for valor, texto in tipos.items() %}
+                        <option value="{{ valor }}" {% if formulario.tipo == valor | string %}selected{% endif %}>{{ texto }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if errores.tipo %}<small>{{ errores.tipo }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.urgencia %}invalid{% endif %}">
+                    <span>Urgencia</span>
+                    <select name="urgencia" required>
+                        {% for valor, texto in urgencias.items() %}
+                        <option value="{{ valor }}" {% if formulario.urgencia == valor | string or (not formulario and valor == 3) %}selected{% endif %}>{{ texto }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if errores.urgencia %}<small>{{ errores.urgencia }}</small>{% endif %}
+                </label>
+            </div>
+
+            <label class="form-field">
+                <span>Cliente <small class="hint">(opcional)</small></span>
+                <input type="text" name="cliente" value="{{ formulario.cliente }}" maxlength="150" placeholder="Empresa o persona que reporta">
+            </label>
+
+            <label class="form-field {% if errores.descripcion %}invalid{% endif %}">
+                <span>Descripción</span>
+                <textarea name="descripcion" rows="5" required placeholder="¿Qué pasa, desde cuándo y a quién afecta?">{{ formulario.descripcion }}</textarea>
+                {% if errores.descripcion %}<small>{{ errores.descripcion }}</small>{% endif %}
+            </label>
+        </div>
+
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-paper-plane"></i> Enviar a GLPI</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+{% endblock %}
+
+{% block status %}
+<span><span class="status-count {% if resumen.alertas %}warn{% endif %}">{{ resumen.alertas }}</span> Tickets nuevos y pendientes · {{ 'Conectado a GLPI' if origen == 'glpi' and not error else 'Datos de ejemplo' if origen == 'ejemplo' else 'Sin conexión a GLPI' }}</span>
+<span class="status-right" id="row-count">{{ tickets | length }}</span>
+{% endblock %}

@@ -11,6 +11,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}">
+    <script>
+        // El tema se aplica antes de dibujar la página para que no parpadee
+        try { if (localStorage.getItem('panel-tema') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) { }
+    </script>
 </head>
 
 {% macro enlace(clave) -%}
@@ -50,6 +54,7 @@
                         <i class="fa-solid {{ g.icono }}"></i>
                         <span class="label">{{ g.grupo }}</span>
                         {% if g.grupo == 'Facturación' and alertas %}<span class="badge">{{ alertas }}</span>{% endif %}
+                        {% if g.grupo == 'Soporte' %}<span class="badge" data-tickets-badge {% if not alertas_tickets %}hidden{% endif %}>{{ alertas_tickets }}</span>{% endif %}
                         <i class="fa-solid fa-chevron-right chevron"></i>
                     </summary>
                     {% for clave, texto, icono in g['items'] %}
@@ -82,13 +87,19 @@
                 <h1 class="topbar-title">{% block page_title %}{% endblock %}</h1>
 
                 <div class="topbar-right">
+                    <button type="button" class="icon-btn tema-btn" id="tema-btn" title="Cambiar a modo oscuro" aria-label="Cambiar entre modo claro y oscuro">
+                        <i class="fa-solid fa-moon"></i>
+                        <i class="fa-solid fa-sun"></i>
+                    </button>
                     <a href="{{ url_for('web.inicio') }}" class="icon-btn" title="Ver sitio público" target="_blank">
                         <i class="fa-solid fa-globe"></i>
                     </a>
-                    {% if puede('facturas') %}
-                    <a href="{{ url_for('dashboard.seccion', nombre='facturas') }}" class="icon-btn" title="Facturas vencidas">
+                    {% if puede('tickets') %}
+                    <a href="{{ url_for('dashboard.tickets') }}" class="icon-btn" title="Tickets nuevos y pendientes"
+                       id="tickets-bell" data-resumen="{{ url_for('dashboard.tickets_resumen') }}"
+                       data-ver="{{ url_for('dashboard.tickets', estado='nuevos') }}">
                         <i class="fa-regular fa-bell"></i>
-                        {% if alertas %}<span class="badge badge-top">{{ alertas }}</span>{% endif %}
+                        <span class="badge badge-top" data-tickets-badge {% if not alertas_tickets %}hidden{% endif %}>{{ alertas_tickets }}</span>
                     </a>
                     {% endif %}
 
@@ -133,7 +144,11 @@
         </div>
     </div>
 
+    <!-- Avisos emergentes (tickets nuevos) -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
     <script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>
