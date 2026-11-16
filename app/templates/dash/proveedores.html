@@ -1,0 +1,210 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Proveedores{% endblock %}
+{% block page_title %}Inventario › Proveedores{% endblock %}
+
+{% block content %}
+
+<form method="get" class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="dialogo-proveedor" data-proveedor-nuevo>
+        <i class="fa-solid fa-plus"></i> Nuevo proveedor
+    </button>
+    {% endif %}
+    <label class="filtro-empresa {{ 'activo' if filtro_tipo }}">
+        <i class="fa-solid fa-industry"></i>
+        <select name="tipo" onchange="this.form.submit()" aria-label="Filtrar por tipo">
+            <option value="">Todos los tipos</option>
+            {% for t in tipos %}<option {% if filtro_tipo == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+    </label>
+    <label class="filtro-empresa {{ 'activo' if filtro_suministra }}">
+        <i class="fa-solid fa-tags"></i>
+        <select name="suministra" onchange="this.form.submit()" aria-label="Filtrar por lo que suministra">
+            <option value="">Suministra de todo</option>
+            {% for s in suministra %}<option {% if filtro_suministra == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+    </label>
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar por nombre, NIT, contacto o ciudad" aria-label="Buscar proveedores">
+    </label>
+</form>
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">Proveedor</th>
+                <th data-sort="text">NIT</th>
+                <th data-sort="text">Contacto</th>
+                <th data-sort="text">Suministra</th>
+                <th data-sort="text">Condiciones</th>
+                <th data-sort="number">Productos</th>
+                <th data-sort="text">Estado</th>
+                {% if puede_editar or puede_eliminar %}<th class="center">Acciones</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in lista %}
+            {% set n = usos.get(p.id, 0) %}
+            <tr>
+                <td>
+                    <strong>{{ p.nombre }}</strong>
+                    <div class="sub">{{ p.tipo }}{% if p.ciudad %} · {{ p.ciudad }}{% endif %}</div>
+                    {% if p.sitio_web %}<a class="link sub" href="{{ p.sitio_web }}" target="_blank" rel="noopener noreferrer">{{ p.sitio_web | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
+                </td>
+                <td class="mono">NIT {{ p.nit }}</td>
+                <td>
+                    {{ p.contacto or '—' }}{% if p.cargo %} <span class="muted-text">· {{ p.cargo }}</span>{% endif %}
+                    {% if p.correo or p.telefono %}<div class="sub">{{ p.correo }}{% if p.correo and p.telefono %} · {% endif %}{{ p.telefono }}</div>{% endif %}
+                </td>
+                <td>{% for s in p.suministra %}<span class="mini-tag">{{ s }}</span> {% else %}<span class="muted-text">—</span>{% endfor %}</td>
+                <td>{{ p.condiciones_pago or '—' }}{% if p.tiempo_entrega %}<div class="sub">Entrega: {{ p.tiempo_entrega }}</div>{% endif %}</td>
+                <td data-value="{{ n }}">
+                    {% if n and puede('productos') %}<a class="link" href="{{ url_for('dashboard.catalogo_view', tipo='productos', proveedor=p.id) }}">{{ n }}</a>{% else %}{{ n }}{% endif %}
+                </td>
+                <td>{% if p.activo is not defined or p.activo %}<span class="tag tag-full">Activo</span>{% else %}<span class="tag tag-lock">Inactivo</span>{% endif %}</td>
+                {% if puede_editar or puede_eliminar %}
+                <td class="center actions">
+                    {% if puede_editar %}
+                    <button type="button" class="mini-btn" data-open-dialog="dialogo-proveedor" data-proveedor='{{ p | tojson | forceescape }}'>
+                        <i class="fa-solid fa-pen"></i><span>Editar</span>
+                    </button>
+                    {% endif %}
+                    {% if puede_eliminar %}
+                    <button type="button" class="mini-btn danger" data-confirm="¿Eliminar el proveedor {{ p.nombre }}?"
+                            data-action="{{ url_for('dashboard.proveedores_eliminar', proveedor_id=p.id) }}">
+                        <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                    </button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if lista %}hidden{% endif %}>{% if lista %}No hay resultados para esa búsqueda.{% elif total %}No hay proveedores con ese filtro.{% else %}Aún no hay proveedores.{% if puede_crear %} Usa «Nuevo proveedor».{% endif %}{% endif %}</p>
+</div>
+
+<p class="note"><i class="fa-solid fa-circle-info"></i>
+    En Productos y en Productos en renta puedes elegir el proveedor de cada uno; la columna «Productos» cuenta cuántos tiene asociados.</p>
+
+{% if puede_crear or puede_editar %}
+<dialog class="dialog dialog-wide" id="dialogo-proveedor" {% if errores %}data-open-on-load{% endif %} aria-labelledby="dialogo-proveedor-titulo">
+    <form method="post" action="{{ url_for('dashboard.proveedores_guardar') }}" novalidate id="form-proveedor">
+        <input type="hidden" name="id" value="{{ formulario.id }}">
+        <header class="dialog-head">
+            <h2 id="dialogo-proveedor-titulo"><i class="fa-solid fa-truck-field"></i> <span data-titulo-proveedor>{{ 'Editar proveedor' if formulario.id else 'Nuevo proveedor' }}</span></h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body form-grid">
+            <h3 class="form-seccion span-2">Empresa</h3>
+            <label class="form-field span-2 {{ 'invalid' if errores.nombre }}">
+                <span>Razón social</span>
+                <input type="text" name="nombre" value="{{ formulario.nombre }}" maxlength="120" required>
+                {% if errores.nombre %}<small>{{ errores.nombre }}</small>{% endif %}
+            </label>
+            <label class="form-field {{ 'invalid' if errores.nit }}">
+                <span>NIT</span>
+                <input type="text" name="nit" value="{{ formulario.nit }}" maxlength="20" class="mono" placeholder="900.123.456-7" required>
+                {% if errores.nit %}<small>{{ errores.nit }}</small>{% endif %}
+            </label>
+            <label class="form-field {{ 'invalid' if errores.tipo }}">
+                <span>Tipo</span>
+                <select name="tipo">{% for t in tipos %}<option {% if formulario.tipo == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+                {% if errores.tipo %}<small>{{ errores.tipo }}</small>{% endif %}
+            </label>
+            <label class="form-field">
+                <span>Ciudad <small class="hint">(opcional)</small></span>
+                <input type="text" name="ciudad" value="{{ formulario.ciudad }}" maxlength="120" placeholder="Bogotá">
+            </label>
+            <label class="form-field">
+                <span>Dirección <small class="hint">(opcional)</small></span>
+                <input type="text" name="direccion" value="{{ formulario.direccion }}" maxlength="160">
+            </label>
+            <label class="form-field span-2 {{ 'invalid' if errores.sitio_web }}">
+                <span>Sitio web <small class="hint">(opcional)</small></span>
+                <input type="text" name="sitio_web" value="{{ formulario.sitio_web }}" maxlength="200" placeholder="www.proveedor.com">
+                {% if errores.sitio_web %}<small>{{ errores.sitio_web }}</small>{% endif %}
+            </label>
+
+            <h3 class="form-seccion span-2">Contacto comercial</h3>
+            <label class="form-field">
+                <span>Nombre <small class="hint">(opcional)</small></span>
+                <input type="text" name="contacto" value="{{ formulario.contacto }}" maxlength="120">
+            </label>
+            <label class="form-field">
+                <span>Cargo <small class="hint">(opcional)</small></span>
+                <input type="text" name="cargo" value="{{ formulario.cargo }}" maxlength="120" placeholder="Ejecutivo de cuenta">
+            </label>
+            <label class="form-field {{ 'invalid' if errores.correo }}">
+                <span>Correo <small class="hint">(opcional)</small></span>
+                <input type="email" name="correo" value="{{ formulario.correo }}" maxlength="120">
+                {% if errores.correo %}<small>{{ errores.correo }}</small>{% endif %}
+            </label>
+            <label class="form-field {{ 'invalid' if errores.telefono }}">
+                <span>Teléfono <small class="hint">(opcional)</small></span>
+                <input type="tel" name="telefono" value="{{ formulario.telefono }}" maxlength="20">
+                {% if errores.telefono %}<small>{{ errores.telefono }}</small>{% endif %}
+            </label>
+
+            <h3 class="form-seccion span-2">Qué nos suministra</h3>
+            <div class="span-2 casillas">
+                {% for s in suministra %}
+                <label class="casilla"><input type="checkbox" name="suministra" value="{{ s }}" {% if s in (formulario.suministra or []) %}checked{% endif %}> {{ s }}</label>
+                {% endfor %}
+            </div>
+
+            <h3 class="form-seccion span-2">Condiciones</h3>
+            <label class="form-field {{ 'invalid' if errores.condiciones_pago }}">
+                <span>Condiciones de pago</span>
+                <select name="condiciones_pago">
+                    <option value="">Sin definir</option>
+                    {% for c in condiciones %}<option {% if formulario.condiciones_pago == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                </select>
+                {% if errores.condiciones_pago %}<small>{{ errores.condiciones_pago }}</small>{% endif %}
+            </label>
+            <label class="form-field">
+                <span>Tiempo de entrega <small class="hint">(opcional)</small></span>
+                <input type="text" name="tiempo_entrega" value="{{ formulario.tiempo_entrega }}" maxlength="120" placeholder="3 a 5 días hábiles">
+            </label>
+            <label class="form-field span-2">
+                <span>Notas <small class="hint">(opcional)</small></span>
+                <textarea name="notas" rows="2" maxlength="1000">{{ formulario.notas }}</textarea>
+            </label>
+            <label class="form-field">
+                <span>Estado</span>
+                <select name="activo">
+                    <option value="1">Activo</option>
+                    <option value="0" {% if formulario.activo is sameas false %}selected{% endif %}>Inactivo</option>
+                </select>
+            </label>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+<dialog class="dialog dialog-sm" id="confirmar" aria-labelledby="confirmar-texto">
+    <form method="post" id="confirmar-form">
+        <div class="dialog-body confirm-body">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <p id="confirmar-texto"></p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        </footer>
+    </form>
+</dialog>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-truck-field"></i> {{ total }} proveedores</span>
+<span class="status-right" id="row-count">{{ lista | length }}</span>
+{% endblock %}

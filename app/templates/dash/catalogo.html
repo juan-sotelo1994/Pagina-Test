@@ -1,0 +1,275 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}{{ cfg.titulo }}{% endblock %}
+{% block page_title %}{{ cfg.grupo }} › {{ cfg.titulo }}{% endblock %}
+
+{% set es_producto = tipo == 'productos' %}
+{% set es_renta = tipo == 'renta' %}
+{% set clases_renta = {'Disponible': 'tag-full', 'Rentado': 'tag-read', 'En mantenimiento': 'tag-part', 'De baja': 'tag-lock'} %}
+
+{% block content %}
+
+{% if es_renta %}
+<section class="kpis kpis-4">
+    {% for estado, icono, clase in [('Disponible', 'fa-box', 'kpi-ok'), ('Rentado', 'fa-handshake', 'kpi-new'),
+                                    ('En mantenimiento', 'fa-screwdriver-wrench', 'kpi-pending'), ('De baja', 'fa-box-archive', 'kpi-gris')] %}
+    <a href="{{ url_for('dashboard.catalogo_view', tipo='renta', estado='' if filtro_estado == estado else estado) }}"
+       class="kpi {{ clase }} {{ 'active' if filtro_estado == estado }}">
+        <i class="fa-solid {{ icono }}"></i>
+        <span class="kpi-num">{{ renta.conteo[estado] }}</span>
+        <span class="kpi-label">{{ estado }}{% if estado == 'Rentado' and renta.ingreso['Mes'] %} · {{ renta.ingreso['Mes'] | pesos }}/mes{% endif %}</span>
+    </a>
+    {% endfor %}
+</section>
+{% if renta.vencidas %}
+<div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i>
+    Renta vencida (ya pasó la fecha de fin):
+    {% for x in renta.vencidas %}{{ x.nombre }} ({{ nombres_cliente.get(x.cliente_id, '—') }}, {{ x.renta_fin }}){{ ', ' if not loop.last }}{% endfor %}.
+    Renueva la fecha o márcalo como disponible cuando lo devuelvan.</div>
+{% endif %}
+{% if renta.por_vencer %}
+<div class="flash flash-info"><i class="fa-solid fa-clock"></i>
+    Terminan en los próximos días:
+    {% for x in renta.por_vencer %}{{ x.nombre }} ({{ nombres_cliente.get(x.cliente_id, '—') }}, {{ x.renta_fin }}){{ ', ' if not loop.last }}{% endfor %}.</div>
+{% endif %}
+{% endif %}
+
+<form method="get" class="toolbar">
+    {% if puede_crear %}
+    <button type="button" class="tool-btn btn-save" data-open-dialog="dialogo-item" data-item-nuevo>
+        <i class="fa-solid fa-plus"></i> Nuevo {{ cfg.singular }}
+    </button>
+    {% endif %}
+    <label class="filtro-empresa {{ 'activo' if filtro_categoria }}">
+        <i class="fa-solid fa-tags"></i>
+        <select name="categoria" onchange="this.form.submit()" aria-label="Filtrar por categoría">
+            <option value="">Todas las categorías</option>
+            {% for c in categorias %}<option {% if filtro_categoria == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+    </label>
+    {% if proveedores_lista %}
+    <label class="filtro-empresa {{ 'activo' if filtro_proveedor }}">
+        <i class="fa-solid fa-truck-field"></i>
+        <select name="proveedor" onchange="this.form.submit()" aria-label="Filtrar por proveedor">
+            <option value="">Todos los proveedores</option>
+            {% for p in proveedores_lista %}<option value="{{ p.id }}" {% if filtro_proveedor == p.id %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+        </select>
+    </label>
+    {% endif %}
+    {% if es_renta %}
+    {% if filtro_estado %}<input type="hidden" name="estado" value="{{ filtro_estado }}">{% endif %}
+    <label class="filtro-empresa {{ 'activo' if filtro_cliente }}">
+        <i class="fa-solid fa-building"></i>
+        <select name="cliente" onchange="this.form.submit()" aria-label="Filtrar por cliente">
+            <option value="">Todos los clientes</option>
+            {% for c in clientes_lista %}<option value="{{ c.id }}" {% if filtro_cliente == c.id %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}
+        </select>
+    </label>
+    {% endif %}
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar por código, nombre{{ ', serial o cliente' if es_renta else (' o marca' if es_producto) }}" aria-label="Buscar {{ cfg.titulo | lower }}">
+    </label>
+    {% if es_producto %}
+    <a class="tool-btn" href="{{ url_for('dashboard.movimientos_view') }}"><i class="fa-solid fa-right-left"></i> Movimientos</a>
+    {% endif %}
+    {% if puede('cotizaciones', 'crear') %}
+    <a class="tool-btn" href="{{ url_for('dashboard.cotizacion_nueva') }}"><i class="fa-solid fa-file-signature"></i> Nueva cotización</a>
+    {% endif %}
+</form>
+
+{% if stock_bajo %}
+<div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i>
+    {{ stock_bajo | length }} producto{{ 's' if stock_bajo | length > 1 }} con stock en el mínimo o por debajo:
+    {{ stock_bajo | map(attribute='nombre') | join(', ') }}.</div>
+{% endif %}
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">Código</th>
+                <th data-sort="text">{{ cfg.singular | capitalize }}</th>
+                <th data-sort="text">Categoría</th>
+                {% if es_renta %}
+                <th data-sort="text">Serial</th>
+                <th data-sort="text">Estado</th>
+                <th data-sort="text">Cliente y fechas</th>
+                <th data-sort="number" class="num">Renta</th>
+                {% else %}
+                <th data-sort="text">{{ 'Unidad' if es_producto else 'Se cobra por' }}</th>
+                {% if es_producto and ver_costo %}<th data-sort="number" class="num">Precio de compra</th>{% endif %}
+                <th data-sort="number" class="num">{{ 'Precio de venta' if es_producto else 'Precio' }}</th>
+                {% endif %}
+                <th data-sort="number" class="num">IVA</th>
+                {% if es_producto and ver_costo %}<th data-sort="number" class="num">Margen</th>{% endif %}
+                {% if es_renta and ver_costo %}<th data-sort="number" class="num">Se paga en</th>{% endif %}
+                {% if es_producto %}<th data-sort="number" class="num">Stock</th>{% endif %}
+                {% if not es_renta %}<th data-sort="text">Estado</th>{% endif %}
+                {% if puede_editar or puede_eliminar %}<th class="center">Acciones</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for x in lista %}
+            {% set bajo = es_producto and x.stock_minimo and x.stock <= x.stock_minimo %}
+            <tr>
+                <td class="mono">{{ x.codigo }}</td>
+                <td>
+                    <strong>{{ x.nombre }}</strong>
+                    {% if x.marca or x.proveedor_id %}<div class="sub">{{ x.marca }}{% if x.marca and x.proveedor_id %} · {% endif %}{% if x.proveedor_id %}<i class="fa-solid fa-truck-field"></i> {{ nombres_proveedor.get(x.proveedor_id, 'Proveedor eliminado') }}{% endif %}</div>{% endif %}
+                    {% if x.descripcion %}<div class="sub texto-corto" title="{{ x.descripcion }}">{{ x.descripcion }}</div>{% endif %}
+                </td>
+                <td>{{ x.categoria }}</td>
+                {% if es_renta %}
+                <td class="mono">{{ x.serial or '—' }}</td>
+                <td><span class="tag {{ clases_renta.get(x.estado, 'tag-lock') }}">{{ x.estado }}</span></td>
+                <td>
+                    {% if x.cliente_id %}
+                    <strong>{{ nombres_cliente.get(x.cliente_id, 'Cliente eliminado') }}</strong>
+                    {% set vencida = x.renta_fin and x.renta_fin < hoy %}
+                    <div class="sub {{ 'texto-mal' if vencida }}">Desde {{ x.renta_inicio }}{% if x.renta_fin %} hasta {{ x.renta_fin }}{% else %} · indefinida{% endif %}</div>
+                    {% else %}<span class="muted-text">—</span>{% endif %}
+                </td>
+                <td class="num" data-value="{{ x.precio }}">{{ x.precio | pesos }}<div class="sub">por {{ x.unidad | lower }}</div></td>
+                {% else %}
+                <td>{{ x.unidad }}</td>
+                {% if es_producto and ver_costo %}
+                <td class="num" data-value="{{ x.costo or 0 }}">{% if x.costo %}{{ x.costo | pesos }}{% else %}<span class="muted-text">—</span>{% endif %}</td>
+                {% endif %}
+                <td class="num" data-value="{{ x.precio }}">{{ x.precio | pesos }}</td>
+                {% endif %}
+                <td class="num" data-value="{{ x.iva }}">{{ x.iva }}%</td>
+                {% if es_producto and ver_costo %}
+                {% set margen = ((x.precio - x.costo) * 100 / x.precio) if x.costo and x.precio else None %}
+                <td class="num" data-value="{{ margen if margen is not none else -999 }}">
+                    {% if margen is not none %}<span class="{{ 'texto-mal' if margen < 10 else '' }}">{{ '%.0f' | format(margen) }}%</span>{% else %}<span class="muted-text">—</span>{% endif %}
+                </td>
+                {% endif %}
+                {% if es_renta and ver_costo %}
+                {% set meses = (x.costo / x.precio) if x.costo and x.precio and x.unidad == 'Mes' else None %}
+                <td class="num" data-value="{{ meses if meses is not none else 9999 }}" title="Precio de compra / renta mensual">
+                    {% if meses is not none %}{{ '%.1f' | format(meses) }} meses{% else %}<span class="muted-text">—</span>{% endif %}
+                </td>
+                {% endif %}
+                {% if es_producto %}
+                <td class="num" data-value="{{ x.stock or 0 }}">
+                    <span class="{{ 'tag tag-danger' if bajo else '' }}" {% if bajo %}title="Mínimo: {{ x.stock_minimo }}"{% endif %}>{{ x.stock or 0 }}</span>
+                </td>
+                {% endif %}
+                {% if not es_renta %}
+                <td>{% if x.activo is not defined or x.activo %}<span class="tag tag-full">Activo</span>{% else %}<span class="tag tag-lock">Inactivo</span>{% endif %}</td>
+                {% endif %}
+                {% if puede_editar or puede_eliminar %}
+                <td class="center actions">
+                    {% if puede_editar %}
+                    <button type="button" class="mini-btn" data-open-dialog="dialogo-item" data-item='{{ x | tojson | forceescape }}'>
+                        <i class="fa-solid fa-pen"></i><span>Editar</span>
+                    </button>
+                    {% endif %}
+                    {% if puede_eliminar %}
+                    <button type="button" class="mini-btn danger" data-confirm="¿Eliminar {{ x.nombre }}{{ ' (' ~ x.serial ~ ')' if x.serial }} del catálogo? Las cotizaciones hechas no cambian."
+                            data-action="{{ url_for('dashboard.catalogo_eliminar', tipo=tipo, item_id=x.id) }}">
+                        <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                    </button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if lista %}hidden{% endif %}>{% if lista %}No hay resultados para esa búsqueda.{% else %}Todavía no hay {{ cfg.titulo | lower }}{% if filtro_categoria %} en esta categoría{% endif %}.{% endif %}</p>
+</div>
+
+<p class="note"><i class="fa-solid fa-circle-info"></i>
+    {% if es_renta %}
+    Cada equipo se registra por separado con su serial. Los equipos <strong>disponibles</strong> aparecen en el editor de cotizaciones;
+    cuando lo entregues, cámbialo a «Rentado» con el cliente y las fechas, y cuando lo devuelvan, otra vez a «Disponible».
+    {% else %}
+    Los precios se guardan sin IVA. Los {{ cfg.titulo | lower }} activos aparecen en el editor de cotizaciones; si cambias un precio, las cotizaciones ya hechas conservan el anterior.
+    {% endif %}</p>
+
+{% if puede_crear or puede_editar %}
+<dialog class="dialog dialog-wide" id="dialogo-item" {% if errores %}data-open-on-load{% endif %} aria-labelledby="dialogo-item-titulo">
+    <form method="post" action="{{ url_for('dashboard.catalogo_guardar', tipo=tipo) }}" novalidate id="form-item">
+        <input type="hidden" name="id" value="{{ formulario.id }}">
+        <header class="dialog-head">
+            <h2 id="dialogo-item-titulo"><i class="fa-solid {{ cfg.icono }}"></i>
+                <span data-titulo-item>{{ ('Editar ' if formulario.id else 'Nuevo ') ~ cfg.singular }}</span></h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body form-grid">
+            {% for nombre, etiqueta, clase, opciones, obligatorio, ayuda in cfg.campos %}
+            {% set valor = formulario.get(nombre, '') %}
+            <label class="form-field {{ 'span-2' if clase == 'textarea' or nombre == 'nombre' or clase == 'cliente' }} {{ 'invalid' if errores[nombre] }}"
+                   {% if nombre in ('cliente_id', 'renta_inicio', 'renta_fin') %}data-solo-rentado{% endif %}>
+                <span>{{ etiqueta }}{% if not obligatorio %} <small class="hint">(opcional)</small>{% endif %}</span>
+                {% if clase == 'textarea' %}
+                <textarea name="{{ nombre }}" rows="3" maxlength="1000">{{ valor }}</textarea>
+                {% elif clase == 'select' %}
+                <select name="{{ nombre }}" {{ 'required' if obligatorio }}>
+                    {% for o in opciones %}<option {% if valor == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+                </select>
+                {% elif clase == 'cliente' %}
+                <select name="{{ nombre }}">
+                    <option value="">Selecciona el cliente</option>
+                    {% for c in clientes_lista %}<option value="{{ c.id }}" {% if valor == c.id %}selected{% endif %}>{{ c.nombre }} · {{ documento_de(c) }}</option>{% endfor %}
+                </select>
+                {% elif clase == 'proveedor' %}
+                <select name="{{ nombre }}">
+                    <option value="">Sin proveedor</option>
+                    {% for p in proveedores_lista %}<option value="{{ p.id }}" {% if valor == p.id %}selected{% endif %}>{{ p.nombre }}{{ ' (inactivo)' if p.activo is defined and not p.activo }}</option>{% endfor %}
+                </select>
+                {% elif clase == 'date' %}
+                <input type="date" name="{{ nombre }}" value="{{ valor }}">
+                {% elif clase == 'iva' %}
+                <select name="{{ nombre }}">
+                    {% for o in opciones %}<option value="{{ o }}" {% if (valor or '19') == o %}selected{% endif %}>{{ o }}%{{ ' (excluido / exento)' if o == '0' }}</option>{% endfor %}
+                </select>
+                {% elif clase in ('money', 'int') %}
+                <input type="text" name="{{ nombre }}" value="{{ valor }}" inputmode="{{ 'numeric' if clase == 'int' else 'decimal' }}"
+                       class="num" autocomplete="off" {{ 'required' if obligatorio }} {% if clase == 'money' %}placeholder="0"{% endif %}>
+                {% else %}
+                <input type="text" name="{{ nombre }}" value="{{ valor }}" maxlength="{{ 30 if nombre == 'codigo' else 120 }}"
+                       {{ 'required' if obligatorio }} {% if nombre == 'codigo' %}class="mono" placeholder="{{ cfg.prefijo }}-0001"{% endif %}>
+                {% endif %}
+                {% if errores[nombre] %}<small>{{ errores[nombre] }}</small>{% elif ayuda %}<small class="hint">{{ ayuda }}</small>{% endif %}
+            </label>
+            {% endfor %}
+            {% if es_renta %}<input type="hidden" name="activo" value="1">{% else %}
+            <label class="form-field">
+                <span>Estado</span>
+                <select name="activo">
+                    <option value="1">Activo</option>
+                    <option value="0" {% if formulario.get('activo') in ('0', False) %}selected{% endif %}>Inactivo (no sale en cotizaciones)</option>
+                </select>
+            </label>
+            {% endif %}
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+<dialog class="dialog dialog-sm" id="confirmar" aria-labelledby="confirmar-texto">
+    <form method="post" id="confirmar-form">
+        <div class="dialog-body confirm-body">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <p id="confirmar-texto"></p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        </footer>
+    </form>
+</dialog>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid {{ cfg.icono }}"></i> {{ total }} {{ cfg.titulo | lower }}{% if inactivos %} · {{ inactivos }} inactivos{% endif %}</span>
+<span class="status-right" id="row-count">{{ lista | length }}</span>
+{% endblock %}

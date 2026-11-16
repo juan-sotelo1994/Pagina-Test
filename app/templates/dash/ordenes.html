@@ -1,0 +1,67 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Órdenes de compra{% endblock %}
+{% block page_title %}Comercial › Órdenes de compra{% endblock %}
+
+{% set clases = {'abierta': 'tag-part', 'completada': 'tag-full', 'anulada': 'tag-danger'} %}
+
+{% block content %}
+
+<section class="kpis">
+    {% for clave, icono, clase in [('abierta', 'fa-screwdriver-wrench', 'kpi-pending'), ('completada', 'fa-circle-check', 'kpi-ok'), ('anulada', 'fa-ban', 'kpi-gris')] %}
+    <a href="{{ url_for('dashboard.ordenes_view', estado='' if filtro == clave else clave) }}" class="kpi {{ clase }} {{ 'active' if filtro == clave }}">
+        <i class="fa-solid {{ icono }}"></i>
+        <span class="kpi-num">{{ conteo[clave] or 0 }}</span>
+        <span class="kpi-label">{{ estados[clave] }}{% if clave == 'abierta' and pendientes %} · {{ pendientes }} servicio{{ 's' if pendientes != 1 }} por prestar{% endif %}</span>
+    </a>
+    {% endfor %}
+</section>
+
+<div class="toolbar">
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar por número, cliente o cotización" aria-label="Buscar órdenes">
+    </label>
+    {% if puede('cotizaciones') %}<a class="tool-btn" href="{{ url_for('dashboard.cotizaciones_view') }}"><i class="fa-solid fa-file-signature"></i> Cotizaciones</a>{% endif %}
+    {% if puede('facturas') %}<a class="tool-btn" href="{{ url_for('dashboard.facturas_view') }}"><i class="fa-solid fa-file-invoice"></i> Facturas</a>{% endif %}
+</div>
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">Orden</th>
+                <th data-sort="text">Fecha</th>
+                <th data-sort="text">Cliente</th>
+                <th data-sort="text">Cotización / factura</th>
+                <th data-sort="number">Servicios</th>
+                <th data-sort="number" class="num">Total</th>
+                <th data-sort="text">Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in lista %}
+            {% set hechos = o.servicios | selectattr('estado', 'equalto', 'realizado') | list | length %}
+            <tr>
+                <td class="mono"><a class="link" href="{{ url_for('dashboard.orden_detalle', orden_id=o.id) }}">{{ o.numero }}</a></td>
+                <td>{{ o.fecha }}</td>
+                <td><strong>{{ o.cliente.nombre }}</strong><div class="sub">{{ o.asunto }}</div></td>
+                <td class="mono">{{ o.cotizacion_numero }}<div class="sub">{{ o.factura_numero }}</div></td>
+                <td data-value="{{ o.servicios | length - hechos }}">
+                    {% if o.servicios %}{{ hechos }} de {{ o.servicios | length }} realizados{% else %}<span class="muted-text">Sin servicios</span>{% endif %}
+                </td>
+                <td class="num" data-value="{{ o.totales.total }}"><strong>{{ o.totales.total | pesos }}</strong></td>
+                <td><span class="tag {{ clases[o.estado] }}">{{ estados[o.estado] }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if lista %}hidden{% endif %}>{% if lista %}No hay resultados para esa búsqueda.{% else %}Todavía no hay órdenes. Se crean solas cuando una cotización pasa a «Aprobada».{% endif %}</p>
+</div>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-cart-shopping"></i> {{ lista | length }} órdenes</span>
+<span class="status-right" id="row-count">{{ lista | length }}</span>
+{% endblock %}

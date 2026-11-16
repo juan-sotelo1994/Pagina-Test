@@ -1,0 +1,61 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}Movimientos de inventario{% endblock %}
+{% block page_title %}Inventario › Productos › Movimientos{% endblock %}
+
+{% block content %}
+
+<form method="get" class="toolbar">
+    <a class="tool-btn" href="{{ url_for('dashboard.catalogo_view', tipo='productos') }}"><i class="fa-solid fa-arrow-left"></i> Productos</a>
+    <label class="filtro-empresa {{ 'activo' if filtro }}">
+        <i class="fa-solid fa-box-open"></i>
+        <select name="producto" onchange="this.form.submit()" aria-label="Filtrar por producto">
+            <option value="">Todos los productos</option>
+            {% for p in productos %}<option value="{{ p.id }}" {% if filtro == p.id %}selected{% endif %}>{{ p.codigo }} · {{ p.nombre }}</option>{% endfor %}
+        </select>
+    </label>
+    <label class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="table-search" placeholder="Buscar por producto, motivo o usuario" aria-label="Buscar movimientos">
+    </label>
+</form>
+
+<div class="table-wrap">
+    <table class="data-table" id="data-table">
+        <thead>
+            <tr>
+                <th data-sort="text">Fecha</th>
+                <th data-sort="text">Producto</th>
+                <th data-sort="number" class="num">Cantidad</th>
+                <th data-sort="number" class="num">Stock después</th>
+                <th data-sort="text">Motivo</th>
+                <th data-sort="text">Usuario</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in lista %}
+            <tr>
+                <td class="mono">{{ m.fecha }}</td>
+                <td><strong>{{ m.nombre }}</strong><div class="sub mono">{{ m.codigo }}</div></td>
+                <td class="num" data-value="{{ m.cantidad }}">
+                    <span class="{{ 'texto-mal' if m.cantidad < 0 else 'texto-bien' }}">{{ '%+g' | format(m.cantidad) }}</span>
+                </td>
+                <td class="num" data-value="{{ m.stock }}">{{ m.stock }}</td>
+                <td>{{ m.motivo }}</td>
+                <td>{{ m.usuario }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="empty" id="table-empty" {% if lista %}hidden{% endif %}>{% if lista %}No hay resultados para esa búsqueda.{% else %}Todavía no hay movimientos.{% endif %}</p>
+</div>
+
+<p class="note"><i class="fa-solid fa-circle-info"></i>
+    Las salidas se registran solas al aprobar una cotización; las entradas, al anular una orden o al cambiar el stock a mano en el catálogo.</p>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-right-left"></i> {{ lista | length }} movimientos</span>
+<span class="status-right" id="row-count">{{ lista | length }}</span>
+{% endblock %}

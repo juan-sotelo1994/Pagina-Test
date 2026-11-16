@@ -27,15 +27,16 @@ MODULOS = [
     ('agentes', 'Agentes', 'Dashboard'),
     ('clientes', 'Clientes', 'Comercial'),
     ('cotizaciones', 'Cotizaciones', 'Comercial'),
-    ('ventas', 'Ventas', 'Comercial'),
+    ('ventas', 'Órdenes de compra', 'Comercial'),
     ('vendedores', 'Vendedores', 'Comercial'),
     ('facturas', 'Facturas', 'Facturación'),
     ('productos', 'Productos', 'Inventario'),
     ('servicios', 'Servicios', 'Inventario'),
     ('proveedores', 'Proveedores', 'Inventario'),
-    ('activos', 'Equipos de clientes', 'Inventario'),
+    ('activos', 'Equipos de inventario', 'Inventario'),
+    ('renta', 'Productos en renta', 'Renta'),
     ('tickets', 'Tickets (GLPI)', 'Soporte'),
-    ('equipos', 'Equipos', 'Soporte'),
+    ('equipos', 'Equipos con agente', 'Soporte'),
     ('usuarios', 'Usuarios', 'Usuarios y accesos'),
     ('roles', 'Roles y permisos', 'Configuración'),
     ('configuracion', 'General', 'Configuración'),
@@ -47,19 +48,19 @@ PERMISOS_INICIALES = {
     'admin': {**{m: TODAS for m, _, _ in MODULOS}, 'roles': ['ver']},
     'vendedor': {
         'clientes': VCE, 'cotizaciones': VCE, 'ventas': ['ver', 'crear'],
-        'productos': ['ver'], 'servicios': ['ver'],
+        'productos': ['ver'], 'servicios': ['ver'], 'renta': ['ver'],
     },
     'preventa': {
         'clientes': VCE, 'cotizaciones': VCE, 'productos': ['ver'],
-        'servicios': ['ver'], 'proveedores': ['ver'], 'tickets': ['ver'], 'activos': ['ver'],
+        'servicios': ['ver'], 'proveedores': ['ver'], 'tickets': ['ver'], 'activos': ['ver'], 'renta': ['ver'],
     },
     'tecnico': {
         'clientes': ['ver'], 'servicios': ['ver', 'editar'], 'productos': ['ver'],
-        'tickets': VCE, 'agentes': ['ver'], 'equipos': ['ver'], 'activos': VCE,
+        'tickets': VCE, 'agentes': ['ver'], 'equipos': ['ver'], 'activos': VCE, 'renta': ['ver', 'editar'],
     },
     'auxiliar': {
         'clientes': VCE, 'cotizaciones': ['ver'], 'facturas': VCE,
-        'productos': VCE, 'proveedores': VCE, 'tickets': ['ver'], 'activos': VCE,
+        'productos': VCE, 'proveedores': VCE, 'tickets': ['ver'], 'activos': VCE, 'renta': VCE,
     },
 }
 

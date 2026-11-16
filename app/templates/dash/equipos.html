@@ -1,7 +1,7 @@
 {% extends 'dash/base_dash.html' %}
 
-{% block title %}Equipos{% endblock %}
-{% block page_title %}Equipos{% endblock %}
+{% block title %}Equipos con agente{% endblock %}
+{% block page_title %}Soporte › Equipos con agente{% endblock %}
 
 {% block content %}
 
@@ -157,7 +157,7 @@
                     {% for c in clientes_lista %}<option value="{{ c.id }}">{{ c.nombre }} · {{ documento_de(c) }}</option>{% endfor %}
                 </select>
             </label>
-            <p class="note"><i class="fa-solid fa-circle-info"></i> Si un equipo ya pertenece a otra empresa, se mueve a esta. Quedan registrados en Inventario › Equipos de clientes con su serial.</p>
+            <p class="note"><i class="fa-solid fa-circle-info"></i> Si un equipo ya pertenece a otra empresa, se mueve a esta. Quedan registrados en Inventario › Equipos de inventario con su serial.</p>
             {% else %}
             <div class="flash flash-info"><i class="fa-solid fa-circle-info"></i>
                 Aún no hay empresas. Créala primero en <a class="link" href="{{ url_for('dashboard.clientes_view') }}">Comercial › Clientes</a>.</div>

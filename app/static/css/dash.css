@@ -2893,3 +2893,351 @@ select.tool-btn {
 [data-theme="dark"] .tema-btn .fa-sun {
     display: inline-block;
 }
+
+/* ---------- Catálogo y cotizaciones ---------- */
+
+.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.form-grid .span-2 {
+    grid-column: 1 / -1;
+}
+
+.form-field textarea {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    resize: vertical;
+    outline: none;
+}
+
+.form-field textarea:focus {
+    border-color: var(--accent);
+}
+
+.card-body {
+    padding: 0 18px 18px;
+}
+
+.card-head .link {
+    margin-left: auto;
+}
+
+.texto-corto {
+    max-width: 360px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.texto-mal {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.kpis-4 {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.kpi-gris {
+    --c: #8a94a6;
+}
+
+.kpi-ok {
+    --c: #4caf6e;
+}
+
+.cot-agregar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cot-buscar {
+    min-width: 240px;
+}
+
+.cot-items th,
+.cot-items td {
+    vertical-align: top;
+}
+
+.cot-items input,
+.cot-items select,
+.cot-items textarea {
+    width: 100%;
+    height: 34px;
+    padding: 0 8px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    outline: none;
+}
+
+.cot-items textarea {
+    height: auto;
+    min-height: 34px;
+    margin-top: 4px;
+    padding: 6px 8px;
+    font-size: 13px;
+    resize: vertical;
+}
+
+.cot-items input:focus,
+.cot-items select:focus,
+.cot-items textarea:focus {
+    border-color: var(--accent);
+}
+
+.cot-items td:first-child {
+    min-width: 260px;
+    width: 100%;
+}
+
+.cot-items input.num {
+    width: 120px;
+}
+
+.cot-items input.cot-cantidad,
+.cot-items input.cot-desc {
+    width: 76px;
+}
+
+.cot-items .cot-unidad {
+    width: 100px;
+}
+
+.cot-items select {
+    width: 72px;
+}
+
+.cot-linea-total {
+    padding-top: 14px !important;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cot-tipo {
+    display: inline-block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.cot-tipo-producto {
+    color: #1d6fe8;
+}
+
+.cot-tipo-servicio {
+    color: #2bb3a3;
+}
+
+.cot-tipo-renta {
+    color: #d97706;
+}
+
+.cot-aviso {
+    display: block;
+    color: var(--danger);
+    font-size: 12px;
+}
+
+.cot-sin-stock input.cot-cantidad {
+    border-color: var(--danger);
+}
+
+.cot-totales {
+    display: grid;
+    grid-template-columns: auto minmax(140px, max-content);
+    justify-content: end;
+    gap: 6px 24px;
+    margin: 0;
+    padding: 14px 18px 18px;
+    border-top: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+}
+
+.cot-totales dt {
+    color: var(--muted);
+    text-align: right;
+}
+
+.cot-totales dd {
+    margin: 0;
+    text-align: right;
+}
+
+.cot-totales .cot-total,
+.cot-info .cot-total {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.cot-detalle {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) 1fr;
+    gap: 10px;
+    align-items: start;
+}
+
+.cot-vista iframe {
+    display: block;
+    width: 100%;
+    height: calc(100vh - 230px);
+    min-height: 520px;
+    border: 0;
+    border-top: 1px solid var(--line);
+    background: #525659;
+}
+
+.cot-estados {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+}
+
+.cot-historial {
+    margin: 0;
+    padding: 0 18px 16px;
+    list-style: none;
+}
+
+.cot-historial li {
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+}
+
+.cot-historial .sub {
+    display: block;
+}
+
+.toolbar form {
+    display: contents;
+}
+
+@media (max-width: 900px) {
+    .form-grid,
+    .cot-detalle,
+    .kpis-4 {
+        grid-template-columns: 1fr;
+    }
+
+    .cot-vista iframe {
+        height: 70vh;
+    }
+}
+
+/* ---------- Órdenes de compra y facturas ---------- */
+
+.texto-bien {
+    color: #15803d;
+    font-weight: 600;
+}
+
+.orden-servicios {
+    margin: 0;
+    padding: 0 18px 12px;
+    list-style: none;
+}
+
+.orden-servicios li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+}
+
+.orden-servicios li.hecho strong {
+    text-decoration: line-through;
+    color: var(--muted);
+}
+
+.check-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font-size: 22px;
+    cursor: pointer;
+}
+
+.orden-servicios li.hecho .check-btn,
+.orden-servicios li.hecho .check-icono {
+    color: #4caf6e;
+}
+
+.check-icono {
+    font-size: 22px;
+    color: var(--muted);
+}
+
+.card-head-texto {
+    flex-wrap: wrap;
+}
+
+.card-head-texto p {
+    flex-basis: 100%;
+}
+
+/* Las columnas del detalle no deben ensancharse por una tabla larga (la tabla hace scroll por dentro) */
+.cot-detalle > * {
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .cot-detalle {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ---------- Proveedores ---------- */
+
+.casillas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px 14px;
+}
+
+.casilla {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.casilla input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+}
+
+.mini-tag {
+    display: inline-block;
+    margin: 2px 2px 2px 0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    color: var(--text);
+    font-size: 12px;
+    white-space: nowrap;
+}

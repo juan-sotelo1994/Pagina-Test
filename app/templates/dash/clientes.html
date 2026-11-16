@@ -79,7 +79,7 @@
                     {% endif %}
                 </td>
                 <td data-value="{{ r.registrados }}">
-                    <a class="link" href="{{ url_for('dashboard.equipos_view', cliente=c.id) }}" title="Ver sus equipos en Soporte › Equipos">
+                    <a class="link" href="{{ url_for('dashboard.equipos_view', cliente=c.id) }}" title="Ver sus equipos en Soporte › Equipos con agente">
                         {{ r.registrados }} registrados
                     </a>
                     <div class="sub">{{ r.agente }} con agente · {{ r.en_linea }} en línea</div>

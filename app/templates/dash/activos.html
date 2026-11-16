@@ -1,7 +1,7 @@
 {% extends 'dash/base_dash.html' %}
 
-{% block title %}Equipos de clientes{% endblock %}
-{% block page_title %}Inventario › Equipos de clientes{% endblock %}
+{% block title %}Equipos de inventario{% endblock %}
+{% block page_title %}Inventario › Equipos de inventario{% endblock %}
 
 {% block content %}
 
@@ -23,7 +23,7 @@
         <input type="search" id="table-search" placeholder="Buscar por serial, modelo o responsable" aria-label="Buscar equipos">
     </label>
     {% if filtro_cliente %}
-    <a class="tool-btn" href="{{ url_for('dashboard.equipos_view', cliente=filtro_cliente) }}"><i class="fa-solid fa-laptop"></i> Ver en Soporte › Equipos</a>
+    <a class="tool-btn" href="{{ url_for('dashboard.equipos_view', cliente=filtro_cliente) }}"><i class="fa-solid fa-laptop"></i> Ver en Soporte › Equipos con agente</a>
     {% endif %}
 </form>
 
@@ -84,7 +84,7 @@
 </div>
 
 <p class="note"><i class="fa-solid fa-circle-info"></i>
-    Cuando un equipo con el agente instalado reporta el mismo número de serie, aparece agrupado bajo su empresa en Soporte › Equipos.</p>
+    Cuando un equipo con el agente instalado reporta el mismo número de serie, aparece agrupado bajo su empresa en Soporte › Equipos con agente.</p>
 
 {% if puede_crear or puede_editar %}
 <!-- Formulario de equipo (registrar y editar) -->
@@ -123,7 +123,7 @@
                 <label class="form-field {% if errores.serial %}invalid{% endif %}">
                     <span>Número de serie del equipo</span>
                     <input type="text" name="serial" value="{{ formulario.serial }}" maxlength="60" required class="mono" autocomplete="off">
-                    {% if errores.serial %}<small>{{ errores.serial }}</small>{% else %}<small class="hint">El que aparece en la etiqueta o en la BIOS. Con este se agrupa en Soporte › Equipos.</small>{% endif %}
+                    {% if errores.serial %}<small>{{ errores.serial }}</small>{% else %}<small class="hint">El que aparece en la etiqueta o en la BIOS. Con este se agrupa en Soporte › Equipos con agente.</small>{% endif %}
                 </label>
                 <label class="form-field">
                     <span>Responsable <small class="hint">(opcional)</small></span>

@@ -12,6 +12,7 @@ EMPRESA = {
     'telefono': '(+57) 300 000 0000',
     'telefono_link': '+573000000000',
     'correo': 'contacto@test-lab.com',
+    'nit': '',  # Pendiente: NIT de Test-Lab (sale en el PDF de las cotizaciones)
 }
 
 # Palabras de la franja animada debajo del hero

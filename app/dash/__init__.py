@@ -8,7 +8,8 @@ from flask import Blueprint, abort, flash, jsonify, redirect, render_template, r
 
 from auth import correo_admin, login_requerido, usuarios
 from web import EMPRESA
-from . import agentes, clientes, comandos, descargas, equipos, glpi, permisos
+from . import (agentes, catalogo, clientes, comandos, cotizaciones, descargas, equipos, glpi, pdf_cotizacion, permisos,
+               proveedores, ventas)
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -29,7 +30,7 @@ MENU = [
     {'grupo': 'Comercial', 'icono': 'fa-briefcase', 'items': [
         ('clientes', 'Clientes', 'fa-users'),
         ('cotizaciones', 'Cotizaciones', 'fa-file-signature'),
-        ('ventas', 'Ventas', 'fa-chart-line'),
+        ('ventas', 'Órdenes de compra', 'fa-cart-shopping'),
         ('vendedores', 'Vendedores', 'fa-user-tie'),
     ]},
     {'grupo': 'Facturación', 'icono': 'fa-file-invoice-dollar', 'items': [
@@ -39,11 +40,14 @@ MENU = [
         ('productos', 'Productos', 'fa-box-open'),
         ('servicios', 'Servicios', 'fa-layer-group'),
         ('proveedores', 'Proveedores', 'fa-truck-field'),
-        ('activos', 'Equipos de clientes', 'fa-laptop-file'),
+        ('activos', 'Equipos de inventario', 'fa-laptop-file'),
+    ]},
+    {'grupo': 'Renta', 'icono': 'fa-handshake', 'items': [
+        ('renta', 'Productos en renta', 'fa-box-archive'),
     ]},
     {'grupo': 'Soporte', 'icono': 'fa-headset', 'items': [
         ('tickets', 'Tickets (GLPI)', 'fa-ticket'),
-        ('equipos', 'Equipos', 'fa-laptop'),
+        ('equipos', 'Equipos con agente', 'fa-laptop'),
     ]},
     {'grupo': 'Usuarios y accesos', 'icono': 'fa-user-shield', 'items': [
         ('usuarios', 'Usuarios', 'fa-user-gear'),
@@ -79,6 +83,12 @@ FACTURAS = [
     {'numero': 'FV-1042', 'cliente': 'Farmacias Vida', 'nit': '900.612.778-4', 'servicio': 'Ciberseguridad', 'fecha': '2026-10-27', 'vendedor': 'Laura Gómez', 'valor': 6300000, 'estado': 'Vencida'},
     {'numero': 'FV-1041', 'cliente': 'Hotel Mirador', 'nit': '800.207.665-9', 'servicio': 'Redes', 'fecha': '2026-10-24', 'vendedor': 'Andrés Ruiz', 'valor': 4100000, 'estado': 'Pagada'},
 ]
+
+def facturas_panel():
+    """Facturas reales; mientras no exista ninguna se muestran las de ejemplo."""
+    reales = ventas.para_panel()
+    return (reales, False) if reales else (FACTURAS, True)
+
 
 # Colores de los gráficos (en el mismo orden en que aparecen las categorías)
 COLORES = ['#2bb3a3', '#3b82f6', '#b5f04a', '#f59e0b', '#ef6351', '#a78bfa']
@@ -119,7 +129,7 @@ def datos_panel():
         'usuario': session.get('usuario'),
         'rol_nombre': permisos.NOMBRES_ROL.get(rol, ''),
         'puede': lambda modulo, accion='ver': permisos.puede(rol, modulo, accion),
-        'alertas': sum(1 for f in FACTURAS if f['estado'] == 'Vencida'),
+        'alertas': sum(1 for f in facturas_panel()[0] if f['estado'] == 'Vencida'),
         'alertas_tickets': alertas_tickets,
         'documento_de': clientes.documento_de,  # "NIT 900123456-7" / "CC 1020304050"
     }
@@ -134,14 +144,15 @@ def sin_permiso(error):
 @dashboard_bp.route('/')
 @login_requerido
 def dash_view():
+    facturas, de_ejemplo = facturas_panel()
     graficos = [
-        resumen('Estado de facturas', Counter(f['estado'] for f in FACTURAS), COLORES_ESTADO),
-        resumen('Servicios facturados', Counter(f['servicio'] for f in FACTURAS)),
-        resumen('Facturas por vendedor', Counter(f['vendedor'] for f in FACTURAS)),
+        resumen('Estado de facturas', Counter(f['estado'] for f in facturas), COLORES_ESTADO),
+        resumen('Servicios facturados', Counter(f['servicio'] for f in facturas)),
+        resumen('Facturas por vendedor', Counter(f['vendedor'] for f in facturas)),
     ]
     datos = {
-        'activo': 'inicio', 'graficos': graficos, 'facturas': FACTURAS,
-        'valor_max': max(f['valor'] for f in FACTURAS), 'colores_estado': COLORES_ESTADO,
+        'activo': 'inicio', 'graficos': graficos, 'facturas': facturas, 'facturas_ejemplo': de_ejemplo,
+        'valor_max': max([f['valor'] for f in facturas] + [1]), 'colores_estado': COLORES_ESTADO,
     }
 
     # Cada rol puede tener su propio inicio en templates/dash/inicio/<rol>.html
@@ -684,6 +695,10 @@ def clientes_guardar():
 @login_requerido
 def clientes_eliminar(cliente_id):
     _exigir('clientes', 'eliminar')
+    rentados = catalogo.rentas_de_cliente(cliente_id)
+    if rentados:
+        flash(f'No se puede eliminar: tiene {len(rentados)} equipo(s) en renta. Primero márcalos como devueltos.', 'error')
+        return redirect(url_for('dashboard.clientes_view'))
     cliente, error = clientes.eliminar_cliente(cliente_id)
     flash(error or f"Cliente {cliente['nombre']} eliminado.", 'error' if error else 'ok')
     return redirect(url_for('dashboard.clientes_view'))
@@ -757,6 +772,402 @@ def activos_eliminar(activo_id):
     flash(f"Equipo {activo['serial']} eliminado del inventario." if activo else 'Ese equipo ya no existe.',
           'ok' if activo else 'error')
     return redirect(url_for('dashboard.activos_view'))
+
+
+# ---------------------------------------------------------------- Productos, servicios y productos en renta
+
+def _pagina_catalogo(tipo, **extra):
+    rol = session['rol']
+    cfg = catalogo.CATALOGOS[tipo]
+    filtro = request.args.get('categoria', '')
+    filtro_estado = request.args.get('estado', '') if tipo == 'renta' else ''
+    filtro_cliente = request.args.get('cliente', '') if tipo == 'renta' else ''
+    filtro_proveedor = request.args.get('proveedor', '')
+    todos = catalogo.listar(tipo)
+    lista = [x for x in todos if (not filtro or x.get('categoria') == filtro)
+             and (not filtro_estado or x.get('estado') == filtro_estado)
+             and (not filtro_cliente or x.get('cliente_id') == filtro_cliente)
+             and (not filtro_proveedor or x.get('proveedor_id') == filtro_proveedor)]
+    lista_proveedores = proveedores.listar() if tipo != 'servicios' else []
+    lista_clientes = clientes.listar_clientes() if tipo == 'renta' else []
+    datos = {
+        'activo': tipo, 'tipo': tipo, 'cfg': cfg, 'lista': lista, 'filtro_categoria': filtro,
+        'filtro_estado': filtro_estado, 'filtro_cliente': filtro_cliente, 'filtro_proveedor': filtro_proveedor,
+        'proveedores_lista': lista_proveedores, 'nombres_proveedor': {p['id']: p['nombre'] for p in lista_proveedores},
+        'clientes_lista': lista_clientes, 'nombres_cliente': {c['id']: c['nombre'] for c in lista_clientes},
+        'estados_renta': catalogo.ESTADOS_RENTA, 'hoy': date.today().isoformat(),
+        'renta': catalogo.resumen_renta(todos) if tipo == 'renta' else None,
+        'categorias': next(c[3] for c in cfg['campos'] if c[0] == 'categoria'),
+        'total': len(todos), 'inactivos': sum(1 for x in todos if not x.get('activo', True)),
+        'stock_bajo': [x for x in todos if tipo == 'productos' and x.get('activo', True)
+                       and x.get('stock_minimo') and x.get('stock', 0) <= x['stock_minimo']],
+        'ver_costo': permisos.puede(rol, tipo, 'editar'),
+        'puede_crear': permisos.puede(rol, tipo, 'crear'),
+        'puede_editar': permisos.puede(rol, tipo, 'editar'),
+        'puede_eliminar': permisos.puede(rol, tipo, 'eliminar'),
+        'errores': {}, 'formulario': {},
+    }
+    datos.update(extra)
+    return render_template('dash/catalogo.html', **datos)
+
+
+@dashboard_bp.route('/<any(productos, servicios, renta):tipo>')
+@login_requerido
+def catalogo_view(tipo):
+    _exigir(tipo)
+    return _pagina_catalogo(tipo)
+
+
+@dashboard_bp.route('/<any(productos, servicios, renta):tipo>/guardar', methods=['POST'])
+@login_requerido
+def catalogo_guardar(tipo):
+    item_id = request.form.get('id') or None
+    _exigir(tipo, 'editar' if item_id else 'crear')
+    datos, errores = catalogo.validar(tipo, request.form, item_id)
+    if errores:
+        formulario = {**request.form.to_dict(), 'id': item_id or ''}
+        return _pagina_catalogo(tipo, errores=errores, formulario=formulario), 400
+    anterior = catalogo.obtener(tipo, item_id) if item_id else None
+    item = catalogo.guardar(tipo, datos, item_id, session['usuario'])
+    if item is None:
+        abort(404)
+    if tipo == 'productos':
+        # Los cambios de stock hechos a mano también quedan en los movimientos
+        ventas.registrar_ajuste(item['id'], (anterior or {}).get('stock', 0) or 0, item.get('stock', 0) or 0, session['usuario'],
+                                nuevo=anterior is None)
+    flash(f"{catalogo.CATALOGOS[tipo]['singular'].capitalize()} {item['codigo']} {'actualizado' if item_id else 'creado'}.", 'ok')
+    return redirect(url_for('dashboard.catalogo_view', tipo=tipo))
+
+
+@dashboard_bp.route('/<any(productos, servicios, renta):tipo>/<item_id>/eliminar', methods=['POST'])
+@login_requerido
+def catalogo_eliminar(tipo, item_id):
+    _exigir(tipo, 'eliminar')
+    item = catalogo.eliminar(tipo, item_id)
+    # Las cotizaciones ya hechas guardan su propia copia del nombre y el precio
+    flash(f"{item['nombre']} eliminado del catálogo." if item else 'Ese registro ya no existe.', 'ok' if item else 'error')
+    return redirect(url_for('dashboard.catalogo_view', tipo=tipo))
+
+
+# ---------------------------------------------------------------- Cotizaciones
+
+def _cotizacion(cot_id):
+    cot = cotizaciones.obtener(cot_id)
+    if cot is None:
+        abort(404)
+    return cot
+
+
+@dashboard_bp.route('/cotizaciones')
+@login_requerido
+def cotizaciones_view():
+    _exigir('cotizaciones')
+    filtro = request.args.get('estado', '')
+    todas = cotizaciones.listar()
+    rol = session['rol']
+    return render_template(
+        'dash/cotizaciones.html', activo='cotizaciones', filtro=filtro, estados=cotizaciones.ESTADOS,
+        lista=[c for c in todas if not filtro or c['estado_actual'] == filtro], resumen=cotizaciones.resumen(todas),
+        puede_crear=permisos.puede(rol, 'cotizaciones', 'crear'),
+        puede_editar=permisos.puede(rol, 'cotizaciones', 'editar'),
+        puede_eliminar=permisos.puede(rol, 'cotizaciones', 'eliminar'))
+
+
+def _editor(formulario, cot=None, errores=None):
+    lista = clientes.listar_clientes()
+    # Al elegir un cliente, el editor sugiere su contacto de TI como "Atención"
+    contactos = {c['id']: {'contacto': c.get('representante_ti') or (c['nombre'] if c.get('tipo_persona') == 'natural' else ''),
+                           'contacto_correo': c.get('ti_correo', ''), 'contacto_telefono': c.get('ti_telefono', '')}
+                 for c in lista}
+    return render_template(
+        'dash/cotizacion_editor.html', activo='cotizaciones', formulario=formulario, cot=cot, contactos=contactos,
+        errores=errores or {}, clientes_lista=lista, catalogo_items=catalogo.para_cotizar(),
+        formas_pago=cotizaciones.FORMAS_PAGO,
+        puede_catalogo=permisos.puede(session['rol'], 'productos', 'crear'))
+
+
+def _guardar_cotizacion(cot=None):
+    datos, errores = cotizaciones.validar(request.form, request.form.get('items_json'))
+    if errores:
+        return _editor(datos, cot, errores), 400
+    guardada = cotizaciones.guardar(datos, cot['id'] if cot else None, session['usuario'])
+    if guardada is None:
+        abort(409)
+    flash(f"Cotización {guardada['numero']} {'actualizada' if cot else 'creada'}.", 'ok')
+    return redirect(url_for('dashboard.cotizacion_detalle', cot_id=guardada['id']))
+
+
+@dashboard_bp.route('/cotizaciones/nueva', methods=['GET', 'POST'])
+@login_requerido
+def cotizacion_nueva():
+    _exigir('cotizaciones', 'crear')
+    if request.method == 'POST':
+        return _guardar_cotizacion()
+    return _editor(cotizaciones.formulario_nuevo(request.args.get('cliente', '')))
+
+
+@dashboard_bp.route('/cotizaciones/<cot_id>/editar', methods=['GET', 'POST'])
+@login_requerido
+def cotizacion_editar(cot_id):
+    _exigir('cotizaciones', 'editar')
+    cot = _cotizacion(cot_id)
+    if not cot['editable']:
+        flash('Una cotización aprobada o rechazada no se puede editar. Duplícala para hacer una nueva versión.', 'error')
+        return redirect(url_for('dashboard.cotizacion_detalle', cot_id=cot_id))
+    if request.method == 'POST':
+        return _guardar_cotizacion(cot)
+    return _editor(cotizaciones.formulario_desde(cot), cot)
+
+
+@dashboard_bp.route('/cotizaciones/<cot_id>')
+@login_requerido
+def cotizacion_detalle(cot_id):
+    _exigir('cotizaciones')
+    rol = session['rol']
+    return render_template(
+        'dash/cotizacion.html', activo='cotizaciones', cot=_cotizacion(cot_id), estados=cotizaciones.ESTADOS,
+        puede_crear=permisos.puede(rol, 'cotizaciones', 'crear'),
+        puede_editar=permisos.puede(rol, 'cotizaciones', 'editar'),
+        puede_eliminar=permisos.puede(rol, 'cotizaciones', 'eliminar'))
+
+
+@dashboard_bp.route('/cotizaciones/<cot_id>/pdf')
+@login_requerido
+def cotizacion_pdf(cot_id):
+    _exigir('cotizaciones')
+    cot = _cotizacion(cot_id)
+    nombre = re.sub(r'[^\w\-]+', '_', f"{cot['numero']}_{cot['cliente']['nombre']}").strip('_')[:80]
+    contenido = pdf_cotizacion.generar(cot, EMPRESA)
+    # ?descargar=1 baja el archivo; sin él se abre en el navegador
+    return send_file(io.BytesIO(contenido), mimetype='application/pdf', download_name=f'{nombre}.pdf',
+                     as_attachment=request.args.get('descargar') == '1')
+
+
+@dashboard_bp.route('/cotizaciones/<cot_id>/estado', methods=['POST'])
+@login_requerido
+def cotizacion_estado(cot_id):
+    _exigir('cotizaciones', 'editar')
+    actual, estado = _cotizacion(cot_id), request.form.get('estado', '')
+    volver = redirect(url_for('dashboard.cotizacion_detalle', cot_id=cot_id))
+    if estado not in cotizaciones.ESTADOS or estado == 'vencida':
+        abort(400)
+    orden = ventas.orden_activa_de(cot_id)
+    if orden:
+        flash(f"Esta cotización ya generó la orden {orden['numero']}. Para cambiarla, anula primero la orden.", 'error')
+        return volver
+    if estado != 'aprobada':
+        cot = cotizaciones.cambiar_estado(cot_id, estado, session['usuario'])
+        flash(f"Cotización {cot['numero']}: {cotizaciones.ESTADOS[estado].lower()}.", 'ok')
+        return volver
+
+    # Aprobar dispara la orden de compra, la salida de inventario y la factura
+    orden, factura, problemas = ventas.aprobar(actual, session['usuario'])
+    if problemas:
+        flash('No se pudo aprobar: ' + '; '.join(problemas) + '.', 'error')
+        return volver
+    cotizaciones.cambiar_estado(cot_id, 'aprobada', session['usuario'],
+                                extra={'orden_id': orden['id'], 'orden_numero': orden['numero'],
+                                       'factura_id': factura['id'], 'factura_numero': factura['numero']},
+                                accion=f"Aprobada: se generó la orden {orden['numero']} y la factura {factura['numero']}")
+    flash(f"Cotización aprobada. Se generó la orden {orden['numero']}, se descontó el inventario y se emitió la factura {factura['numero']}.", 'ok')
+    return redirect(url_for('dashboard.orden_detalle', orden_id=orden['id']))
+
+
+@dashboard_bp.route('/cotizaciones/<cot_id>/duplicar', methods=['POST'])
+@login_requerido
+def cotizacion_duplicar(cot_id):
+    _exigir('cotizaciones', 'crear')
+    nueva = cotizaciones.duplicar(cot_id, session['usuario'])
+    if nueva is None:
+        abort(404)
+    flash(f"Se creó {nueva['numero']} como copia. Revísala antes de enviarla.", 'ok')
+    return redirect(url_for('dashboard.cotizacion_editar', cot_id=nueva['id']))
+
+
+@dashboard_bp.route('/cotizaciones/<cot_id>/eliminar', methods=['POST'])
+@login_requerido
+def cotizacion_eliminar(cot_id):
+    _exigir('cotizaciones', 'eliminar')
+    cot = cotizaciones.eliminar(cot_id)
+    flash(f"Cotización {cot['numero']} eliminada." if cot else 'Esa cotización ya no existe.', 'ok' if cot else 'error')
+    return redirect(url_for('dashboard.cotizaciones_view'))
+
+
+# ---------------------------------------------------------------- Proveedores
+
+def _pagina_proveedores(**extra):
+    rol = session['rol']
+    filtro_tipo = request.args.get('tipo', '')
+    filtro_suministra = request.args.get('suministra', '')
+    todos = proveedores.listar()
+    lista = [p for p in todos if (not filtro_tipo or p['tipo'] == filtro_tipo)
+             and (not filtro_suministra or filtro_suministra in p.get('suministra', []))]
+    datos = {
+        'activo': 'proveedores', 'lista': lista, 'total': len(todos), 'usos': catalogo.usos_de_proveedor(),
+        'filtro_tipo': filtro_tipo, 'filtro_suministra': filtro_suministra,
+        'tipos': proveedores.TIPOS, 'suministra': proveedores.SUMINISTRA, 'condiciones': proveedores.CONDICIONES_PAGO,
+        'puede_crear': permisos.puede(rol, 'proveedores', 'crear'),
+        'puede_editar': permisos.puede(rol, 'proveedores', 'editar'),
+        'puede_eliminar': permisos.puede(rol, 'proveedores', 'eliminar'),
+        'errores': {}, 'formulario': {},
+    }
+    datos.update(extra)
+    return render_template('dash/proveedores.html', **datos)
+
+
+@dashboard_bp.route('/proveedores')
+@login_requerido
+def proveedores_view():
+    _exigir('proveedores')
+    return _pagina_proveedores()
+
+
+@dashboard_bp.route('/proveedores/guardar', methods=['POST'])
+@login_requerido
+def proveedores_guardar():
+    proveedor_id = request.form.get('id') or None
+    _exigir('proveedores', 'editar' if proveedor_id else 'crear')
+    datos, errores = proveedores.validar(request.form, proveedor_id)
+    if errores:
+        return _pagina_proveedores(errores=errores, formulario={**datos, 'id': proveedor_id or ''}), 400
+    proveedor = proveedores.guardar(datos, proveedor_id, session['usuario'])
+    if proveedor is None:
+        abort(404)
+    flash(f"Proveedor {proveedor['nombre']} {'actualizado' if proveedor_id else 'creado'}.", 'ok')
+    return redirect(url_for('dashboard.proveedores_view'))
+
+
+@dashboard_bp.route('/proveedores/<proveedor_id>/eliminar', methods=['POST'])
+@login_requerido
+def proveedores_eliminar(proveedor_id):
+    _exigir('proveedores', 'eliminar')
+    proveedor, error = proveedores.eliminar(proveedor_id, catalogo.usos_de_proveedor().get(proveedor_id, 0))
+    flash(error or f"Proveedor {proveedor['nombre']} eliminado.", 'error' if error else 'ok')
+    return redirect(url_for('dashboard.proveedores_view'))
+
+
+# ---------------------------------------------------------------- Órdenes de compra
+
+@dashboard_bp.route('/ventas')
+@login_requerido
+def ordenes_view():
+    _exigir('ventas')
+    filtro = request.args.get('estado', '')
+    todas = ventas.listar_ordenes()
+    conteo = Counter(o['estado'] for o in todas)
+    return render_template('dash/ordenes.html', activo='ventas', lista=[o for o in todas if not filtro or o['estado'] == filtro],
+                           filtro=filtro, estados=ventas.ESTADOS_ORDEN, conteo=conteo,
+                           pendientes=sum(1 for o in todas for s in o['servicios'] if o['estado'] == 'abierta' and s['estado'] == 'pendiente'))
+
+
+def _orden(orden_id):
+    orden = ventas.obtener_orden(orden_id)
+    if orden is None:
+        abort(404)
+    return orden
+
+
+@dashboard_bp.route('/ventas/<orden_id>')
+@login_requerido
+def orden_detalle(orden_id):
+    _exigir('ventas')
+    rol = session['rol']
+    orden = _orden(orden_id)
+    return render_template('dash/orden.html', activo='ventas', orden=orden, estados=ventas.ESTADOS_ORDEN,
+                           factura=ventas.obtener_factura(orden['factura_id']),
+                           puede_editar=permisos.puede(rol, 'ventas', 'editar'),
+                           puede_anular=permisos.puede(rol, 'ventas', 'eliminar'))
+
+
+@dashboard_bp.route('/ventas/<orden_id>/servicio', methods=['POST'])
+@login_requerido
+def orden_servicio(orden_id):
+    _exigir('ventas', 'editar')
+    try:
+        linea = int(request.form.get('linea', ''))
+    except ValueError:
+        abort(400)
+    if ventas.marcar_servicio(orden_id, linea, request.form.get('hecho') == '1', session['usuario']) is None:
+        abort(400)
+    return redirect(url_for('dashboard.orden_detalle', orden_id=orden_id))
+
+
+@dashboard_bp.route('/ventas/<orden_id>/anular', methods=['POST'])
+@login_requerido
+def orden_anular(orden_id):
+    _exigir('ventas', 'eliminar')
+    orden, error = ventas.anular(orden_id, session['usuario'], request.form.get('motivo', '').strip()[:200])
+    if error:
+        flash(error, 'error')
+        return redirect(url_for('dashboard.orden_detalle', orden_id=orden_id))
+    # La cotización vuelve a «Enviada» para poder corregirla y aprobarla otra vez
+    if cotizaciones.obtener(orden['cotizacion_id']):
+        cotizaciones.cambiar_estado(orden['cotizacion_id'], 'enviada', session['usuario'],
+                                    extra={'orden_id': '', 'orden_numero': '', 'factura_id': '', 'factura_numero': ''},
+                                    accion=f"Orden {orden['numero']} anulada; vuelve a enviada")
+    flash(f"Orden {orden['numero']} anulada: se devolvió el inventario y la factura {orden['factura_numero']} quedó anulada.", 'ok')
+    return redirect(url_for('dashboard.orden_detalle', orden_id=orden_id))
+
+
+# ---------------------------------------------------------------- Facturas
+
+@dashboard_bp.route('/facturas')
+@login_requerido
+def facturas_view():
+    _exigir('facturas')
+    filtro = request.args.get('estado', '')
+    todas = ventas.listar_facturas()
+    return render_template('dash/facturas.html', activo='facturas', filtro=filtro, estados=ventas.ESTADOS_FACTURA,
+                           lista=[f for f in todas if not filtro or f['estado_actual'] == filtro],
+                           resumen=ventas.resumen_facturas(todas))
+
+
+def _factura(factura_id):
+    factura = ventas.obtener_factura(factura_id)
+    if factura is None:
+        abort(404)
+    return factura
+
+
+@dashboard_bp.route('/facturas/<factura_id>')
+@login_requerido
+def factura_detalle(factura_id):
+    _exigir('facturas')
+    return render_template('dash/factura.html', activo='facturas', factura=_factura(factura_id),
+                           medios=ventas.MEDIOS_PAGO, hoy=date.today().isoformat(),
+                           puede_pagar=permisos.puede(session['rol'], 'facturas', 'editar'))
+
+
+@dashboard_bp.route('/facturas/<factura_id>/pdf')
+@login_requerido
+def factura_pdf(factura_id):
+    _exigir('facturas')
+    factura = _factura(factura_id)
+    nombre = re.sub(r'[^\w\-]+', '_', f"{factura['numero']}_{factura['cliente']['nombre']}").strip('_')[:80]
+    contenido = pdf_cotizacion.generar(factura, EMPRESA, tipo='factura')
+    return send_file(io.BytesIO(contenido), mimetype='application/pdf', download_name=f'{nombre}.pdf',
+                     as_attachment=request.args.get('descargar') == '1')
+
+
+@dashboard_bp.route('/facturas/<factura_id>/pago', methods=['POST'])
+@login_requerido
+def factura_pago(factura_id):
+    _exigir('facturas', 'editar')
+    factura, error = ventas.registrar_pago(factura_id, request.form.get('fecha', ''), request.form.get('medio', ''),
+                                           request.form.get('referencia', ''), session['usuario'])
+    flash(error or f"Pago de la factura {factura['numero']} registrado.", 'error' if error else 'ok')
+    return redirect(url_for('dashboard.factura_detalle', factura_id=factura_id))
+
+
+# ---------------------------------------------------------------- Movimientos de inventario
+
+@dashboard_bp.route('/productos/movimientos')
+@login_requerido
+def movimientos_view():
+    _exigir('productos')
+    filtro = request.args.get('producto', '')
+    return render_template('dash/movimientos.html', activo='productos', lista=ventas.listar_movimientos(filtro or None),
+                           productos=catalogo.listar('productos'), filtro=filtro)
 
 
 @dashboard_bp.route('/<nombre>')

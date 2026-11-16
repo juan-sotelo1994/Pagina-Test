@@ -1,0 +1,145 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}{{ orden.numero }}{% endblock %}
+{% block page_title %}Comercial › Órdenes de compra › {{ orden.numero }}{% endblock %}
+
+{% set clases = {'abierta': 'tag-part', 'completada': 'tag-full', 'anulada': 'tag-danger'} %}
+{% set nombres_tipo = {'producto': 'Producto', 'servicio': 'Servicio', 'renta': 'Renta', 'libre': 'Libre'} %}
+
+{% block content %}
+
+<div class="toolbar">
+    <a class="tool-btn" href="{{ url_for('dashboard.ordenes_view') }}"><i class="fa-solid fa-arrow-left"></i> Órdenes</a>
+    {% if factura and puede('facturas') %}
+    <a class="tool-btn btn-save" href="{{ url_for('dashboard.factura_detalle', factura_id=factura.id) }}"><i class="fa-solid fa-file-invoice"></i> Factura {{ factura.numero }}</a>
+    {% endif %}
+    {% if puede('cotizaciones') %}
+    <a class="tool-btn" href="{{ url_for('dashboard.cotizacion_detalle', cot_id=orden.cotizacion_id) }}"><i class="fa-solid fa-file-signature"></i> Cotización {{ orden.cotizacion_numero }}</a>
+    {% endif %}
+    {% if puede_anular and orden.estado != 'anulada' %}
+    <button type="button" class="tool-btn btn-danger" data-open-dialog="dialogo-anular"><i class="fa-solid fa-ban"></i> Anular orden</button>
+    {% endif %}
+</div>
+
+<div class="cot-detalle">
+    <div class="cot-lado">
+        <section class="card">
+            <div class="card-head">
+                <h2>{{ orden.numero }}</h2>
+                <span class="tag {{ clases[orden.estado] }}">{{ estados[orden.estado] }}</span>
+            </div>
+            <dl class="info-list cot-info">
+                <dt>Cliente</dt><dd><strong>{{ orden.cliente.nombre }}</strong><div class="sub">{{ orden.cliente.documento }}</div></dd>
+                {% if orden.contacto %}<dt>Atención</dt><dd>{{ orden.contacto }}</dd>{% endif %}
+                <dt>Asunto</dt><dd>{{ orden.asunto }}</dd>
+                <dt>Fecha</dt><dd>{{ orden.fecha }}</dd>
+                <dt>Entrega</dt><dd>{{ orden.tiempo_entrega or '—' }}</dd>
+                <dt>Garantía</dt><dd>{{ orden.garantia or '—' }}</dd>
+                <dt>Factura</dt><dd>{{ orden.factura_numero }}{% if factura %} · <span class="tag {{ {'Pagada': 'tag-full', 'Pendiente': 'tag-read', 'Vencida': 'tag-part', 'Anulada': 'tag-danger'}[factura.estado_actual] }}">{{ factura.estado_actual }}</span>{% endif %}</dd>
+                <dt>Total</dt><dd class="cot-total">{{ orden.totales.total | pesos }}</dd>
+            </dl>
+        </section>
+
+        <section class="card">
+            <div class="card-head"><h2>Historial</h2></div>
+            <ul class="cot-historial">
+                {% for h in orden.historial | reverse %}
+                <li><strong>{{ h.accion }}</strong><span class="sub">{{ h.fecha }} · {{ h.usuario }}</span></li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
+
+    <div>
+        {% if orden.servicios %}
+        <section class="card">
+            <div class="card-head card-head-texto">
+                <h2><i class="fa-solid fa-screwdriver-wrench"></i> Servicios por prestar</h2>
+                <p>Configuración, asesoría y demás servicios vendidos. Márcalos cuando se hagan; al terminar todos, la orden queda completada.</p>
+            </div>
+            <ul class="orden-servicios">
+                {% for s in orden.servicios %}
+                <li class="{{ 'hecho' if s.estado == 'realizado' }}">
+                    {% if puede_editar and orden.estado != 'anulada' %}
+                    <form method="post" action="{{ url_for('dashboard.orden_servicio', orden_id=orden.id) }}">
+                        <input type="hidden" name="linea" value="{{ s.linea }}">
+                        <input type="hidden" name="hecho" value="{{ '0' if s.estado == 'realizado' else '1' }}">
+                        <button type="submit" class="check-btn" aria-label="{{ 'Marcar como pendiente' if s.estado == 'realizado' else 'Marcar como realizado' }}: {{ s.nombre }}">
+                            <i class="fa-{{ 'solid fa-circle-check' if s.estado == 'realizado' else 'regular fa-circle' }}"></i>
+                        </button>
+                    </form>
+                    {% else %}
+                    <i class="fa-{{ 'solid fa-circle-check' if s.estado == 'realizado' else 'regular fa-circle' }} check-icono"></i>
+                    {% endif %}
+                    <div>
+                        <strong>{{ s.nombre }}</strong> <span class="muted-text">· {{ '%g' | format(s.cantidad) }} {{ s.unidad | lower }}</span>
+                        {% if s.detalle %}<div class="sub">{{ s.detalle }}</div>{% endif %}
+                        {% if s.estado == 'realizado' %}<div class="sub">Realizado el {{ s.realizado }} por {{ s.realizado_por }}</div>{% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        <section class="card">
+            <div class="card-head"><h2><i class="fa-solid fa-list-check"></i> Detalle de la orden</h2></div>
+            <div class="table-wrap">
+                <table class="plain-table">
+                    <thead>
+                        <tr><th>Tipo</th><th>Descripción</th><th class="num">Cant.</th><th>Unidad</th><th class="num">Vr. unitario</th><th class="num">Total</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for i in orden['items'] %}
+                        <tr>
+                            <td><span class="cot-tipo cot-tipo-{{ i.tipo }}">{{ nombres_tipo[i.tipo] }}</span></td>
+                            <td><strong>{{ i.nombre }}</strong>{% if i.codigo %} <span class="muted-text mono">{{ i.codigo }}</span>{% endif %}
+                                {% if i.tipo == 'producto' and i.ref_id in orden.productos_descontados %}<div class="sub"><i class="fa-solid fa-arrow-down"></i> Descontado del inventario</div>{% endif %}
+                                {% if i.tipo == 'renta' and i.ref_id in orden.rentas %}<div class="sub"><i class="fa-solid fa-handshake"></i> Marcado como rentado a este cliente</div>{% endif %}
+                            </td>
+                            <td class="num">{{ '%g' | format(i.cantidad) }}</td>
+                            <td>{{ i.unidad }}</td>
+                            <td class="num">{{ i.precio | pesos }}</td>
+                            <td class="num">{{ i.total | pesos }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <dl class="cot-totales">
+                <dt>Subtotal</dt><dd>{{ orden.totales.base | pesos }}</dd>
+                <dt>IVA</dt><dd>{{ orden.totales.iva | pesos }}</dd>
+                <dt class="cot-total">Total</dt><dd class="cot-total">{{ orden.totales.total | pesos }}</dd>
+            </dl>
+        </section>
+    </div>
+</div>
+
+{% if puede_anular and orden.estado != 'anulada' %}
+<dialog class="dialog dialog-sm" id="dialogo-anular" aria-labelledby="anular-titulo">
+    <form method="post" action="{{ url_for('dashboard.orden_anular', orden_id=orden.id) }}">
+        <header class="dialog-head">
+            <h2 id="anular-titulo"><i class="fa-solid fa-ban"></i> Anular {{ orden.numero }}</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            <p>Se devuelven al inventario los productos, los equipos de renta vuelven a «Disponible», la factura
+               {{ orden.factura_numero }} queda anulada y la cotización vuelve a «Enviada».</p>
+            <label class="form-field">
+                <span>Motivo <small class="hint">(opcional)</small></span>
+                <input type="text" name="motivo" maxlength="200" placeholder="El cliente canceló la compra">
+            </label>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-danger"><i class="fa-solid fa-ban"></i> Anular orden</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-cart-shopping"></i> {{ orden.numero }} · generada por {{ orden.creado_por }} el {{ orden.creado }}</span>
+{% endblock %}

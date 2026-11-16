@@ -1,0 +1,155 @@
+{% extends 'dash/base_dash.html' %}
+
+{% set titulo = ('Editar ' ~ cot.numero) if cot else 'Nueva cotización' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block page_title %}Comercial › Cotizaciones › {{ titulo }}{% endblock %}
+
+{% block content %}
+
+<form method="post" id="form-cotizacion" class="cot-editor" novalidate>
+    <input type="hidden" name="items_json" id="items-json">
+
+    <section class="card">
+        <div class="card-head"><h2><i class="fa-solid fa-user"></i> Cliente</h2></div>
+        <div class="card-body form-grid">
+            <label class="form-field span-2 {{ 'invalid' if errores.cliente_id }}">
+                <span>Cliente</span>
+                <select name="cliente_id" id="cot-cliente">
+                    <option value="">— Prospecto (todavía no es cliente) —</option>
+                    {% for c in clientes_lista %}
+                    <option value="{{ c.id }}" {% if formulario.cliente_id == c.id %}selected{% endif %}>{{ c.nombre }} · {{ documento_de(c) }}</option>
+                    {% endfor %}
+                </select>
+                {% if errores.cliente_id %}<small>{{ errores.cliente_id }}</small>{% endif %}
+            </label>
+            <label class="form-field" data-solo-prospecto>
+                <span>Nombre del prospecto</span>
+                <input type="text" name="prospecto_nombre" value="{{ formulario.prospecto_nombre }}" maxlength="120" placeholder="Empresa o persona">
+            </label>
+            <label class="form-field" data-solo-prospecto>
+                <span>NIT o cédula <small class="hint">(opcional)</small></span>
+                <input type="text" name="prospecto_documento" value="{{ formulario.prospecto_documento }}" maxlength="40">
+            </label>
+            <label class="form-field">
+                <span>Atención (contacto) <small class="hint">(opcional)</small></span>
+                <input type="text" name="contacto" value="{{ formulario.contacto }}" maxlength="120">
+            </label>
+            <label class="form-field">
+                <span>Correo del contacto <small class="hint">(opcional)</small></span>
+                <input type="email" name="contacto_correo" value="{{ formulario.contacto_correo }}" maxlength="120">
+            </label>
+            <label class="form-field">
+                <span>Teléfono del contacto <small class="hint">(opcional)</small></span>
+                <input type="text" name="contacto_telefono" value="{{ formulario.contacto_telefono }}" maxlength="40">
+            </label>
+            <label class="form-field {{ 'invalid' if errores.fecha }}">
+                <span>Fecha</span>
+                <input type="date" name="fecha" value="{{ formulario.fecha }}">
+                {% if errores.fecha %}<small>{{ errores.fecha }}</small>{% endif %}
+            </label>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-head"><h2><i class="fa-solid fa-magnifying-glass-chart"></i> Estudio preliminar</h2></div>
+        <div class="card-body form-grid">
+            <label class="form-field span-2 {{ 'invalid' if errores.asunto }}">
+                <span>Asunto</span>
+                <input type="text" name="asunto" value="{{ formulario.asunto }}" maxlength="160" placeholder="Renovación de equipos y mesa de ayuda para la sede principal">
+                {% if errores.asunto %}<small>{{ errores.asunto }}</small>{% endif %}
+            </label>
+            <label class="form-field span-2">
+                <span>Necesidad identificada <small class="hint">(diagnóstico: qué tiene hoy el cliente y qué problema hay)</small></span>
+                <textarea name="necesidad" rows="4" maxlength="4000">{{ formulario.necesidad }}</textarea>
+            </label>
+            <label class="form-field span-2">
+                <span>Solución propuesta <small class="hint">(alcance, cómo lo vamos a resolver)</small></span>
+                <textarea name="propuesta" rows="4" maxlength="4000">{{ formulario.propuesta }}</textarea>
+            </label>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-head">
+            <h2><i class="fa-solid fa-list-check"></i> Productos, servicios y renta</h2>
+            {% if puede_catalogo %}<a class="link" href="{{ url_for('dashboard.catalogo_view', tipo='productos') }}" target="_blank" rel="noopener">Abrir catálogo <i class="fa-solid fa-up-right-from-square"></i></a>{% endif %}
+        </div>
+        <div class="card-body">
+            <div class="cot-agregar">
+                <label class="search cot-buscar">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="search" id="cot-buscar" list="cot-catalogo" placeholder="Buscar producto, servicio o equipo en renta y presiona Enter" autocomplete="off" aria-label="Buscar producto o servicio">
+                </label>
+                <datalist id="cot-catalogo"></datalist>
+                <button type="button" class="tool-btn btn-save" id="cot-agregar"><i class="fa-solid fa-plus"></i> Agregar</button>
+                <button type="button" class="tool-btn" id="cot-libre"><i class="fa-solid fa-pen"></i> Línea libre</button>
+            </div>
+            {% if not catalogo_items %}
+            <p class="note"><i class="fa-solid fa-circle-info"></i> El catálogo está vacío. Crea productos en Inventario › Productos y servicios en Inventario › Servicios, o usa «Línea libre».</p>
+            {% endif %}
+            {% if errores['items'] %}<div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i> {{ errores['items'] }}</div>{% endif %}
+        </div>
+        <div class="table-wrap">
+            <table class="plain-table cot-items">
+                <thead>
+                    <tr>
+                        <th>Descripción</th>
+                        <th class="num">Cantidad</th>
+                        <th>Unidad</th>
+                        <th class="num">Vr. unitario</th>
+                        <th class="num">Desc. %</th>
+                        <th class="num">IVA</th>
+                        <th class="num">Total</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cot-filas"></tbody>
+            </table>
+            <p class="empty" id="cot-vacio">Agrega productos o servicios del catálogo.</p>
+        </div>
+        <dl class="cot-totales" id="cot-totales"></dl>
+    </section>
+
+    <section class="card">
+        <div class="card-head"><h2><i class="fa-solid fa-handshake"></i> Condiciones comerciales</h2></div>
+        <div class="card-body form-grid">
+            <label class="form-field">
+                <span>Forma de pago</span>
+                <input type="text" name="forma_pago" value="{{ formulario.forma_pago }}" list="formas-pago" maxlength="120">
+                <datalist id="formas-pago">{% for f in formas_pago %}<option value="{{ f }}">{% endfor %}</datalist>
+            </label>
+            <label class="form-field {{ 'invalid' if errores.validez_dias }}">
+                <span>Validez de la oferta (días)</span>
+                <input type="number" name="validez_dias" value="{{ formulario.validez_dias }}" min="1" max="365">
+                {% if errores.validez_dias %}<small>{{ errores.validez_dias }}</small>{% endif %}
+            </label>
+            <label class="form-field">
+                <span>Tiempo de entrega</span>
+                <input type="text" name="tiempo_entrega" value="{{ formulario.tiempo_entrega }}" maxlength="160">
+            </label>
+            <label class="form-field">
+                <span>Garantía</span>
+                <input type="text" name="garantia" value="{{ formulario.garantia }}" maxlength="200">
+            </label>
+            <label class="form-field span-2">
+                <span>Notas para el cliente <small class="hint">(opcional)</small></span>
+                <textarea name="notas" rows="2" maxlength="2000">{{ formulario.notas }}</textarea>
+            </label>
+        </div>
+        <footer class="card-foot">
+            <a class="tool-btn" href="{{ url_for('dashboard.cotizacion_detalle', cot_id=cot.id) if cot else url_for('dashboard.cotizaciones_view') }}">Cancelar</a>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar y ver PDF</button>
+        </footer>
+    </section>
+</form>
+
+<script type="application/json" id="cot-datos">{{ {
+    'items': formulario['items'] or [],
+    'catalogo': catalogo_items,
+    'contactos': contactos,
+} | tojson }}</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/cotizacion.js') }}"></script>
+{% endblock %}
