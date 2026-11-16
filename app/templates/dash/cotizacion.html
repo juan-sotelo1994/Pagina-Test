@@ -1,0 +1,101 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}{{ cot.numero }}{% endblock %}
+{% block page_title %}Comercial › Cotizaciones › {{ cot.numero }}{% endblock %}
+
+{% set clases_estado = {'borrador': 'tag-lock', 'enviada': 'tag-read', 'aprobada': 'tag-full', 'rechazada': 'tag-danger', 'vencida': 'tag-part'} %}
+
+{% block content %}
+
+<div class="toolbar">
+    <a class="tool-btn" href="{{ url_for('dashboard.cotizaciones_view') }}"><i class="fa-solid fa-arrow-left"></i> Cotizaciones</a>
+    <a class="tool-btn btn-save" href="{{ url_for('dashboard.cotizacion_pdf', cot_id=cot.id, descargar=1) }}"><i class="fa-solid fa-download"></i> Descargar PDF</a>
+    <a class="tool-btn" href="{{ url_for('dashboard.cotizacion_pdf', cot_id=cot.id) }}" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Abrir en otra pestaña</a>
+    {% if puede_editar and cot.editable %}
+    <a class="tool-btn" href="{{ url_for('dashboard.cotizacion_editar', cot_id=cot.id) }}"><i class="fa-solid fa-pen"></i> Editar</a>
+    {% endif %}
+    {% if puede_crear %}
+    <form method="post" action="{{ url_for('dashboard.cotizacion_duplicar', cot_id=cot.id) }}">
+        <button type="submit" class="tool-btn"><i class="fa-solid fa-copy"></i> Duplicar</button>
+    </form>
+    {% endif %}
+    {% if puede_eliminar %}
+    <button type="button" class="tool-btn btn-danger" data-confirm="¿Eliminar la cotización {{ cot.numero }}? No se puede deshacer."
+            data-action="{{ url_for('dashboard.cotizacion_eliminar', cot_id=cot.id) }}"><i class="fa-solid fa-trash"></i> Eliminar</button>
+    {% endif %}
+</div>
+
+<div class="cot-detalle">
+    <div class="cot-lado">
+        <section class="card">
+            <div class="card-head">
+                <h2>{{ cot.numero }}</h2>
+                <span class="tag {{ clases_estado[cot.estado_actual] }}">{{ estados[cot.estado_actual] }}</span>
+            </div>
+            <dl class="info-list cot-info">
+                <dt>Cliente</dt>
+                <dd><strong>{{ cot.cliente.nombre }}</strong>
+                    <div class="sub">{{ cot.cliente.documento or '' }}{% if not cot.cliente.registrado %} · Prospecto (no registrado){% endif %}</div></dd>
+                {% if cot.contacto %}<dt>Atención</dt><dd>{{ cot.contacto }}{% if cot.contacto_correo %}<div class="sub">{{ cot.contacto_correo }}</div>{% endif %}</dd>{% endif %}
+                <dt>Asunto</dt><dd>{{ cot.asunto }}</dd>
+                <dt>Fecha</dt><dd>{{ cot.fecha }} · vence {{ cot.vence }}</dd>
+                <dt>Ítems</dt><dd>{{ cot['items'] | length }}
+                    {% if cot.totales.productos %}<div class="sub">Productos: {{ cot.totales.productos | pesos }}</div>{% endif %}
+                    {% if cot.totales.servicios %}<div class="sub">Servicios: {{ cot.totales.servicios | pesos }}</div>{% endif %}
+                    {% if cot.totales.rentas %}<div class="sub">Renta: {{ cot.totales.rentas | pesos }}</div>{% endif %}</dd>
+                <dt>Subtotal</dt><dd>{{ cot.totales.base | pesos }}</dd>
+                <dt>IVA</dt><dd>{{ cot.totales.iva | pesos }}</dd>
+                <dt>Total</dt><dd class="cot-total">{{ cot.totales.total | pesos }}</dd>
+                {% if cot.orden_id %}
+                <dt>Orden</dt><dd>{% if puede('ventas') %}<a class="link" href="{{ url_for('dashboard.orden_detalle', orden_id=cot.orden_id) }}">{{ cot.orden_numero }}</a>{% else %}{{ cot.orden_numero }}{% endif %}</dd>
+                <dt>Factura</dt><dd>{% if puede('facturas') %}<a class="link" href="{{ url_for('dashboard.factura_detalle', factura_id=cot.factura_id) }}">{{ cot.factura_numero }}</a>{% else %}{{ cot.factura_numero }}{% endif %}</dd>
+                {% endif %}
+            </dl>
+            {% if puede_editar and not cot.orden_id %}
+            <form method="post" action="{{ url_for('dashboard.cotizacion_estado', cot_id=cot.id) }}" class="card-foot cot-estados">
+                <span class="muted-text">Marcar como:</span>
+                {% for clave, icono in [('enviada', 'fa-paper-plane'), ('aprobada', 'fa-circle-check'), ('rechazada', 'fa-circle-xmark'), ('borrador', 'fa-pen-ruler')] %}
+                {% if cot.estado != clave %}
+                <button type="submit" name="estado" value="{{ clave }}" class="mini-btn {{ 'danger' if clave == 'rechazada' }}"
+                        {% if clave == 'aprobada' %}onclick="return confirm('Al aprobar se genera la orden de compra, se descuentan del inventario los productos, los equipos de renta pasan a rentados y se emite la factura. ¿Continuar?')"{% endif %}>
+                    <i class="fa-solid {{ icono }}"></i><span>{{ estados[clave] }}</span></button>
+                {% endif %}
+                {% endfor %}
+            </form>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <div class="card-head"><h2>Historial</h2></div>
+            <ul class="cot-historial">
+                {% for h in cot.historial | reverse %}
+                <li><strong>{{ h.accion }}</strong><span class="sub">{{ h.fecha }} · {{ h.usuario }}</span></li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
+
+    <section class="card cot-vista">
+        <div class="card-head"><h2><i class="fa-solid fa-file-pdf"></i> Vista previa del PDF</h2></div>
+        <iframe src="{{ url_for('dashboard.cotizacion_pdf', cot_id=cot.id) }}#navpanes=0&amp;view=FitH" title="Vista previa de {{ cot.numero }}"></iframe>
+    </section>
+</div>
+
+<dialog class="dialog dialog-sm" id="confirmar" aria-labelledby="confirmar-texto">
+    <form method="post" id="confirmar-form">
+        <div class="dialog-body confirm-body">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <p id="confirmar-texto"></p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        </footer>
+    </form>
+</dialog>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-file-signature"></i> {{ cot.numero }} · creada por {{ cot.creado_por }} el {{ cot.creado }}</span>
+{% endblock %}

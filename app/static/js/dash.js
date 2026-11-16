@@ -93,7 +93,18 @@ document.addEventListener('click', (e) => {
 const FORMULARIOS = {
     cliente: { form: 'form-cliente', titulo: '[data-titulo-cliente]', nuevo: 'Nuevo cliente', editar: 'Editar cliente' },
     activo: { form: 'form-activo', titulo: '[data-titulo-activo]', nuevo: 'Registrar equipo', editar: 'Editar equipo' },
+    item: { form: 'form-item', titulo: '[data-titulo-item]', nuevo: 'Nuevo registro', editar: 'Editar registro' },
+    proveedor: { form: 'form-proveedor', titulo: '[data-titulo-proveedor]', nuevo: 'Nuevo proveedor', editar: 'Editar proveedor' },
 };
+// Formularios que comparten plantilla (productos / servicios / renta):
+// el título usa la palabra que puso la página
+Object.values(FORMULARIOS).forEach((cfg) => {
+    const titulo = document.querySelector(cfg.titulo);
+    if (!titulo || !/^(Nuevo|Editar) /.test(titulo.textContent.trim())) return;
+    const singular = titulo.textContent.trim().replace(/^(Nuevo|Editar) /, '');
+    cfg.nuevo = `Nuevo ${singular}`;
+    cfg.editar = `Editar ${singular}`;
+});
 
 Object.entries(FORMULARIOS).forEach(([clave, cfg]) => {
     const form = document.getElementById(cfg.form);
@@ -104,18 +115,24 @@ Object.entries(FORMULARIOS).forEach(([clave, cfg]) => {
             const esNuevo = nuevoAttr in boton.dataset;
             const datos = esNuevo ? {} : JSON.parse(boton.dataset[clave]);
             // Valores por defecto y clientes guardados antes de existir estos campos
-            const porDefecto = { tipo_persona: 'juridica', relacion: 'contrato', tipo_documento: 'CC', documento: datos.nit };
+            const porDefecto = { tipo_persona: 'juridica', relacion: 'contrato', tipo_documento: 'CC', documento: datos.nit, iva: '19', activo: '1', estado: 'Disponible' };
             form.querySelectorAll('input, select, textarea').forEach((campo) => {
                 if (!campo.name || campo.type === 'file' || campo.name === 'volver') return;
+                if (campo.type === 'checkbox') {
+                    // Listas de opciones (ej. lo que suministra un proveedor)
+                    campo.checked = (datos[campo.name] || []).includes(campo.value);
+                    return;
+                }
                 if (campo.type === 'radio') {
                     campo.checked = campo.value === (datos[campo.name] || porDefecto[campo.name]);
                     return;
                 }
                 let valor = datos[campo.name] ?? porDefecto[campo.name] ?? '';
                 if (Array.isArray(valor)) valor = valor.join('\n');
+                if (typeof valor === 'boolean') valor = valor ? '1' : '0';
                 // En "nuevo" se conserva la empresa elegida en el filtro de la página
                 if (esNuevo && campo.name === 'cliente_id') valor = new URLSearchParams(location.search).get('cliente') || '';
-                if (campo.tagName === 'SELECT' && valor === '' && campo.name !== 'cliente_id') return;
+                if (campo.tagName === 'SELECT' && valor === '' && !['cliente_id', 'proveedor_id'].includes(campo.name)) return;
                 campo.value = valor;
             });
             form.querySelectorAll('.form-field.invalid').forEach((f) => f.classList.remove('invalid'));
@@ -143,6 +160,17 @@ if (formCliente) {
     };
     formCliente.addEventListener('change', aplicarSecciones);
     aplicarSecciones();
+}
+
+// Productos en renta: el cliente y las fechas solo aplican si el equipo está rentado
+const formItem = document.getElementById('form-item');
+const estadoRenta = formItem && formItem.elements.estado;
+if (estadoRenta) {
+    const aplicarEstado = () => {
+        formItem.querySelectorAll('[data-solo-rentado]').forEach((n) => { n.hidden = estadoRenta.value !== 'Rentado'; });
+    };
+    formItem.addEventListener('change', aplicarEstado);
+    aplicarEstado();
 }
 
 // Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar

@@ -1,7 +1,7 @@
 """Clientes (empresas) y su inventario de equipos.
 
 - Clientes: app/data/clientes.json; los contratos en PDF en app/data/contratos/
-- Equipos de clientes (activos): app/data/activos.json. Cada activo tiene el
+- Equipos de inventario (activos): app/data/activos.json. Cada activo tiene el
   número de serie del equipo y de sus discos. Si un equipo con agente reporta
   ese mismo número de serie, queda agrupado bajo ese cliente en Soporte > Equipos.
 Cuando conectemos la base de datos, solo cambian las funciones de este archivo.
@@ -326,7 +326,7 @@ def asignar_equipos(cliente_id, lista_equipos, usuario):
                 'serial': (equipo.get('serial') or inv.get('serial') or '').strip(),
                 'discos': [d['serial'] for d in inv.get('discos', []) if d.get('serial')],
                 'responsable': (equipo.get('usuario') or '')[:80],
-                'notas': f"Asignado desde Soporte › Equipos ({equipo.get('nombre', '')})",
+                'notas': f"Asignado desde Soporte › Equipos con agente ({equipo.get('nombre', '')})",
                 'equipo_id': equipo['id'], 'creado': _ahora(), 'creado_por': usuario,
             })
         almacen.escribir(ARCHIVO_ACTIVOS, activos)

@@ -1,7 +1,7 @@
 {% extends 'dash/base_dash.html' %}
 
 {% block title %}{{ equipo.nombre }}{% endblock %}
-{% block page_title %}Equipos / {{ equipo.nombre }}{% endblock %}
+{% block page_title %}Equipos con agente / {{ equipo.nombre }}{% endblock %}
 
 {% block content %}
 <div id="equipo" data-url="{{ url_for('dashboard.equipo_datos', equipo_id=equipo.id) }}">

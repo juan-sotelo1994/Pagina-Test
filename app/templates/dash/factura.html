@@ -1,0 +1,81 @@
+{% extends 'dash/base_dash.html' %}
+
+{% block title %}{{ factura.numero }}{% endblock %}
+{% block page_title %}Facturación › Facturas › {{ factura.numero }}{% endblock %}
+
+{% set clases = {'Pagada': 'tag-full', 'Pendiente': 'tag-read', 'Vencida': 'tag-part', 'Anulada': 'tag-danger'} %}
+
+{% block content %}
+
+<div class="toolbar">
+    <a class="tool-btn" href="{{ url_for('dashboard.facturas_view') }}"><i class="fa-solid fa-arrow-left"></i> Facturas</a>
+    <a class="tool-btn btn-save" href="{{ url_for('dashboard.factura_pdf', factura_id=factura.id, descargar=1) }}"><i class="fa-solid fa-download"></i> Descargar PDF</a>
+    <a class="tool-btn" href="{{ url_for('dashboard.factura_pdf', factura_id=factura.id) }}" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Abrir en otra pestaña</a>
+    {% if puede('ventas') %}
+    <a class="tool-btn" href="{{ url_for('dashboard.orden_detalle', orden_id=factura.orden_id) }}"><i class="fa-solid fa-cart-shopping"></i> Orden {{ factura.orden_numero }}</a>
+    {% endif %}
+</div>
+
+<div class="cot-detalle">
+    <div class="cot-lado">
+        <section class="card">
+            <div class="card-head">
+                <h2>{{ factura.numero }}</h2>
+                <span class="tag {{ clases[factura.estado_actual] }}">{{ factura.estado_actual }}</span>
+            </div>
+            <dl class="info-list cot-info">
+                <dt>Cliente</dt><dd><strong>{{ factura.cliente.nombre }}</strong><div class="sub">{{ factura.cliente.documento }}</div></dd>
+                <dt>Fecha</dt><dd>{{ factura.fecha }}</dd>
+                <dt>Vence</dt><dd class="{{ 'texto-mal' if factura.estado_actual == 'Vencida' }}">{{ factura.vence }}</dd>
+                <dt>Forma de pago</dt><dd>{{ factura.forma_pago or '—' }}</dd>
+                {% if factura.totales.productos %}<dt>Productos</dt><dd>{{ factura.totales.productos | pesos }}</dd>{% endif %}
+                {% if factura.totales.servicios %}<dt>Servicios</dt><dd>{{ factura.totales.servicios | pesos }}</dd>{% endif %}
+                {% if factura.totales.rentas %}<dt>Renta</dt><dd>{{ factura.totales.rentas | pesos }}</dd>{% endif %}
+                <dt>IVA</dt><dd>{{ factura.totales.iva | pesos }}</dd>
+                <dt>Total</dt><dd class="cot-total">{{ factura.totales.total | pesos }}</dd>
+                {% if factura.pago %}
+                <dt>Pago</dt><dd>{{ factura.pago.fecha }} · {{ factura.pago.medio }}{% if factura.pago.referencia %}<div class="sub">Ref. {{ factura.pago.referencia }}</div>{% endif %}</dd>
+                {% endif %}
+            </dl>
+            {% if puede_pagar and factura.estado == 'Pendiente' %}
+            <form method="post" action="{{ url_for('dashboard.factura_pago', factura_id=factura.id) }}" class="card-body form-grid">
+                <p class="form-seccion span-2">Registrar pago</p>
+                <label class="form-field">
+                    <span>Fecha</span>
+                    <input type="date" name="fecha" value="{{ hoy }}" required>
+                </label>
+                <label class="form-field">
+                    <span>Medio</span>
+                    <select name="medio">{% for m in medios %}<option>{{ m }}</option>{% endfor %}</select>
+                </label>
+                <label class="form-field span-2">
+                    <span>Referencia <small class="hint">(opcional)</small></span>
+                    <input type="text" name="referencia" maxlength="80" placeholder="N.° de transferencia o recibo">
+                </label>
+                <button type="submit" class="tool-btn btn-save span-2"><i class="fa-solid fa-circle-check"></i> Marcar como pagada</button>
+            </form>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <div class="card-head"><h2>Historial</h2></div>
+            <ul class="cot-historial">
+                {% for h in factura.historial | reverse %}
+                <li><strong>{{ h.accion }}</strong><span class="sub">{{ h.fecha }} · {{ h.usuario }}</span></li>
+                {% endfor %}
+            </ul>
+        </section>
+        <p class="note"><i class="fa-solid fa-circle-info"></i> Es el documento interno de la venta. Para la factura electrónica ante la DIAN hay que conectar un proveedor autorizado.</p>
+    </div>
+
+    <section class="card cot-vista">
+        <div class="card-head"><h2><i class="fa-solid fa-file-pdf"></i> Vista previa del PDF</h2></div>
+        <iframe src="{{ url_for('dashboard.factura_pdf', factura_id=factura.id) }}#navpanes=0&amp;view=FitH" title="Vista previa de {{ factura.numero }}"></iframe>
+    </section>
+</div>
+
+{% endblock %}
+
+{% block status %}
+<span><i class="fa-solid fa-file-invoice"></i> {{ factura.numero }} · emitida por {{ factura.creado_por }} el {{ factura.creado }}</span>
+{% endblock %}
