@@ -10,6 +10,9 @@
 <div class="toolbar">
     <a class="tool-btn" href="{{ url_for('dashboard.cotizaciones_view') }}"><i class="fa-solid fa-arrow-left"></i> Cotizaciones</a>
     <a class="tool-btn btn-save" href="{{ url_for('dashboard.cotizacion_pdf', cot_id=cot.id, descargar=1) }}"><i class="fa-solid fa-download"></i> Descargar PDF</a>
+    {% if puede_editar %}
+    <button type="button" class="tool-btn btn-correo" data-open-dialog="dialogo-enviar"><i class="fa-solid fa-envelope"></i> Enviar por correo</button>
+    {% endif %}
     <a class="tool-btn" href="{{ url_for('dashboard.cotizacion_pdf', cot_id=cot.id) }}" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Abrir en otra pestaña</a>
     {% if puede_editar and cot.editable %}
     <a class="tool-btn" href="{{ url_for('dashboard.cotizacion_editar', cot_id=cot.id) }}"><i class="fa-solid fa-pen"></i> Editar</a>
@@ -80,6 +83,56 @@
         <iframe src="{{ url_for('dashboard.cotizacion_pdf', cot_id=cot.id) }}#navpanes=0&amp;view=FitH" title="Vista previa de {{ cot.numero }}"></iframe>
     </section>
 </div>
+
+{% if puede_editar %}
+<!-- Enviar la cotización por correo con el PDF adjunto -->
+<dialog class="dialog dialog-wide" id="dialogo-enviar" aria-labelledby="dialogo-enviar-titulo">
+    <form method="post" action="{{ url_for('dashboard.cotizacion_enviar_correo', cot_id=cot.id) }}" novalidate>
+        <header class="dialog-head">
+            <h2 id="dialogo-enviar-titulo"><i class="fa-solid fa-envelope"></i> Enviar {{ cot.numero }} por correo</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body">
+            {% if not smtp_listo %}
+            <div class="flash flash-info"><i class="fa-solid fa-circle-info"></i>
+                El correo aún no está configurado (falta <span class="mono">SMTP_CLAVE</span> en <span class="mono">.env</span>):
+                el envío quedará como prueba en <span class="mono">app/data/correos_salientes.log</span>.</div>
+            {% endif %}
+            <div class="form-row">
+                <label class="form-field">
+                    <span>Para</span>
+                    <input type="text" name="para" value="{{ envio.para }}" required autocomplete="off" placeholder="cliente@empresa.com">
+                    <small class="hint">Varios correos separados por coma.</small>
+                </label>
+                <label class="form-field">
+                    <span>Copia (CC) <small class="hint">(opcional)</small></span>
+                    <input type="text" name="cc" autocomplete="off" placeholder="gerencia@empresa.com">
+                </label>
+            </div>
+            <label class="form-field">
+                <span>Asunto</span>
+                <input type="text" name="asunto" value="{{ envio.asunto }}" maxlength="200" required>
+            </label>
+            <label class="form-field">
+                <span>Mensaje</span>
+                <textarea name="mensaje" rows="9" maxlength="5000" required>{{ envio.mensaje }}</textarea>
+            </label>
+            <div class="adjunto">
+                <i class="fa-solid fa-file-pdf"></i>
+                <span><strong>{{ cot.numero }}.pdf</strong><small>Se adjunta la cotización actual en PDF</small></span>
+            </div>
+            {% if cot.estado == 'borrador' and not cot.orden_id %}
+            <label class="casilla"><input type="checkbox" name="marcar_enviada" value="1" checked> Marcar la cotización como «Enviada»</label>
+            {% endif %}
+            <p class="note"><i class="fa-solid fa-reply"></i> Si el cliente responde, la respuesta te llega a {{ usuario }}.</p>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-paper-plane"></i> Enviar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
 
 <dialog class="dialog dialog-sm" id="confirmar" aria-labelledby="confirmar-texto">
     <form method="post" id="confirmar-form">

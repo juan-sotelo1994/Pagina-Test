@@ -1,0 +1,72 @@
+{# Indicadores comerciales. Variables: v (indicadores.de_ventas), propio (True = solo las del usuario) #}
+{% import 'dash/parciales/graficos.html' as g %}
+{% set mis = 'Mis ' if propio else '' %}
+
+<section class="kpis kpis-4">
+    {{ g.kpi('fa-sack-dollar', v.vendido_mes | pesos, 'Vendido este mes', 'kpi-ok', url_for('dashboard.ordenes_view') if puede('ventas') else None,
+             v.ordenes_mes ~ (' orden' if v.ordenes_mes == 1 else ' órdenes') ~ ' de compra') }}
+    {{ g.kpi('fa-file-signature', v.cotizaciones_mes, (mis ~ 'cotizaciones del mes') | capitalize, 'kpi-new',
+             url_for('dashboard.cotizaciones_view'), v.cotizado_mes | pesos ~ ' cotizado') }}
+    {{ g.kpi('fa-handshake', v.enviadas, 'En negociación', 'kpi-pending', url_for('dashboard.cotizaciones_view', estado='enviada'),
+             v.en_negociacion | pesos ~ ' enviadas al cliente') }}
+    {{ g.kpi('fa-bullseye', (v.tasa_cierre ~ ' %') if v.tasa_cierre is not none else '—', 'Tasa de cierre', 'kpi-progress', None,
+             'aprobadas de las que el cliente respondió') }}
+</section>
+
+<section class="widgets">
+    {{ g.dona((mis ~ 'cotizaciones por estado') | capitalize, [
+        {'nombre': 'Borrador', 'cantidad': v.estados.borrador, 'color': '#8a94a6'},
+        {'nombre': 'Enviada', 'cantidad': v.estados.enviada, 'color': '#3b82f6'},
+        {'nombre': 'Aprobada', 'cantidad': v.estados.aprobada, 'color': '#4caf6e'},
+        {'nombre': 'Rechazada', 'cantidad': v.estados.rechazada, 'color': '#ef6351'},
+        {'nombre': 'Vencida', 'cantidad': v.estados.vencida, 'color': '#f59e0b'},
+    ]) }}
+    {{ g.barras((mis ~ 'ventas de los últimos 6 meses') | capitalize, v.barras, pesos=True,
+                vacio='Cuando se apruebe la primera cotización, aquí verás las ventas por mes.') }}
+    <article class="widget widget-lista">
+        <h2><i class="fa-solid fa-hourglass-end"></i> Por vencer en 3 días</h2>
+        {% for c in v.por_vencer[:5] %}
+        <a class="fila-lista" href="{{ url_for('dashboard.cotizacion_detalle', cot_id=c.id) }}">
+            <span><strong>{{ c.numero }}</strong> · {{ c.cliente.nombre }}</span>
+            <span class="muted-text">vence {{ c.vence }}</span>
+        </a>
+        {% else %}
+        <p class="muted-text">Ninguna cotización está por vencer.</p>
+        {% endfor %}
+        {% if v.servicios_pendientes and puede('ventas') %}
+        <a class="fila-lista aviso" href="{{ url_for('dashboard.ordenes_view', estado='abierta') }}">
+            <span><i class="fa-solid fa-screwdriver-wrench"></i> {{ v.servicios_pendientes }} {{ 'orden' if v.servicios_pendientes == 1 else 'órdenes' }} con servicios por prestar</span>
+        </a>
+        {% endif %}
+    </article>
+</section>
+
+<div class="toolbar">
+    {% if puede('cotizaciones', 'crear') %}
+    <a class="tool-btn btn-save" href="{{ url_for('dashboard.cotizacion_nueva') }}"><i class="fa-solid fa-plus"></i> Nueva cotización</a>
+    {% endif %}
+    {% if puede('productos') %}
+    <a class="tool-btn" href="{{ url_for('dashboard.catalogo_view', tipo='productos') }}"><i class="fa-solid fa-box-open"></i> Productos en existencia</a>
+    {% endif %}
+</div>
+
+<div class="table-wrap">
+    <table class="data-table">
+        <thead>
+            <tr><th>{{ mis }}Últimas cotizaciones</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+            {% set clases_estado = {'borrador': 'tag-lock', 'enviada': 'tag-read', 'aprobada': 'tag-full', 'rechazada': 'tag-danger', 'vencida': 'tag-part'} %}
+            {% for c in v.ultimas %}
+            <tr>
+                <td class="mono"><a class="link" href="{{ url_for('dashboard.cotizacion_detalle', cot_id=c.id) }}">{{ c.numero }}</a><div class="sub">{{ c.asunto }}</div></td>
+                <td>{{ c.cliente.nombre }}</td>
+                <td>{{ c.fecha }}</td>
+                <td class="num"><strong>{{ c.totales.total | pesos }}</strong></td>
+                <td><span class="tag {{ clases_estado[c.estado_actual] }}">{{ c.estado_actual | capitalize }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not v.ultimas %}<p class="empty">Todavía no hay cotizaciones.{% if puede('cotizaciones', 'crear') %} Empieza con «Nueva cotización».{% endif %}</p>{% endif %}
+</div>

@@ -1,0 +1,81 @@
+{% extends 'dash/base_dash.html' %}
+
+{# Vista general por perfil: cada rol ve las áreas de `secciones`; el administrador las ve todas #}
+{% import 'dash/parciales/graficos.html' as g %}
+
+{% block title %}Vista general{% endblock %}
+{% block page_title %}Vista general{% endblock %}
+
+{% set titulos = {
+    'facturacion': ('Facturación', 'fa-file-invoice-dollar'),
+    'ventas': ('Ventas' if not ventas_propias else 'Mis ventas', 'fa-briefcase'),
+    'soporte': ('Soporte', 'fa-headset'),
+    'inventario': ('Inventario', 'fa-boxes-stacked'),
+} %}
+
+{% block content %}
+
+{% if not secciones %}
+{# Perfiles sin indicadores propios: accesos directos a sus secciones #}
+<section class="card">
+    <div class="card-head card-head-texto">
+        <h2><i class="fa-solid fa-hand"></i> Hola, {{ nombre_corto }}</h2>
+        <p>Perfil {{ rol_nombre }}. Estas son tus secciones:</p>
+    </div>
+    <div class="accesos">
+        {% for grupo in menu %}{% for clave, texto, icono in grupo['items'] if clave != 'inicio' %}
+        <a class="acceso" href="{{ url_for('dashboard.seccion', nombre=clave) }}">
+            <i class="fa-solid {{ icono }}"></i>
+            <span><strong>{{ texto }}</strong><small>{{ grupo.grupo }}</small></span>
+        </a>
+        {% endfor %}{% endfor %}
+    </div>
+</section>
+{% else %}
+
+<div class="saludo">
+    <h2>Hola, {{ nombre_corto }}</h2>
+    <span class="muted-text">{{ rol_nombre }} · {{ hoy_texto }}</span>
+</div>
+
+{% if secciones | length > 1 %}
+{# Resumen de todas las áreas (administrador) #}
+<section class="kpis kpis-4 resumen-general">
+    {% if 'ventas' in secciones %}
+    {{ g.kpi('fa-sack-dollar', ventas_ind.vendido_mes | pesos, 'Vendido este mes', 'kpi-ok', '#seccion-ventas', ventas_ind.enviadas ~ ' cotizaciones en negociación') }}
+    {% endif %}
+    {% if 'facturacion' in secciones %}
+    {{ g.kpi('fa-file-invoice-dollar', por_cobrar | pesos, 'Por cobrar', 'kpi-pending', '#seccion-facturacion', facturas_vencidas ~ ' factura' ~ ('s' if facturas_vencidas != 1 else '') ~ ' vencida' ~ ('s' if facturas_vencidas != 1 else '')) }}
+    {% endif %}
+    {% if 'soporte' in secciones %}
+    {{ g.kpi('fa-headset', soporte_ind.nuevos + soporte_ind.pendientes, 'Tickets por atender', 'kpi-new', '#seccion-soporte', soporte_ind.nuevos ~ ' nuevos · ' ~ soporte_ind.pendientes ~ ' pendientes') }}
+    {% endif %}
+    {% if 'inventario' in secciones %}
+    {{ g.kpi('fa-boxes-stacked', inventario_ind.stock_bajo | length, 'Productos por reponer', 'kpi-gris', '#seccion-inventario', inventario_ind.unidades ~ ' unidades en stock') }}
+    {% endif %}
+</section>
+
+<nav class="secciones-nav" aria-label="Áreas">
+    {% for s in secciones %}
+    <a href="#seccion-{{ s }}"><i class="fa-solid {{ titulos[s][1] }}"></i> {{ titulos[s][0] }}</a>
+    {% endfor %}
+</nav>
+{% endif %}
+
+{% for s in secciones %}
+<section class="seccion-inicio" id="seccion-{{ s }}">
+    {% if secciones | length > 1 %}<h2 class="seccion-titulo"><i class="fa-solid {{ titulos[s][1] }}"></i> {{ titulos[s][0] }}</h2>{% endif %}
+    {% if s == 'facturacion' %}
+    {% include 'dash/parciales/facturas.html' %}
+    {% elif s == 'ventas' %}
+    {% with v=ventas_ind, propio=ventas_propias %}{% include 'dash/parciales/ind_ventas.html' %}{% endwith %}
+    {% elif s == 'soporte' %}
+    {% with s=soporte_ind %}{% include 'dash/parciales/ind_soporte.html' %}{% endwith %}
+    {% elif s == 'inventario' %}
+    {% with inv=inventario_ind %}{% include 'dash/parciales/ind_inventario.html' %}{% endwith %}
+    {% endif %}
+</section>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

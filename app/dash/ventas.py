@@ -282,6 +282,50 @@ def registrar_ajuste(producto_id, stock_anterior, stock_nuevo, usuario, nuevo=Fa
                                    'Stock inicial' if nuevo else 'Ajuste manual', '', usuario)
 
 
+def registrar_entrada(producto_id, form, usuario):
+    """Mercancía que llega del proveedor: suma al stock y deja el movimiento. Devuelve (producto, errores)."""
+    from . import proveedores  # aquí para evitar importaciones circulares
+    errores = {}
+    producto = catalogo.obtener('productos', producto_id)
+    if producto is None:
+        errores['producto_id'] = 'Elige el producto que llegó.'
+    try:
+        cantidad = int(str(form.get('cantidad', '')).strip())
+        if not 1 <= cantidad <= 100000:
+            raise ValueError
+    except ValueError:
+        errores['cantidad'] = 'Escribe cuántas unidades llegaron (número entero).'
+    proveedor = None
+    if form.get('proveedor_id'):
+        proveedor = proveedores.obtener(form['proveedor_id'])
+        if proveedor is None:
+            errores['proveedor_id'] = 'Ese proveedor ya no existe.'
+    costo = None
+    if str(form.get('costo', '')).strip():
+        try:
+            costo = catalogo._numero(form['costo'])
+            if costo < 0:
+                raise ValueError
+        except ValueError:
+            errores['costo'] = 'Escribe un precio válido.'
+    documento = str(form.get('documento', '')).strip()[:60]
+    if errores:
+        return None, errores
+
+    cambios_producto = {'proveedor_id': proveedor['id']} if proveedor else {}
+    if costo:
+        cambios_producto['costo'] = costo  # el precio de compra queda al día con lo último que llegó
+    with _lock:
+        _, stock_final = catalogo.mover_inventario({producto_id: cantidad}, revisar=False)
+        if cambios_producto:
+            # Se manda el código actual para que guardar() no genere uno nuevo
+            catalogo.guardar('productos', {**cambios_producto, 'codigo': producto['codigo']}, producto_id, usuario)
+        detalle = ' · '.join(x for x in (proveedor['nombre'] if proveedor else '', f'doc. {documento}' if documento else '') if x)
+        _registrar_movimientos([(producto_id, cantidad, stock_final[producto_id])],
+                               'Entrada de mercancía' + (f' ({detalle})' if detalle else ''), documento, usuario)
+    return catalogo.obtener('productos', producto_id), {}
+
+
 def listar_movimientos(producto_id=None):
     lista = almacen.leer(MOVIMIENTOS, [])
     return [m for m in reversed(lista) if not producto_id or m['producto_id'] == producto_id]

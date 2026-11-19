@@ -1,0 +1,71 @@
+{# Indicadores de inventario. Variable: inv (indicadores.de_inventario) #}
+{% import 'dash/parciales/graficos.html' as g %}
+{% set ver_costo = puede('productos', 'editar') %}
+
+<section class="kpis kpis-4">
+    {{ g.kpi('fa-boxes-stacked', inv.unidades, 'Unidades en stock', 'kpi-new', url_for('dashboard.catalogo_view', tipo='productos'),
+             inv.productos ~ (' producto activo' if inv.productos == 1 else ' productos activos')) }}
+    {{ g.kpi('fa-triangle-exclamation', inv.stock_bajo | length, 'Con stock bajo', 'kpi-pending', url_for('dashboard.catalogo_view', tipo='productos'),
+             inv.sin_stock ~ ' sin unidades') }}
+    {{ g.kpi('fa-dolly', inv.entradas_mes, 'Unidades recibidas este mes', 'kpi-ok', url_for('dashboard.movimientos_view'),
+             ('%g' | format(inv.salidas_mes)) ~ ' despachadas por ventas') }}
+    {% if ver_costo %}
+    {{ g.kpi('fa-warehouse', inv.valor_compra | pesos, 'Valor del inventario', 'kpi-progress', None, 'a precio de compra · ' ~ (inv.valor_venta | pesos) ~ ' a precio de venta') }}
+    {% else %}
+    {{ g.kpi('fa-handshake', inv.renta.conteo['Rentado'], 'Equipos rentados', 'kpi-progress', None, inv.renta.conteo['Disponible'] ~ ' disponibles') }}
+    {% endif %}
+</section>
+
+<section class="widgets">
+    <article class="widget widget-lista">
+        <h2><i class="fa-solid fa-triangle-exclamation"></i> Productos por reponer</h2>
+        {% for p in inv.stock_bajo[:6] %}
+        <div class="fila-lista">
+            <span><strong>{{ p.nombre }}</strong> <span class="muted-text mono">{{ p.codigo }}</span></span>
+            <span class="{{ 'texto-mal' if (p.stock or 0) <= 0 else 'muted-text' }}">quedan {{ p.stock or 0 }} · mínimo {{ p.stock_minimo }}</span>
+        </div>
+        {% else %}
+        <p class="muted-text">Ningún producto está en su stock mínimo.</p>
+        {% endfor %}
+    </article>
+    {{ g.barras('Unidades recibidas por mes', inv.barras, vacio='Las entradas de mercancía aparecerán aquí.') }}
+    {% if puede('renta') %}
+    {{ g.dona('Equipos en renta', [
+        {'nombre': 'Disponible', 'cantidad': inv.renta.conteo['Disponible'], 'color': '#4caf6e'},
+        {'nombre': 'Rentado', 'cantidad': inv.renta.conteo['Rentado'], 'color': '#3b82f6'},
+        {'nombre': 'En mantenimiento', 'cantidad': inv.renta.conteo['En mantenimiento'], 'color': '#f59e0b'},
+        {'nombre': 'De baja', 'cantidad': inv.renta.conteo['De baja'], 'color': '#8a94a6'},
+    ], 'Equipos') }}
+    {% endif %}
+</section>
+
+{% if puede('renta') and (inv.renta.vencidas or inv.renta.por_vencer) %}
+<div class="flash flash-info"><i class="fa-solid fa-clock"></i>
+    Rentas {% if inv.renta.vencidas %}vencidas: {{ inv.renta.vencidas | length }}{% endif %}{% if inv.renta.vencidas and inv.renta.por_vencer %} · {% endif %}{% if inv.renta.por_vencer %}por terminar en 15 días: {{ inv.renta.por_vencer | length }}{% endif %}.
+    <a class="link" href="{{ url_for('dashboard.catalogo_view', tipo='renta', estado='Rentado') }}">Ver equipos rentados</a></div>
+{% endif %}
+
+<div class="toolbar">
+    {% if puede('productos', 'editar') %}
+    <a class="tool-btn btn-save" href="{{ url_for('dashboard.catalogo_view', tipo='productos') }}"><i class="fa-solid fa-dolly"></i> Registrar entrada de mercancía</a>
+    {% endif %}
+    <a class="tool-btn" href="{{ url_for('dashboard.movimientos_view') }}"><i class="fa-solid fa-right-left"></i> Todos los movimientos</a>
+</div>
+
+<div class="table-wrap">
+    <table class="data-table">
+        <thead><tr><th>Últimos movimientos</th><th class="num">Cantidad</th><th class="num">Stock</th><th>Motivo</th><th>Usuario</th></tr></thead>
+        <tbody>
+            {% for m in inv.movimientos %}
+            <tr>
+                <td><strong>{{ m.nombre }}</strong><div class="sub mono">{{ m.fecha }}</div></td>
+                <td class="num"><span class="{{ 'texto-mal' if m.cantidad < 0 else 'texto-bien' }}">{{ '%+g' | format(m.cantidad) }}</span></td>
+                <td class="num">{{ m.stock }}</td>
+                <td>{{ m.motivo }}</td>
+                <td>{{ m.usuario }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not inv.movimientos %}<p class="empty">Todavía no hay movimientos de inventario.</p>{% endif %}
+</div>

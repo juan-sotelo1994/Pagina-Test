@@ -72,6 +72,8 @@ def limpiar_items(crudos):
             'nombre': nombre, 'detalle': str(crudo.get('detalle', '')).strip()[:1000],
             'unidad': str(crudo.get('unidad') or (ref or {}).get('unidad', 'Unidad'))[:30],
             'cantidad': cantidad, 'precio': precio, 'descuento': descuento, 'iva': iva,
+            # Nivel de precio elegido en productos: precio (lista), precio2, precio3 o manual
+            'nivel': crudo.get('nivel') if crudo.get('nivel') in ('precio', 'precio2', 'precio3', 'manual') else '',
             'bruto': round(bruto, 2), 'valor_descuento': valor_descuento, 'base': round(base, 2),
             'valor_iva': valor_iva, 'total': round(base + valor_iva, 2),
         })
@@ -204,6 +206,18 @@ def cambiar_estado(cot_id, estado, usuario='', extra=None, accion=None):
         c['historial'].append({'fecha': ahora, 'usuario': usuario, 'accion': accion or f'Marcada como {ESTADOS[estado].lower()}'})
         almacen.escribir(ARCHIVO, lista)
     return _completar(dict(c))
+
+
+def anotar(cot_id, accion, usuario=''):
+    """Agrega una línea al historial sin cambiar el estado (ej. «Enviada por correo a …»)."""
+    with _lock:
+        lista = almacen.leer(ARCHIVO, [])
+        c = next((c for c in lista if c['id'] == cot_id), None)
+        if c is None:
+            return None
+        c['historial'].append({'fecha': datetime.now().strftime('%Y-%m-%d %H:%M'), 'usuario': usuario, 'accion': accion})
+        almacen.escribir(ARCHIVO, lista)
+    return c
 
 
 def duplicar(cot_id, usuario=''):

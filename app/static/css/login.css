@@ -359,3 +359,175 @@
         padding: 84px 20px 24px;
     }
 }
+
+/* ---------- Recuperar la cuenta ---------- */
+
+.login-texto {
+    margin: -6px 0 0;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--muted);
+}
+
+.login-aviso {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(76, 175, 110, 0.45);
+    background: rgba(76, 175, 110, 0.12);
+    color: var(--text);
+    font-size: 14px;
+}
+
+.cuenta-regresiva {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(59, 130, 246, 0.1);
+    text-align: center;
+    font-size: 14px;
+}
+
+.cuenta-regresiva strong {
+    font-variant-numeric: tabular-nums;
+    font-size: 16px;
+}
+
+.cuenta-regresiva.poco-tiempo {
+    background: rgba(245, 158, 11, 0.15);
+}
+
+.cuenta-regresiva.vencido {
+    background: rgba(239, 99, 81, 0.12);
+    color: var(--error-text);
+}
+
+.field input.campo-codigo {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    letter-spacing: .5em;
+    text-align: center;
+}
+
+.field-error {
+    font-size: 13px;
+    color: var(--error-text);
+}
+
+.field-invalido input {
+    border-bottom-color: var(--error-text);
+}
+
+.reenviar {
+    display: flex;
+    justify-content: center;
+    padding: 0 32px 26px;
+    margin-top: -14px;
+}
+
+.reenviar .forgot {
+    align-self: center;
+    margin: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.reenviar .forgot:disabled {
+    cursor: default;
+    opacity: .7;
+}
+
+.reenviar .forgot:disabled:hover {
+    color: var(--muted);
+}
+
+/* Elegir por dónde llega el código: correo o WhatsApp */
+.canales {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.canales legend {
+    grid-column: 1 / -1;
+    margin-bottom: 8px;
+    padding: 0;
+}
+
+.canal {
+    position: relative;
+    cursor: pointer;
+}
+
+.canal input {
+    position: absolute;
+    opacity: 0;
+}
+
+.canal > span {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    padding: 14px 10px;
+    border: 2px solid var(--line-strong);
+    border-radius: 12px;
+    text-align: center;
+    transition: border-color .15s, background .15s;
+}
+
+.canal svg {
+    width: 28px;
+    height: 28px;
+    margin-bottom: 4px;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.canal-whatsapp svg {
+    fill: var(--muted);
+    stroke: none;
+}
+
+.canal strong {
+    font-size: 15px;
+}
+
+.canal small {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.canal input:checked + span {
+    border-color: #2f6fe0;
+    background: rgba(47, 111, 224, .08);
+}
+
+.canal input:checked + span svg {
+    stroke: #2f6fe0;
+}
+
+.canal-whatsapp input:checked + span {
+    border-color: #25d366;
+    background: rgba(37, 211, 102, .1);
+}
+
+.canal-whatsapp input:checked + span svg {
+    fill: #1faa52;
+}
+
+.canal input:focus-visible + span {
+    outline: 2px solid var(--lime);
+    outline-offset: 2px;
+}

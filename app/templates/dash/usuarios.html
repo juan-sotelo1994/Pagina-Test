@@ -7,7 +7,7 @@
 
 <div class="toolbar">
     {% if puede_crear %}
-    <button type="button" class="tool-btn btn-save" data-open-dialog="nuevo-usuario">
+    <button type="button" class="tool-btn btn-save" data-open-dialog="dialogo-usuario" data-usuario-nuevo>
         <i class="fa-solid fa-user-plus"></i> Nuevo usuario
     </button>
     {% endif %}
@@ -21,32 +21,50 @@
     <table class="data-table" id="data-table">
         <thead>
             <tr>
-                <th data-sort="text">Nombre</th>
+                <th data-sort="text">Nombres</th>
+                <th data-sort="text">Apellidos</th>
                 <th data-sort="text">Correo</th>
+                <th data-sort="text">Celular</th>
                 <th data-sort="text">Rol</th>
                 <th data-sort="text">Estado</th>
                 <th data-sort="text">Creado</th>
+                {% if puede_editar %}<th class="center">Acciones</th>{% endif %}
             </tr>
         </thead>
         <tbody>
             {% if admin_correo %}
             <tr>
-                <td><i class="fa-solid fa-crown muted"></i> Administrador del sistema</td>
+                <td><i class="fa-solid fa-crown muted"></i> {{ admin_nombre[0] }}</td>
+                <td>{{ admin_nombre[1] or '—' }}</td>
                 <td>{{ admin_correo }}</td>
+                <td>—</td>
                 <td><span class="tag tag-full">Superadministrador</span></td>
                 <td><span class="status"><span class="status-dot" style="background: #4caf6e"></span>Activo</span></td>
                 <td class="muted-text">Archivo .env</td>
+                {% if puede_editar %}<td></td>{% endif %}
             </tr>
             {% endif %}
             {% for u in lista %}
             <tr>
-                <td><i class="fa-solid fa-user muted"></i> {{ u.nombre }}</td>
+                {% set nombres, apellidos = separar(u) %}
+                <td><i class="fa-solid {{ 'fa-crown' if u.rol == 'superadmin' else 'fa-user' }} muted"></i> {{ nombres }}</td>
+                <td>{{ apellidos or '—' }}</td>
                 <td>{{ u.correo }}</td>
+                <td class="mono">{{ u.celular or '—' }}</td>
                 <td><span class="tag {% if u.rol in ('superadmin', 'admin') %}tag-full{% else %}tag-read{% endif %}">{{ nombres_rol.get(u.rol, u.rol) }}</span></td>
                 <td>
                     <span class="status"><span class="status-dot" style="background: {{ '#4caf6e' if u.activo else '#6b6f75' }}"></span>{{ 'Activo' if u.activo else 'Inactivo' }}</span>
                 </td>
                 <td class="mono">{{ u.creado }}</td>
+                {% if puede_editar %}
+                <td class="center actions">
+                    {% if u.rol != 'superadmin' or rol_actual == 'superadmin' %}
+                    <button type="button" class="mini-btn" data-open-dialog="dialogo-usuario" data-usuario='{{ para_formulario(u) | tojson | forceescape }}'>
+                        <i class="fa-solid fa-pen"></i><span>Editar</span>
+                    </button>
+                    {% endif %}
+                </td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>
@@ -54,52 +72,78 @@
     <p class="empty" id="table-empty" hidden>No hay resultados para esa búsqueda.</p>
 </div>
 
-{% if not lista %}
-<p class="note"><i class="fa-solid fa-circle-info"></i> Aún no hay usuarios creados. Usa “Nuevo usuario” para agregar a tu equipo.</p>
-{% endif %}
+<p class="note"><i class="fa-solid fa-circle-info"></i>
+    El celular sirve para recibir por SMS o WhatsApp el código de «¿Olvidaste tu contraseña?».
+    {% if not canal_mensajes %}Aún no hay proveedor de mensajes configurado: los códigos quedan en <span class="mono">app/data/mensajes_salientes.log</span>.{% endif %}</p>
 
-{% if puede_crear %}
-<!-- Formulario de nuevo usuario -->
-<dialog class="dialog" id="nuevo-usuario" {% if errores %}data-open-on-load{% endif %} aria-labelledby="nuevo-usuario-titulo">
-    <form method="post" class="dialog-form" novalidate>
+{% if puede_crear or puede_editar %}
+<!-- Formulario de usuario: nuevo y editar -->
+<dialog class="dialog" id="dialogo-usuario" {% if errores %}data-open-on-load{% endif %} aria-labelledby="dialogo-usuario-titulo">
+    <form method="post" action="{{ url_for('dashboard.usuarios_view') }}" class="dialog-form" novalidate id="form-usuario">
+        <input type="hidden" name="id" value="{{ formulario.id }}">
         <header class="dialog-head">
-            <h2 id="nuevo-usuario-titulo"><i class="fa-solid fa-user-plus"></i> Nuevo usuario</h2>
+            <h2 id="dialogo-usuario-titulo"><i class="fa-solid fa-user-pen"></i> <span data-titulo-usuario>{{ 'Editar usuario' if formulario.id else 'Nuevo usuario' }}</span></h2>
             <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
         </header>
 
         <div class="dialog-body">
-            <label class="form-field {% if errores.nombre %}invalid{% endif %}">
-                <span>Nombre completo</span>
-                <input type="text" name="nombre" value="{{ formulario.nombre }}" required autocomplete="off">
-                {% if errores.nombre %}<small>{{ errores.nombre }}</small>{% endif %}
-            </label>
+            <div class="form-row">
+                <label class="form-field {% if errores.nombres %}invalid{% endif %}">
+                    <span>Nombres</span>
+                    <input type="text" name="nombres" value="{{ formulario.nombres }}" maxlength="60" required autocomplete="off" placeholder="Juan David">
+                    {% if errores.nombres %}<small>{{ errores.nombres }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.apellidos %}invalid{% endif %}">
+                    <span>Apellidos</span>
+                    <input type="text" name="apellidos" value="{{ formulario.apellidos }}" maxlength="60" required autocomplete="off" placeholder="Sotelo Ramírez">
+                    {% if errores.apellidos %}<small>{{ errores.apellidos }}</small>{% endif %}
+                </label>
+            </div>
 
-            <label class="form-field {% if errores.correo %}invalid{% endif %}">
-                <span>Correo electrónico</span>
-                <input type="email" name="correo" value="{{ formulario.correo }}" required autocomplete="off">
-                {% if errores.correo %}<small>{{ errores.correo }}</small>{% endif %}
-            </label>
+            <div class="form-row">
+                <label class="form-field {% if errores.correo %}invalid{% endif %}">
+                    <span>Correo electrónico</span>
+                    <input type="email" name="correo" value="{{ formulario.correo }}" required autocomplete="off">
+                    {% if errores.correo %}<small>{{ errores.correo }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.celular %}invalid{% endif %}">
+                    <span>Celular <small class="hint">(para recuperar la contraseña)</small></span>
+                    <input type="tel" name="celular" value="{{ formulario.celular }}" maxlength="20" autocomplete="off" placeholder="300 123 4567">
+                    {% if errores.celular %}<small>{{ errores.celular }}</small>{% else %}<small class="hint">Si es de otro país, con indicativo: +1 415 555 0100.</small>{% endif %}
+                </label>
+            </div>
 
-            <label class="form-field {% if errores.rol %}invalid{% endif %}">
-                <span>Rol</span>
-                <select name="rol" required>
-                    <option value="">Selecciona un rol</option>
-                    {% for clave, nombre, descripcion in roles_asignables %}
-                    <option value="{{ clave }}" {% if formulario.rol == clave %}selected{% endif %}>{{ nombre }} — {{ descripcion }}</option>
-                    {% endfor %}
-                </select>
-                {% if errores.rol %}<small>{{ errores.rol }}</small>{% endif %}
-            </label>
+            <div class="form-row">
+                <label class="form-field {% if errores.rol %}invalid{% endif %}">
+                    <span>Rol</span>
+                    <select name="rol" required>
+                        <option value="">Selecciona un rol</option>
+                        {% for clave, nombre, descripcion in roles_asignables %}
+                        <option value="{{ clave }}" {% if formulario.rol == clave %}selected{% endif %}>{{ nombre }} — {{ descripcion }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if errores.rol %}<small>{{ errores.rol }}</small>{% endif %}
+                </label>
+                <label class="form-field {% if errores.activo %}invalid{% endif %}" data-solo-editar {% if not formulario.id %}hidden{% endif %}>
+                    <span>Estado</span>
+                    <select name="activo">
+                        <option value="1">Activo</option>
+                        <option value="0" {% if formulario.activo == '0' %}selected{% endif %}>Inactivo (no puede entrar)</option>
+                    </select>
+                    {% if errores.activo %}<small>{{ errores.activo }}</small>{% endif %}
+                </label>
+            </div>
 
             <div class="form-row">
                 <label class="form-field {% if errores.contrasena %}invalid{% endif %}">
-                    <span>Contraseña</span>
-                    <input type="password" name="contrasena" required minlength="{{ largo_minimo }}" autocomplete="new-password">
-                    {% if errores.contrasena %}<small>{{ errores.contrasena }}</small>{% else %}<small class="hint">Mínimo {{ largo_minimo }} caracteres.</small>{% endif %}
+                    <span><span data-solo-nuevo {% if formulario.id %}hidden{% endif %}>Contraseña</span><span data-solo-editar {% if not formulario.id %}hidden{% endif %}>Contraseña nueva <small class="hint">(opcional)</small></span></span>
+                    <input type="password" name="contrasena" minlength="{{ largo_minimo }}" autocomplete="new-password">
+                    {% if errores.contrasena %}<small>{{ errores.contrasena }}</small>{% else %}
+                    <small class="hint"><span data-solo-nuevo {% if formulario.id %}hidden{% endif %}>Mínimo {{ largo_minimo }} caracteres.</span><span data-solo-editar {% if not formulario.id %}hidden{% endif %}>Déjala vacía para no cambiarla.</span></small>{% endif %}
                 </label>
                 <label class="form-field {% if errores.confirmacion %}invalid{% endif %}">
                     <span>Confirmar contraseña</span>
-                    <input type="password" name="confirmacion" required autocomplete="new-password">
+                    <input type="password" name="confirmacion" autocomplete="new-password">
                     {% if errores.confirmacion %}<small>{{ errores.confirmacion }}</small>{% endif %}
                 </label>
             </div>
@@ -107,7 +151,7 @@
 
         <footer class="card-foot">
             <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
-            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Crear usuario</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
         </footer>
     </form>
 </dialog>

@@ -15,6 +15,9 @@ from datetime import date, datetime
 import almacen
 
 IVAS = ['19', '5', '0']
+
+# Precios de venta de un producto, de mayor a menor, para negociar en la cotización
+NIVELES_PRECIO = [('precio', 'Lista'), ('precio2', 'Preferencial'), ('precio3', 'Mínimo')]
 ESTADOS_RENTA = ['Disponible', 'Rentado', 'En mantenimiento', 'De baja']
 
 # (nombre, etiqueta, tipo, opciones, obligatorio, ayuda)
@@ -33,7 +36,9 @@ CATALOGOS = {
             # Compra: lo que le pagamos al proveedor. Venta: lo que le cobramos al cliente
             ('proveedor_id', 'Proveedor', 'proveedor', None, False, 'A quién se le compra.'),
             ('costo', 'Precio de compra (sin IVA)', 'money', None, False, 'Lo que le pagamos al proveedor. No se muestra al cliente.'),
-            ('precio', 'Precio de venta (sin IVA)', 'money', None, True, 'Lo que le cobramos al cliente; es el que sale en la cotización.'),
+            ('precio', 'Precio 1 · Lista (sin IVA)', 'money', None, True, 'El precio normal al público.'),
+            ('precio2', 'Precio 2 · Preferencial (sin IVA)', 'money', None, False, 'Clientes frecuentes o por volumen. Vacío = igual al de lista.'),
+            ('precio3', 'Precio 3 · Mínimo (sin IVA)', 'money', None, False, 'El piso de negociación. Vacío = igual al preferencial.'),
             ('iva', 'IVA', 'iva', IVAS, True, ''),
             ('stock', 'Stock disponible', 'int', None, False, ''),
             ('stock_minimo', 'Stock mínimo', 'int', None, False, 'Por debajo de este número se marca en rojo.'),
@@ -146,7 +151,41 @@ def validar(tipo, form, item_id=None):
         errores['codigo'] = 'Ya existe un registro con ese código.'
     if tipo == 'renta':
         _validar_renta(datos, errores, item_id)
+    if tipo == 'productos':
+        _validar_precios(datos, errores)
     return datos, errores
+
+
+def _validar_precios(datos, errores):
+    # Los tres precios van de mayor a menor y ninguno por debajo del precio de compra
+    lista, pref, minimo, costo = (datos.get(k) or 0 for k in ('precio', 'precio2', 'precio3', 'costo'))
+    if pref and lista and pref > lista:
+        errores['precio2'] = 'No puede ser mayor que el precio de lista.'
+    if minimo and minimo > (pref or lista):
+        errores['precio3'] = 'No puede ser mayor que el precio preferencial.'
+    if costo:
+        for campo, valor in (('precio', lista), ('precio2', pref), ('precio3', minimo)):
+            if valor and valor < costo and campo not in errores:
+                errores[campo] = 'Queda por debajo del precio de compra.'
+
+
+def _precios_distintos(producto):
+    vistos, resultado = set(), []
+    for nivel, etiqueta, valor in precios_de(producto):
+        if valor not in vistos:
+            vistos.add(valor)
+            resultado.append({'nivel': nivel, 'etiqueta': etiqueta, 'valor': valor})
+    return resultado
+
+
+def precios_de(producto):
+    """[(nivel, etiqueta, valor)] con los vacíos llenados por el nivel anterior."""
+    resultado, anterior = [], 0
+    for campo, etiqueta in NIVELES_PRECIO:
+        valor = producto.get(campo) or anterior
+        resultado.append((campo, etiqueta, valor))
+        anterior = valor
+    return resultado
 
 
 def _validar_renta(datos, errores, item_id):
@@ -292,6 +331,9 @@ def para_cotizar():
                 'detalle': (x.get('descripcion', '') + (f"\nSerial: {x['serial']}" if x.get('serial') else '')).strip(), 'unidad': x.get('unidad', ''), 'precio': x.get('precio', 0),
                 'iva': float(x.get('iva') or 0), 'stock': x.get('stock') if tipo == 'productos' else None,
                 'categoria': x.get('categoria', ''),
+                # Solo productos: los tres precios para elegir en el editor
+                # (sin repetir: si el preferencial o el mínimo no están definidos, no se ofrecen)
+                'precios': _precios_distintos(x) if tipo == 'productos' else [],
             })
     return resultado
 

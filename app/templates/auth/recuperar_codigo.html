@@ -1,0 +1,68 @@
+{% extends 'auth/base_auth.html' %}
+
+{% block titulo %}Nueva contraseña{% endblock %}
+
+{% block formulario %}
+        <form class="login-form" method="post" action="{{ url_for('autenticar.recuperar_codigo') }}" novalidate id="form-codigo">
+            <h1>Crea tu nueva contraseña</h1>
+            <p class="login-texto">
+                {% if canal == 'whatsapp' %}
+                Si <strong>{{ correo_oculto }}</strong> está registrado y tiene celular, le enviamos un código de 6 números
+                por <strong>WhatsApp</strong> a ese celular.
+                {% else %}
+                Si <strong>{{ correo_oculto }}</strong> está registrado, le enviamos un código de 6 números
+                a ese <strong>correo electrónico</strong>. Revisa también la carpeta de spam.
+                {% endif %}
+            </p>
+
+            {% for categoria, mensaje in get_flashed_messages(with_categories=true) %}
+            <p class="login-aviso" role="status">{{ mensaje }}</p>
+            {% endfor %}
+            {% if error %}
+            <p class="login-error" role="alert">{{ error }}</p>
+            {% endif %}
+
+            <p class="cuenta-regresiva {{ 'vencido' if not restante }}" id="cuenta-regresiva" data-restante="{{ restante }}" aria-live="polite">
+                {% if restante %}El código vence en <strong>{{ '%d:%02d' | format(restante // 60, restante % 60) }}</strong>
+                {% else %}El código ya venció. Pide uno nuevo.{% endif %}
+            </p>
+
+            <label class="field {{ 'field-invalido' if errores.codigo }}">
+                <span class="field-label">Código</span>
+                <input type="text" name="codigo" id="codigo" class="campo-codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                       autocomplete="one-time-code" placeholder="000000" required autofocus>
+                {% if errores.codigo %}<small class="field-error">{{ errores.codigo }}</small>{% endif %}
+            </label>
+
+            <label class="field {{ 'field-invalido' if errores.contrasena }}">
+                <span class="field-label">Contraseña nueva</span>
+                <span class="field-password">
+                    <input type="password" name="contrasena" id="contrasena" autocomplete="new-password" placeholder="Mínimo 8 caracteres" required>
+                    <button type="button" class="toggle-password" id="toggle-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </span>
+                {% if errores.contrasena %}<small class="field-error">{{ errores.contrasena }}</small>{% endif %}
+            </label>
+
+            <label class="field {{ 'field-invalido' if errores.confirmacion }}">
+                <span class="field-label">Confirma la contraseña</span>
+                <input type="password" name="confirmacion" id="confirmacion" autocomplete="new-password" required>
+                {% if errores.confirmacion %}<small class="field-error">{{ errores.confirmacion }}</small>{% endif %}
+            </label>
+
+            <button type="submit" class="btn btn-primary login-submit">
+                Cambiar contraseña
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+        </form>
+
+        <form method="post" action="{{ url_for('autenticar.recuperar_codigo') }}" class="reenviar">
+            <input type="hidden" name="accion" value="reenviar">
+            <button type="submit" class="forgot" id="reenviar" data-espera="{{ reenviar_en }}" {% if reenviar_en %}disabled{% endif %}>
+                {% if reenviar_en %}Puedes pedir otro código en {{ reenviar_en }} s{% else %}¿No te llegó? Enviar otro código{% endif %}
+            </button>
+        </form>
+{% endblock %}
+
+{% block volver %}<a href="{{ url_for('autenticar.recuperar') }}" class="login-back">← {{ 'Recibirlo por correo' if canal == 'whatsapp' else 'Recibirlo por WhatsApp' }} o usar otro correo</a>{% endblock %}

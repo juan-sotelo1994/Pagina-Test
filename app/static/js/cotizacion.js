@@ -18,6 +18,7 @@
     let items = datos.items.map((i) => ({
         ...i,
         stock: (porId[`${i.tipo}:${i.ref_id}`] || {}).stock ?? null,
+        precios: (porId[`${i.tipo}:${i.ref_id}`] || {}).precios || [],
     }));
 
     // ---- Buscador del catálogo (datalist)
@@ -52,6 +53,7 @@
             items.push({
                 tipo: c.tipo, ref_id: c.id, codigo: c.codigo, nombre: c.nombre, detalle: c.detalle,
                 unidad: c.unidad, cantidad: 1, precio: c.precio, descuento: 0, iva: c.iva, stock: c.stock,
+                precios: c.precios || [], nivel: (c.precios || []).length ? 'precio' : '',
             });
         }
         buscar.value = '';
@@ -115,7 +117,13 @@
             total.textContent = pesos.format(v.total);
             const sinStock = i.tipo === 'producto' && i.stock !== null && Number(i.cantidad) > i.stock;
             tr.classList.toggle('cot-sin-stock', sinStock);
-            aviso.textContent = sinStock ? `Solo hay ${i.stock} en stock` : '';
+            // Precio final por unidad (con descuento) por debajo del precio mínimo del producto
+            const minimo = i.precios && i.precios.length ? i.precios[i.precios.length - 1].valor : 0;
+            const unitario = Number(i.precio || 0) * (1 - Number(i.descuento || 0) / 100);
+            const bajoMinimo = minimo && unitario < minimo - 0.5;
+            tr.classList.toggle('cot-bajo-minimo', Boolean(bajoMinimo));
+            aviso.textContent = [sinStock ? `Solo hay ${i.stock} en stock` : '',
+                bajoMinimo ? `Queda por debajo del precio mínimo (${pesos.format(minimo)})` : ''].filter(Boolean).join(' · ');
             pintarTotales();
         };
         const enlazar = (input, clave) => {
@@ -166,7 +174,33 @@
         quitar.addEventListener('click', () => { items.splice(idx, 1); pintar(); });
         tdQuitar.append(quitar);
 
-        tr.append(tdDesc, numeroInput('cantidad', { className: 'num cot-cantidad' }), tdUnidad, numeroInput('precio'),
+        // Precio: en productos se elige Lista, Preferencial o Mínimo (o se escribe a mano)
+        const tdPrecio = numeroInput('precio');
+        if (i.precios && i.precios.length > 1) {
+            const inputPrecio = tdPrecio.querySelector('input');
+            const nivel = campo('select', { className: 'cot-nivel' });
+            nivel.setAttribute('aria-label', 'Nivel de precio');
+            i.precios.forEach((p) => nivel.append(campo('option', { value: p.nivel, textContent: `${p.etiqueta} · ${pesos.format(p.valor)}` })));
+            nivel.append(campo('option', { value: 'manual', textContent: 'Manual' }));
+            const nivelDe = (valor) => (i.precios.find((p) => Math.abs(p.valor - Number(valor)) < 0.5) || {}).nivel || 'manual';
+            nivel.value = i.nivel && i.nivel !== 'manual' && nivelDe(i.precio) === i.nivel ? i.nivel : nivelDe(i.precio);
+            i.nivel = nivel.value;
+            nivel.addEventListener('change', () => {
+                i.nivel = nivel.value;
+                const elegido = i.precios.find((p) => p.nivel === nivel.value);
+                if (elegido) {
+                    i.precio = elegido.valor;
+                    inputPrecio.value = elegido.valor;
+                } else {
+                    inputPrecio.focus();
+                }
+                actualizar();
+            });
+            inputPrecio.addEventListener('input', () => { nivel.value = nivelDe(inputPrecio.value); i.nivel = nivel.value; });
+            tdPrecio.prepend(nivel);
+        }
+
+        tr.append(tdDesc, numeroInput('cantidad', { className: 'num cot-cantidad' }), tdUnidad, tdPrecio,
             numeroInput('descuento', { max: 100, className: 'num cot-desc' }), tdIva, total, tdQuitar);
         actualizar();
         return tr;
@@ -201,7 +235,7 @@
 
     // ---- Guardar: las líneas viajan como JSON
     form.addEventListener('submit', () => {
-        document.getElementById('items-json').value = JSON.stringify(items.map(({ stock, ...resto }) => resto));
+        document.getElementById('items-json').value = JSON.stringify(items.map(({ stock, precios, ...resto }) => resto));
     });
 
     pintar();

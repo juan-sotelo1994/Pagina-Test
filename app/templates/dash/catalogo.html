@@ -70,6 +70,11 @@
         <i class="fa-solid fa-magnifying-glass"></i>
         <input type="search" id="table-search" placeholder="Buscar por código, nombre{{ ', serial o cliente' if es_renta else (' o marca' if es_producto) }}" aria-label="Buscar {{ cfg.titulo | lower }}">
     </label>
+    {% if es_producto and puede_editar %}
+    <button type="button" class="tool-btn" data-open-dialog="dialogo-entrada" data-entrada="" {% if not total %}disabled title="Primero crea el producto"{% endif %}>
+        <i class="fa-solid fa-dolly"></i> Registrar entrada
+    </button>
+    {% endif %}
     {% if es_producto %}
     <a class="tool-btn" href="{{ url_for('dashboard.movimientos_view') }}"><i class="fa-solid fa-right-left"></i> Movimientos</a>
     {% endif %}
@@ -99,10 +104,9 @@
                 {% else %}
                 <th data-sort="text">{{ 'Unidad' if es_producto else 'Se cobra por' }}</th>
                 {% if es_producto and ver_costo %}<th data-sort="number" class="num">Precio de compra</th>{% endif %}
-                <th data-sort="number" class="num">{{ 'Precio de venta' if es_producto else 'Precio' }}</th>
+                <th data-sort="number" class="num">{{ 'Precios de venta' if es_producto else 'Precio' }}{% if es_producto and ver_costo %} <small class="muted-text">(margen)</small>{% endif %}</th>
                 {% endif %}
                 <th data-sort="number" class="num">IVA</th>
-                {% if es_producto and ver_costo %}<th data-sort="number" class="num">Margen</th>{% endif %}
                 {% if es_renta and ver_costo %}<th data-sort="number" class="num">Se paga en</th>{% endif %}
                 {% if es_producto %}<th data-sort="number" class="num">Stock</th>{% endif %}
                 {% if not es_renta %}<th data-sort="text">Estado</th>{% endif %}
@@ -136,15 +140,20 @@
                 {% if es_producto and ver_costo %}
                 <td class="num" data-value="{{ x.costo or 0 }}">{% if x.costo %}{{ x.costo | pesos }}{% else %}<span class="muted-text">—</span>{% endif %}</td>
                 {% endif %}
+                {% if es_producto %}
+                <td class="num" data-value="{{ x.precio }}">
+                    {% for nivel, etiqueta, valor in precios_de(x) %}
+                    <div class="precio-nivel {{ 'principal' if loop.first }}">
+                        <small>{{ etiqueta }}</small> {{ valor | pesos }}
+                        {% if ver_costo and x.costo and valor %}<small class="{{ 'texto-mal' if (valor - x.costo) * 100 / valor < 10 else 'muted-text' }}">{{ '%.0f' | format((valor - x.costo) * 100 / valor) }}%</small>{% endif %}
+                    </div>
+                    {% endfor %}
+                </td>
+                {% else %}
                 <td class="num" data-value="{{ x.precio }}">{{ x.precio | pesos }}</td>
                 {% endif %}
-                <td class="num" data-value="{{ x.iva }}">{{ x.iva }}%</td>
-                {% if es_producto and ver_costo %}
-                {% set margen = ((x.precio - x.costo) * 100 / x.precio) if x.costo and x.precio else None %}
-                <td class="num" data-value="{{ margen if margen is not none else -999 }}">
-                    {% if margen is not none %}<span class="{{ 'texto-mal' if margen < 10 else '' }}">{{ '%.0f' | format(margen) }}%</span>{% else %}<span class="muted-text">—</span>{% endif %}
-                </td>
                 {% endif %}
+                <td class="num" data-value="{{ x.iva }}">{{ x.iva }}%</td>
                 {% if es_renta and ver_costo %}
                 {% set meses = (x.costo / x.precio) if x.costo and x.precio and x.unidad == 'Mes' else None %}
                 <td class="num" data-value="{{ meses if meses is not none else 9999 }}" title="Precio de compra / renta mensual">
@@ -161,6 +170,11 @@
                 {% endif %}
                 {% if puede_editar or puede_eliminar %}
                 <td class="center actions">
+                    {% if es_producto and puede_editar %}
+                    <button type="button" class="mini-btn" data-open-dialog="dialogo-entrada" data-entrada="{{ x.id }}" title="Registrar mercancía que llegó">
+                        <i class="fa-solid fa-dolly"></i><span>Entrada</span>
+                    </button>
+                    {% endif %}
                     {% if puede_editar %}
                     <button type="button" class="mini-btn" data-open-dialog="dialogo-item" data-item='{{ x | tojson | forceescape }}'>
                         <i class="fa-solid fa-pen"></i><span>Editar</span>
@@ -249,6 +263,57 @@
         <footer class="card-foot">
             <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
             <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
+
+{% if es_producto and puede_editar %}
+<!-- Entrada de mercancía: lo que llega del proveedor suma al stock -->
+<dialog class="dialog" id="dialogo-entrada" {% if errores_entrada %}data-open-on-load{% endif %} aria-labelledby="dialogo-entrada-titulo">
+    <form method="post" action="{{ url_for('dashboard.productos_entrada') }}" novalidate id="form-entrada">
+        <header class="dialog-head">
+            <h2 id="dialogo-entrada-titulo"><i class="fa-solid fa-dolly"></i> Registrar entrada de mercancía</h2>
+            <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="dialog-body form-grid">
+            <label class="form-field span-2 {{ 'invalid' if errores_entrada.producto_id }}">
+                <span>Producto que llegó</span>
+                <select name="producto_id" required>
+                    <option value="">Selecciona el producto</option>
+                    {% for x in todos_productos %}
+                    <option value="{{ x.id }}" data-proveedor="{{ x.proveedor_id or '' }}" data-costo="{{ x.costo or '' }}"
+                            {% if entrada.producto_id == x.id %}selected{% endif %}>{{ x.codigo }} · {{ x.nombre }} (stock: {{ x.stock or 0 }})</option>
+                    {% endfor %}
+                </select>
+                {% if errores_entrada.producto_id %}<small>{{ errores_entrada.producto_id }}</small>{% else %}<small class="hint">¿No está en la lista? Créalo primero con «Nuevo producto».</small>{% endif %}
+            </label>
+            <label class="form-field {{ 'invalid' if errores_entrada.cantidad }}">
+                <span>Cantidad recibida</span>
+                <input type="number" name="cantidad" min="1" step="1" value="{{ entrada.cantidad }}" required>
+                {% if errores_entrada.cantidad %}<small>{{ errores_entrada.cantidad }}</small>{% endif %}
+            </label>
+            <label class="form-field">
+                <span>Factura o remisión <small class="hint">(opcional)</small></span>
+                <input type="text" name="documento" maxlength="60" value="{{ entrada.documento }}" placeholder="FE-12345">
+            </label>
+            <label class="form-field {{ 'invalid' if errores_entrada.proveedor_id }}">
+                <span>Proveedor <small class="hint">(opcional)</small></span>
+                <select name="proveedor_id">
+                    <option value="">Sin proveedor</option>
+                    {% for p in proveedores_lista %}<option value="{{ p.id }}" {% if entrada.proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+                </select>
+                {% if errores_entrada.proveedor_id %}<small>{{ errores_entrada.proveedor_id }}</small>{% endif %}
+            </label>
+            <label class="form-field {{ 'invalid' if errores_entrada.costo }}">
+                <span>Precio de compra unitario <small class="hint">(opcional)</small></span>
+                <input type="text" name="costo" inputmode="decimal" class="num" value="{{ entrada.costo }}" placeholder="0">
+                {% if errores_entrada.costo %}<small>{{ errores_entrada.costo }}</small>{% else %}<small class="hint">Si lo escribes, actualiza el precio de compra del producto.</small>{% endif %}
+            </label>
+        </div>
+        <footer class="card-foot">
+            <button type="button" class="tool-btn" data-close-dialog>Cancelar</button>
+            <button type="submit" class="tool-btn btn-save"><i class="fa-solid fa-plus"></i> Sumar al inventario</button>
         </footer>
     </form>
 </dialog>
