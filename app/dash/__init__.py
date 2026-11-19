@@ -5,23 +5,22 @@ from collections import Counter
 from datetime import date, datetime
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from markupsafe import Markup
 
-from auth import correo_admin, login_requerido, usuarios
+from auth import correo_admin, login_requerido, nombre_admin, nombre_de, usuarios
+import correo as correos
+import mensajes
 from web import EMPRESA
-from . import (agentes, catalogo, clientes, comandos, cotizaciones, descargas, equipos, glpi, pdf_cotizacion, permisos,
-               proveedores, ventas)
+from . import (agentes, catalogo, clientes, comandos, cotizaciones, descargas, equipos, favoritos, glpi, indicadores,
+               pdf_cotizacion, permisos, proveedores, ventas)
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
 
 # Menú lateral: (clave, texto, icono de Font Awesome)
-# 'inicio' es la vista general; las demás claves son secciones del panel
-FAVORITOS = [
-    ('inicio', 'Vista general', 'fa-gauge-high'),
-    ('cotizaciones', 'Cotizaciones', 'fa-file-signature'),
-]
-
+# 'inicio' es la vista general; las demás claves son secciones del panel.
+# Cada usuario arma sus Favoritos con la estrella de cada opción (dash/favoritos.py)
 MENU = [
     {'grupo': 'Dashboard', 'icono': 'fa-gauge-high', 'items': [
         ('inicio', 'Vista general', 'fa-chart-pie'),
@@ -31,7 +30,6 @@ MENU = [
         ('clientes', 'Clientes', 'fa-users'),
         ('cotizaciones', 'Cotizaciones', 'fa-file-signature'),
         ('ventas', 'Órdenes de compra', 'fa-cart-shopping'),
-        ('vendedores', 'Vendedores', 'fa-user-tie'),
     ]},
     {'grupo': 'Facturación', 'icono': 'fa-file-invoice-dollar', 'items': [
         ('facturas', 'Facturas', 'fa-file-invoice'),
@@ -59,9 +57,14 @@ MENU = [
 ]
 
 SECCIONES = {clave: texto for g in MENU for clave, texto, _ in g['items']}
+OPCIONES = {clave: (clave, texto, icono) for g in MENU for clave, texto, icono in g['items']}
 
 
-def menu_visible(rol):
+def enlace_menu(clave):
+    return url_for('dashboard.dash_view') if clave == 'inicio' else url_for('dashboard.seccion', nombre=clave)
+
+
+def menu_visible(rol, usuario=None):
     # Solo muestra las opciones que el rol puede ver ('inicio' siempre se ve)
     visible = lambda clave: clave == 'inicio' or permisos.puede(rol, clave, 'ver')
     grupos = []
@@ -69,7 +72,8 @@ def menu_visible(rol):
         items = [i for i in g['items'] if visible(i[0])]
         if items:
             grupos.append({**g, 'items': items})
-    return grupos, [f for f in FAVORITOS if visible(f[0])]
+    favs = [OPCIONES[c] for c in favoritos.de_usuario(usuario) if c in OPCIONES and visible(c)]
+    return grupos, favs
 
 
 # Datos de ejemplo mientras no exista la base de datos
@@ -119,13 +123,17 @@ def formato_fecha_hora(segundos):
 @dashboard_bp.context_processor
 def datos_panel():
     rol = session.get('rol')
-    menu, favoritos = menu_visible(rol)
+    menu, favs = menu_visible(rol, session.get('usuario'))
     alertas_tickets = 0
     if permisos.puede(rol, 'tickets', 'ver'):
         alertas_tickets = glpi.resumen(glpi.obtener()[0])['alertas']
+    nombre_completo, nombre_corto = nombre_de(session.get('usuario'))
     return {
         'menu': menu,
-        'favoritos': favoritos,
+        'favoritos': favs,
+        'nombre_usuario': nombre_completo,
+        'nombre_corto': nombre_corto,
+        'claves_favoritas': [f[0] for f in favs],
         'usuario': session.get('usuario'),
         'rol_nombre': permisos.NOMBRES_ROL.get(rol, ''),
         'puede': lambda modulo, accion='ver': permisos.puede(rol, modulo, accion),
@@ -141,23 +149,72 @@ def sin_permiso(error):
                            icono='fa-lock', mensaje='Tu rol no tiene permiso para ver esta sección.'), 403
 
 
+# Áreas de la vista general de cada perfil (en este orden). Los perfiles que no están
+# aquí (o no tienen permiso para ninguna área) ven accesos directos a sus secciones.
+INICIO_POR_ROL = {
+    'superadmin': ['facturacion', 'ventas', 'soporte', 'inventario'],
+    'admin': ['facturacion', 'ventas', 'soporte', 'inventario'],
+    'vendedor': ['ventas'],
+    'preventa': ['ventas'],
+    'tecnico': ['soporte'],
+    'auxiliar': ['inventario'],
+}
+# Permiso que se necesita para ver cada área
+PERMISO_AREA = {'facturacion': ('facturas',), 'ventas': ('cotizaciones', 'ventas'),
+                'soporte': ('tickets', 'equipos'), 'inventario': ('productos',)}
+DIAS_SEMANA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
+         'noviembre', 'diciembre']
+
+
 @dashboard_bp.route('/')
 @login_requerido
 def dash_view():
-    facturas, de_ejemplo = facturas_panel()
-    graficos = [
-        resumen('Estado de facturas', Counter(f['estado'] for f in facturas), COLORES_ESTADO),
-        resumen('Servicios facturados', Counter(f['servicio'] for f in facturas)),
-        resumen('Facturas por vendedor', Counter(f['vendedor'] for f in facturas)),
-    ]
-    datos = {
-        'activo': 'inicio', 'graficos': graficos, 'facturas': facturas, 'facturas_ejemplo': de_ejemplo,
-        'valor_max': max([f['valor'] for f in facturas] + [1]), 'colores_estado': COLORES_ESTADO,
-    }
+    rol, usuario = session['rol'], session['usuario']
+    secciones = [a for a in INICIO_POR_ROL.get(rol, [])
+                 if any(permisos.puede(rol, m) for m in PERMISO_AREA[a])]
+    hoy = date.today()
+    datos = {'activo': 'inicio', 'secciones': secciones,
+             'hoy_texto': f'{DIAS_SEMANA[hoy.weekday()]} {hoy.day} de {MESES[hoy.month - 1]}'}
 
-    # Cada rol puede tener su propio inicio en templates/dash/inicio/<rol>.html
+    if 'facturacion' in secciones:
+        facturas, de_ejemplo = facturas_panel()
+        datos.update({
+            'graficos': [
+                resumen('Estado de facturas', Counter(f['estado'] for f in facturas), COLORES_ESTADO),
+                resumen('Servicios facturados', Counter(f['servicio'] for f in facturas)),
+                resumen('Facturas por vendedor', Counter(f['vendedor'] for f in facturas)),
+            ],
+            'facturas': facturas, 'facturas_ejemplo': de_ejemplo, 'colores_estado': COLORES_ESTADO,
+            'valor_max': max([f['valor'] for f in facturas] + [1]),
+            'por_cobrar': sum(f['valor'] for f in facturas if f['estado'] in ('Pendiente', 'Vencida')),
+            'facturas_vencidas': sum(1 for f in facturas if f['estado'] == 'Vencida'),
+        })
+    if 'ventas' in secciones:
+        # El perfil Ventas ve solo lo suyo; el administrador ve el total de la empresa
+        datos['ventas_propias'] = rol in ('vendedor', 'preventa')
+        datos['ventas_ind'] = indicadores.de_ventas(usuario if datos['ventas_propias'] else None)
+    if 'soporte' in secciones:
+        datos['soporte_ind'] = indicadores.de_soporte()
+    if 'inventario' in secciones:
+        datos['inventario_ind'] = indicadores.de_inventario()
+
+    # Un rol puede tener una vista propia en templates/dash/inicio/<rol>.html
+    return render_template([f'dash/inicio/{rol}.html', 'dash/inicio/panel.html'], **datos)
+
+
+@dashboard_bp.route('/favoritos', methods=['POST'])
+@login_requerido
+def favoritos_alternar():
+    """Agrega o quita una opción de los favoritos del usuario. Devuelve la lista para redibujar el menú."""
     rol = session['rol']
-    return render_template([f'dash/inicio/{rol}.html', 'dash/inicio/general.html'], **datos)
+    clave = str((request.get_json(silent=True) or {}).get('clave', ''))
+    if clave not in OPCIONES or not (clave == 'inicio' or permisos.puede(rol, clave, 'ver')):
+        return jsonify(ok=False, error='Esa opción no existe en tu menú.'), 400
+    _, error = favoritos.alternar(session['usuario'], clave)
+    _, favs = menu_visible(rol, session['usuario'])
+    return jsonify(ok=error is None, error=error,
+                   favoritos=[{'clave': c, 'texto': t, 'icono': i, 'url': enlace_menu(c)} for c, t, i in favs])
 
 
 @dashboard_bp.route('/roles', methods=['GET', 'POST'])
@@ -205,31 +262,50 @@ def usuarios_view():
     if not permisos.puede(rol_actual, 'usuarios', 'ver'):
         abort(403)
     puede_crear = permisos.puede(rol_actual, 'usuarios', 'crear')
+    puede_editar = permisos.puede(rol_actual, 'usuarios', 'editar')
 
-    # Solo el superadministrador puede crear otros superadministradores
+    # Solo el superadministrador puede crear, editar o nombrar superadministradores
     roles_asignables = [r for r in permisos.ROLES if r[0] != 'superadmin' or rol_actual == 'superadmin']
     errores, formulario = {}, {}
 
     if request.method == 'POST':
-        if not puede_crear:
+        usuario_id = request.form.get('id', type=int)
+        actual = usuarios.obtener(usuario_id) if usuario_id else None
+        if (usuario_id and (not puede_editar or actual is None)) or (not usuario_id and not puede_crear):
             abort(403)
-        formulario = {k: request.form.get(k, '') for k in ('nombre', 'correo', 'rol')}
-        errores = usuarios.validar(
-            formulario['nombre'], formulario['correo'], formulario['rol'],
-            request.form.get('contrasena', ''), request.form.get('confirmacion', ''),
-            roles_validos={r[0] for r in roles_asignables},
-            correos_reservados={correo_admin()},
-        )
+        if actual and actual['rol'] == 'superadmin' and rol_actual != 'superadmin':
+            abort(403)
+        contrasena = request.form.get('contrasena', '')
+        datos, errores = usuarios.validar(
+            request.form, {r[0] for r in roles_asignables}, usuario_id,
+            contrasena, request.form.get('confirmacion', ''), exigir_clave=not usuario_id)
+        activo = request.form.get('activo', '1') == '1'
+        # Nadie se quita a sí mismo el acceso por error
+        if actual and actual['correo'] == session['usuario']:
+            if not activo:
+                errores['activo'] = 'No puedes desactivar tu propia cuenta.'
+            if actual['rol'] == 'superadmin' and datos['rol'] != 'superadmin':
+                errores['rol'] = 'No puedes quitarte el rol de Superadministrador.'
+        formulario = {**datos, 'id': usuario_id or '', 'activo': '1' if activo else '0'}
         if not errores:
-            nuevo = usuarios.crear(formulario['nombre'], formulario['correo'], formulario['rol'],
-                                   request.form['contrasena'])
-            flash(f"Usuario {nuevo['nombre']} creado como {permisos.NOMBRES_ROL[nuevo['rol']]}.", 'ok')
+            if usuario_id:
+                guardado = usuarios.actualizar(usuario_id, datos, activo, contrasena)
+                if actual['correo'] == session['usuario']:
+                    session['usuario'] = guardado['correo']  # si cambió su propio correo
+                flash(f"Usuario {guardado['nombre']} actualizado"
+                      f"{' y con contraseña nueva' if contrasena else ''}.", 'ok')
+            else:
+                guardado = usuarios.crear(datos, contrasena)
+                flash(f"Usuario {guardado['nombre']} creado como {permisos.NOMBRES_ROL[guardado['rol']]}.", 'ok')
             return redirect(url_for('dashboard.usuarios_view'))
 
-    return render_template('dash/usuarios.html', activo='usuarios', lista=usuarios.listar(),
-                           admin_correo=correo_admin(), nombres_rol=permisos.NOMBRES_ROL,
-                           roles_asignables=roles_asignables, puede_crear=puede_crear,
-                           errores=errores, formulario=formulario, largo_minimo=usuarios.LARGO_MINIMO)
+    lista = usuarios.listar()
+    return render_template('dash/usuarios.html', activo='usuarios', lista=lista,
+                           admin_correo=correo_admin(), admin_nombre=nombre_admin(), separar=usuarios.separar,
+                           nombres_rol=permisos.NOMBRES_ROL, para_formulario=usuarios.para_formulario,
+                           roles_asignables=roles_asignables, puede_crear=puede_crear, puede_editar=puede_editar,
+                           rol_actual=rol_actual, errores=errores, formulario=formulario,
+                           largo_minimo=usuarios.LARGO_MINIMO, canal_mensajes=mensajes.proveedor())
 
 
 @dashboard_bp.route('/tickets', methods=['GET', 'POST'])
@@ -805,7 +881,8 @@ def _pagina_catalogo(tipo, **extra):
         'puede_crear': permisos.puede(rol, tipo, 'crear'),
         'puede_editar': permisos.puede(rol, tipo, 'editar'),
         'puede_eliminar': permisos.puede(rol, tipo, 'eliminar'),
-        'errores': {}, 'formulario': {},
+        'errores': {}, 'formulario': {}, 'errores_entrada': {}, 'entrada': {},
+        'todos_productos': todos if tipo == 'productos' else [], 'precios_de': catalogo.precios_de,
     }
     datos.update(extra)
     return render_template('dash/catalogo.html', **datos)
@@ -924,8 +1001,10 @@ def cotizacion_editar(cot_id):
 def cotizacion_detalle(cot_id):
     _exigir('cotizaciones')
     rol = session['rol']
+    cot = _cotizacion(cot_id)
     return render_template(
-        'dash/cotizacion.html', activo='cotizaciones', cot=_cotizacion(cot_id), estados=cotizaciones.ESTADOS,
+        'dash/cotizacion.html', activo='cotizaciones', cot=cot, estados=cotizaciones.ESTADOS,
+        envio=_correo_cotizacion(cot), smtp_listo=correos.configurado(),
         puede_crear=permisos.puede(rol, 'cotizaciones', 'crear'),
         puede_editar=permisos.puede(rol, 'cotizaciones', 'editar'),
         puede_eliminar=permisos.puede(rol, 'cotizaciones', 'eliminar'))
@@ -936,11 +1015,78 @@ def cotizacion_detalle(cot_id):
 def cotizacion_pdf(cot_id):
     _exigir('cotizaciones')
     cot = _cotizacion(cot_id)
-    nombre = re.sub(r'[^\w\-]+', '_', f"{cot['numero']}_{cot['cliente']['nombre']}").strip('_')[:80]
     contenido = pdf_cotizacion.generar(cot, EMPRESA)
     # ?descargar=1 baja el archivo; sin él se abre en el navegador
-    return send_file(io.BytesIO(contenido), mimetype='application/pdf', download_name=f'{nombre}.pdf',
+    return send_file(io.BytesIO(contenido), mimetype='application/pdf', download_name=_nombre_pdf(cot),
                      as_attachment=request.args.get('descargar') == '1')
+
+
+def _nombre_pdf(cot):
+    return re.sub(r'[^\w\-]+', '_', f"{cot['numero']}_{cot['cliente']['nombre']}").strip('_')[:80] + '.pdf'
+
+
+def _correo_cotizacion(cot):
+    """Destinatario, asunto y mensaje sugeridos para enviar la cotización."""
+    cliente = clientes.obtener_cliente(cot['cliente_id']) if cot.get('cliente_id') else None
+    para = cot.get('contacto_correo') or (cliente or {}).get('ti_correo', '')
+    saludo = cot.get('contacto') or cot['cliente']['nombre']
+    firma = nombre_de(session.get('usuario'))[0]
+    mensaje = (f"Hola, {saludo}:\n\n"
+               f"Adjunto encontrará la cotización {cot['numero']} «{cot['asunto']}» por un total de "
+               f"{formato_pesos(cot['totales']['total'])} (IVA incluido). Es válida hasta el {cot['vence']}.\n\n"
+               "Quedamos atentos a sus comentarios o a cualquier ajuste que necesite.\n\n"
+               f"Cordialmente,\n{firma}\n{EMPRESA['nombre']}\n{EMPRESA.get('telefono', '')}")
+    return {'para': para, 'asunto': f"Cotización {cot['numero']} · {cot['asunto']} · {EMPRESA['nombre']}", 'mensaje': mensaje}
+
+
+def _lista_correos(texto):
+    correos_lista = [c.strip().lower() for c in re.split(r'[,;\s]+', texto or '') if c.strip()]
+    malos = [c for c in correos_lista if not usuarios.PATRON_CORREO.match(c)]
+    return correos_lista, malos
+
+
+@dashboard_bp.route('/cotizaciones/<cot_id>/enviar-correo', methods=['POST'])
+@login_requerido
+def cotizacion_enviar_correo(cot_id):
+    """Envía la cotización en PDF por correo al cliente."""
+    _exigir('cotizaciones', 'editar')
+    cot = _cotizacion(cot_id)
+    volver = redirect(url_for('dashboard.cotizacion_detalle', cot_id=cot_id))
+    para, malos_para = _lista_correos(request.form.get('para'))
+    copia, malos_cc = _lista_correos(request.form.get('cc'))
+    asunto = ' '.join(request.form.get('asunto', '').split())[:200]
+    mensaje = request.form.get('mensaje', '').strip()[:5000]
+    if not para or malos_para or malos_cc or len(para) + len(copia) > 10:
+        flash('Revisa los correos: ' + (', '.join(malos_para + malos_cc) if malos_para or malos_cc
+                                        else 'escribe al menos un destinatario (máximo 10 en total).'), 'error')
+        return volver
+    if not asunto or not mensaje:
+        flash('Escribe el asunto y el mensaje del correo.', 'error')
+        return volver
+
+    pdf = pdf_cotizacion.generar(cot, EMPRESA)
+    html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">' + \
+           ''.join(f'<p>{linea}</p>' if linea else '' for linea in
+                   (Markup.escape(b).replace('\n', Markup('<br>')) for b in mensaje.split('\n\n'))) + '</div>'
+    try:
+        canal = correos.enviar(para, asunto, mensaje, html, adjuntos=[(_nombre_pdf(cot), pdf, 'application/pdf')],
+                               cc=copia, responder_a=session['usuario'])
+    except Exception as error:
+        flash(f'No se pudo enviar el correo: {error}. Revisa la configuración SMTP del archivo .env.', 'error')
+        return volver
+
+    destino = ', '.join(para) + (f' (copia: {", ".join(copia)})' if copia else '')
+    accion = f'Enviada por correo a {destino}' + (' (prueba: quedó en el archivo, sin SMTP)' if canal == 'archivo' else '')
+    if request.form.get('marcar_enviada') == '1' and cot['estado'] == 'borrador' and not cot.get('orden_id'):
+        cotizaciones.cambiar_estado(cot_id, 'enviada', session['usuario'], accion=accion)
+    else:
+        cotizaciones.anotar(cot_id, accion, session['usuario'])
+    if canal == 'archivo':
+        flash('Aún no hay correo configurado (falta SMTP_CLAVE en .env): el envío quedó en '
+              'app/data/correos_salientes.log como prueba, con el PDF listado como adjunto.', 'info')
+    else:
+        flash(f"Cotización {cot['numero']} enviada a {destino} con el PDF adjunto.", 'ok')
+    return volver
 
 
 @dashboard_bp.route('/cotizaciones/<cot_id>/estado', methods=['POST'])
@@ -1160,6 +1306,19 @@ def factura_pago(factura_id):
 
 
 # ---------------------------------------------------------------- Movimientos de inventario
+
+@dashboard_bp.route('/productos/entrada', methods=['POST'])
+@login_requerido
+def productos_entrada():
+    """Mercancía que llega: suma al stock del producto y queda en los movimientos."""
+    _exigir('productos', 'editar')
+    producto_id = request.form.get('producto_id', '')
+    producto, errores = ventas.registrar_entrada(producto_id, request.form, session['usuario'])
+    if errores:
+        return _pagina_catalogo('productos', errores_entrada=errores, entrada=request.form.to_dict()), 400
+    flash(f"Entrada registrada: {request.form.get('cantidad')} × {producto['nombre']}. Stock actual: {producto['stock']}.", 'ok')
+    return redirect(url_for('dashboard.catalogo_view', tipo='productos'))
+
 
 @dashboard_bp.route('/productos/movimientos')
 @login_requerido

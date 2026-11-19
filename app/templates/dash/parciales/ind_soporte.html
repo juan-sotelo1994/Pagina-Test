@@ -1,0 +1,56 @@
+{# Indicadores de soporte. Variable: s (indicadores.de_soporte) #}
+{% import 'dash/parciales/graficos.html' as g %}
+{% set ver_tickets = puede('tickets') %}
+
+<section class="kpis kpis-4">
+    {{ g.kpi('fa-bell', s.nuevos, 'Tickets nuevos', 'kpi-new', url_for('dashboard.tickets', estado='nuevos') if ver_tickets else None, 'sin atender') }}
+    {{ g.kpi('fa-hourglass-half', s.pendientes, 'Tickets pendientes', 'kpi-pending', url_for('dashboard.tickets', estado='pendientes') if ver_tickets else None,
+             s.en_curso ~ ' más en curso') }}
+    {{ g.kpi('fa-circle-check', s.cerrados if s.cerrados is not none else '—', 'Tickets cerrados', 'kpi-ok', None, 'resueltos en los últimos 30 días') }}
+    {{ g.kpi('fa-laptop', s.equipos_en_linea ~ ' / ' ~ s.equipos_total, 'Equipos en línea', 'kpi-progress',
+             url_for('dashboard.equipos_view') if puede('equipos') else None,
+             (s.calientes | length ~ ' con temperatura alta') if s.calientes else 'con el agente instalado') }}
+</section>
+
+{% if s.origen == 'ejemplo' %}
+<p class="note"><i class="fa-solid fa-circle-info"></i> Tickets de ejemplo: se reemplazan solos cuando se configure la conexión con GLPI en el archivo .env.</p>
+{% elif s.error %}
+<div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i> {{ s.error }}</div>
+{% endif %}
+
+<section class="widgets">
+    {{ g.dona('Tickets abiertos', s.tickets_dona, 'Abiertos') }}
+    <article class="widget widget-lista">
+        <h2><i class="fa-solid fa-fire"></i> Prioridad alta</h2>
+        {% for t in s.urgentes %}
+        <a class="fila-lista" href="{{ url_for('dashboard.tickets') if ver_tickets else '#' }}">
+            <span><strong>#{{ t.id }}</strong> {{ t.titulo }}</span>
+            <span class="muted-text">{{ t.solicitante }}{% if t.tecnico %} · {{ t.tecnico }}{% else %} · sin asignar{% endif %}</span>
+        </a>
+        {% else %}
+        <p class="muted-text">No hay tickets de prioridad alta abiertos.</p>
+        {% endfor %}
+    </article>
+    <article class="widget widget-lista">
+        <h2><i class="fa-solid fa-screwdriver-wrench"></i> Servicios vendidos por prestar</h2>
+        {% for x in s.servicios %}
+        <a class="fila-lista" href="{{ url_for('dashboard.orden_detalle', orden_id=x.orden.id) if puede('ventas') else '#' }}">
+            <span><strong>{{ x.servicio.nombre }}</strong> · {{ '%g' | format(x.servicio.cantidad) }} {{ x.servicio.unidad | lower }}</span>
+            <span class="muted-text">{{ x.orden.cliente.nombre }} · {{ x.orden.numero }}</span>
+        </a>
+        {% else %}
+        <p class="muted-text">No hay servicios pendientes de órdenes de compra.</p>
+        {% endfor %}
+        {% if s.servicios_total > s.servicios | length %}<p class="muted-text">y {{ s.servicios_total - s.servicios | length }} más…</p>{% endif %}
+    </article>
+</section>
+
+{% if s.calientes %}
+<div class="flash flash-error"><i class="fa-solid fa-temperature-high"></i>
+    CPU a más de 85 °C: {% for e in s.calientes %}<a class="link" href="{{ url_for('dashboard.equipo_view', equipo_id=e.id) }}">{{ e.nombre }}</a> ({{ e.sensores.cpu_temp | round | int }} °C){{ ', ' if not loop.last }}{% endfor %}.</div>
+{% endif %}
+
+<div class="toolbar">
+    {% if puede('tickets', 'crear') %}<a class="tool-btn btn-save" href="{{ url_for('dashboard.tickets') }}"><i class="fa-solid fa-ticket"></i> Ver y crear tickets</a>{% endif %}
+    {% if puede('equipos') %}<a class="tool-btn" href="{{ url_for('dashboard.equipos_view') }}"><i class="fa-solid fa-laptop"></i> Equipos con agente</a>{% endif %}
+</div>

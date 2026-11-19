@@ -183,6 +183,33 @@ def obtener():
     return tickets, 'glpi', None
 
 
+# Tickets resueltos o cerrados en los últimos 30 días (ejemplo mientras no hay GLPI)
+EJEMPLO_CERRADOS = 14
+_cache_cerrados = {'momento': 0, 'total': None}
+
+
+def cerrados_recientes(dias=30):
+    """Cuántos tickets se resolvieron o cerraron en los últimos `dias`. None si GLPI no responde."""
+    if not configurado():
+        return EJEMPLO_CERRADOS
+    if _cache_cerrados['total'] is not None and time.time() - _cache_cerrados['momento'] < CACHE_SEGUNDOS:
+        return _cache_cerrados['total']
+    desde = time.strftime('%Y-%m-%d 00:00:00', time.localtime(time.time() - dias * 86400))
+    parametros = {
+        # 'old' = resueltos y cerrados; 17 = fecha de solución
+        'criteria[0][field]': CAMPOS['estado'], 'criteria[0][searchtype]': 'equals', 'criteria[0][value]': 'old',
+        'criteria[1][link]': 'AND', 'criteria[1][field]': 17, 'criteria[1][searchtype]': 'morethan',
+        'criteria[1][value]': desde, 'range': '0-0',
+    }
+    try:
+        with _sesion() as encabezados:
+            total = int((_pedir('search/Ticket', encabezados, parametros) or {}).get('totalcount', 0))
+    except Exception:
+        return _cache_cerrados['total']
+    _cache_cerrados.update(momento=time.time(), total=total)
+    return total
+
+
 def resumen(tickets):
     nuevos = [t for t in tickets if t['estado'] == NUEVO]
     pendientes = [t for t in tickets if t['estado'] == PENDIENTE]

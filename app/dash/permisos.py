@@ -11,11 +11,11 @@ ARCHIVO = 'roles.json'
 # (clave, nombre, descripción)
 ROLES = [
     ('superadmin', 'Superadministrador', 'Control total del sistema. Sus permisos no se pueden modificar.'),
-    ('admin', 'Administrador', 'Gestiona toda la operación de la empresa.'),
-    ('vendedor', 'Vendedor', 'Atiende clientes, cotizaciones y ventas.'),
+    ('admin', 'Administrador', 'Gestiona toda la operación de la empresa, menos los agentes.'),
+    ('vendedor', 'Ventas', 'Consulta los productos en existencia, hace cotizaciones y ve las órdenes de compra.'),
     ('preventa', 'Preventa', 'Prepara propuestas técnicas y cotizaciones.'),
     ('tecnico', 'Técnico', 'Consulta clientes y gestiona los servicios.'),
-    ('auxiliar', 'Auxiliar administrativo', 'Apoya facturación, proveedores e inventario.'),
+    ('auxiliar', 'Auxiliar de inventario', 'Ingresa al inventario los productos que llegan y gestiona los proveedores.'),
 ]
 NOMBRES_ROL = {clave: nombre for clave, nombre, _ in ROLES}
 
@@ -28,7 +28,6 @@ MODULOS = [
     ('clientes', 'Clientes', 'Comercial'),
     ('cotizaciones', 'Cotizaciones', 'Comercial'),
     ('ventas', 'Órdenes de compra', 'Comercial'),
-    ('vendedores', 'Vendedores', 'Comercial'),
     ('facturas', 'Facturas', 'Facturación'),
     ('productos', 'Productos', 'Inventario'),
     ('servicios', 'Servicios', 'Inventario'),
@@ -44,11 +43,12 @@ MODULOS = [
 
 VCE = ['ver', 'crear', 'editar']
 
+# Perfiles: superadmin todo (no se configura); admin todo menos agentes y sin cambiar
+# permisos; ventas cotiza y consulta; auxiliar recibe la mercancía
 PERMISOS_INICIALES = {
-    'admin': {**{m: TODAS for m, _, _ in MODULOS}, 'roles': ['ver']},
+    'admin': {**{m: TODAS for m, _, _ in MODULOS if m != 'agentes'}, 'roles': ['ver']},
     'vendedor': {
-        'clientes': VCE, 'cotizaciones': VCE, 'ventas': ['ver', 'crear'],
-        'productos': ['ver'], 'servicios': ['ver'], 'renta': ['ver'],
+        'productos': ['ver'], 'cotizaciones': VCE, 'ventas': ['ver'],
     },
     'preventa': {
         'clientes': VCE, 'cotizaciones': VCE, 'productos': ['ver'],
@@ -59,8 +59,7 @@ PERMISOS_INICIALES = {
         'tickets': VCE, 'agentes': ['ver'], 'equipos': ['ver'], 'activos': VCE, 'renta': ['ver', 'editar'],
     },
     'auxiliar': {
-        'clientes': VCE, 'cotizaciones': ['ver'], 'facturas': VCE,
-        'productos': VCE, 'proveedores': VCE, 'tickets': ['ver'], 'activos': VCE, 'renta': VCE,
+        'productos': VCE, 'proveedores': VCE, 'renta': VCE,
     },
 }
 

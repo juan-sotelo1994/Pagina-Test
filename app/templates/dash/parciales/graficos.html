@@ -1,0 +1,64 @@
+{# Gráficos de la vista general. Uso: {% import 'dash/parciales/graficos.html' as g %} #}
+
+{# Dona: partes = [{'nombre', 'cantidad', 'color'}] #}
+{% macro dona(titulo, partes, etiqueta='Total') %}
+{% set total = partes | sum(attribute='cantidad') %}
+<article class="widget">
+    <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="{{ titulo }}: {{ total }} en total">
+        <circle cx="21" cy="21" r="15.915" class="donut-track"/>
+        {% set ns = namespace(acumulado=0) %}
+        {% for p in partes if p.cantidad and total %}
+        {% set porcentaje = p.cantidad * 100 / total %}
+        <circle cx="21" cy="21" r="15.915" class="donut-part" stroke="{{ p.color }}"
+                stroke-dasharray="{{ porcentaje }} {{ 100 - porcentaje }}" stroke-dashoffset="{{ 25 - ns.acumulado }}">
+            <title>{{ p.nombre }}: {{ p.cantidad }}</title>
+        </circle>
+        {% set ns.acumulado = ns.acumulado + porcentaje %}
+        {% endfor %}
+        <text x="21" y="21" class="donut-total">{{ total }}</text>
+        <text x="21" y="26.5" class="donut-label">{{ etiqueta }}</text>
+    </svg>
+    <div class="legend">
+        <h2>{{ titulo }}</h2>
+        <ul>
+            {% for p in partes %}
+            <li>
+                <span class="swatch" style="background: {{ p.color }}"></span>
+                <span class="legend-name">{{ p.nombre }}</span>
+                <span class="pill">{{ p.cantidad }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</article>
+{% endmacro %}
+
+{# Barras por mes: barras = [{'mes', 'valor', 'alto'}]; pesos=True muestra $ #}
+{% macro barras(titulo, barras, pesos=False, vacio='Sin datos todavía.') %}
+<article class="widget widget-barras">
+    <h2>{{ titulo }}</h2>
+    {% if barras | sum(attribute='valor') %}
+    <div class="barras" role="img" aria-label="{{ titulo }}">
+        {% for b in barras %}
+        <div class="barra" title="{{ b.mes }}: {{ b.valor | pesos if pesos else b.valor }}">
+            <span class="barra-valor">{% if b.valor %}{{ (b.valor / 1000000) | round(1) ~ ' M' if pesos and b.valor >= 1000000 else (b.valor | pesos if pesos else b.valor) }}{% endif %}</span>
+            <span class="barra-columna"><span style="height: {{ [b.alto, 2] | max }}%"></span></span>
+            <span class="barra-mes">{{ b.mes }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted-text barras-vacio">{{ vacio }}</p>
+    {% endif %}
+</article>
+{% endmacro %}
+
+{# Tarjeta de indicador #}
+{% macro kpi(icono, numero, etiqueta, clase='kpi-new', enlace=None, detalle=None) %}
+{% set contenido %}
+    <i class="fa-solid {{ icono }}"></i>
+    <span class="kpi-num">{{ numero }}</span>
+    <span class="kpi-label">{{ etiqueta }}{% if detalle %}<small class="kpi-detalle">{{ detalle }}</small>{% endif %}</span>
+{% endset %}
+{% if enlace %}<a href="{{ enlace }}" class="kpi {{ clase }}">{{ contenido }}</a>{% else %}<div class="kpi {{ clase }}">{{ contenido }}</div>{% endif %}
+{% endmacro %}

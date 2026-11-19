@@ -32,19 +32,26 @@
             </div>
 
             <nav class="sidebar-nav" aria-label="Panel">
-                <details class="group group-fav" open>
+                <details class="group group-fav" open data-favoritos="{{ url_for('dashboard.favoritos_alternar') }}" data-activo="{{ activo or '' }}">
                     <summary>
                         <i class="fa-solid fa-star icon-fav"></i>
                         <span class="label">Favoritos</span>
                         <i class="fa-solid fa-chevron-right chevron"></i>
                     </summary>
-                    {% for clave, texto, icono in favoritos %}
-                    <a href="{{ enlace(clave) }}" class="item {% if activo == clave %}active{% endif %}" title="{{ texto }}">
-                        <i class="fa-solid {{ icono }} item-icon"></i>
-                        <span class="label">{{ texto }}</span>
-                        <i class="fa-solid fa-star star"></i>
-                    </a>
-                    {% endfor %}
+                    <div id="lista-favoritos">
+                        {% for clave, texto, icono in favoritos %}
+                        <div class="item-fila">
+                            <a href="{{ enlace(clave) }}" class="item {% if activo == clave %}active{% endif %}" title="{{ texto }}">
+                                <i class="fa-solid {{ icono }} item-icon"></i>
+                                <span class="label">{{ texto }}</span>
+                            </a>
+                            <button type="button" class="fav-btn es-favorito" data-fav="{{ clave }}" title="Quitar de favoritos" aria-label="Quitar {{ texto }} de favoritos">
+                                <i class="fa-solid fa-star"></i>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p class="fav-vacio label" {% if favoritos %}hidden{% endif %}>Toca la <i class="fa-regular fa-star"></i> de cualquier opción del menú para tenerla aquí.</p>
                 </details>
 
                 {% for g in menu %}
@@ -58,10 +65,18 @@
                         <i class="fa-solid fa-chevron-right chevron"></i>
                     </summary>
                     {% for clave, texto, icono in g['items'] %}
-                    <a href="{{ enlace(clave) }}" class="item {% if activo == clave %}active{% endif %}" title="{{ texto }}">
-                        <i class="fa-solid {{ icono }} item-icon"></i>
-                        <span class="label">{{ texto }}</span>
-                    </a>
+                    {% set es_fav = clave in claves_favoritas %}
+                    <div class="item-fila">
+                        <a href="{{ enlace(clave) }}" class="item {% if activo == clave %}active{% endif %}" title="{{ texto }}">
+                            <i class="fa-solid {{ icono }} item-icon"></i>
+                            <span class="label">{{ texto }}</span>
+                        </a>
+                        <button type="button" class="fav-btn {{ 'es-favorito' if es_fav }}" data-fav="{{ clave }}" data-texto="{{ texto }}"
+                                title="{{ 'Quitar de favoritos' if es_fav else 'Agregar a favoritos' }}" aria-pressed="{{ 'true' if es_fav else 'false' }}"
+                                aria-label="{{ texto }}: favorito">
+                            <i class="fa-{{ 'solid' if es_fav else 'regular' }} fa-star"></i>
+                        </button>
+                    </div>
                     {% endfor %}
                 </details>
                 {% endfor %}
@@ -106,11 +121,15 @@
                     <div class="user-menu">
                         <button class="user-btn" id="user-btn" aria-expanded="false" aria-controls="user-dropdown">
                             <i class="fa-solid fa-circle-user"></i>
-                            <span class="user-name">{{ rol_nombre }}</span>
+                            <span class="user-name" title="{{ nombre_usuario }} · {{ rol_nombre }}">{{ nombre_corto }}</span>
                             <i class="fa-solid fa-caret-down"></i>
                         </button>
                         <div class="user-dropdown" id="user-dropdown" hidden>
-                            <div class="user-email">{{ usuario }}</div>
+                            <div class="user-email">
+                                <strong>{{ nombre_usuario }}</strong>
+                                <span>{{ rol_nombre }}</span>
+                                <span>{{ usuario }}</span>
+                            </div>
                             {% if puede('roles') %}
                             <a href="{{ url_for('dashboard.roles') }}"><i class="fa-solid fa-user-lock"></i> Roles y permisos</a>
                             {% endif %}

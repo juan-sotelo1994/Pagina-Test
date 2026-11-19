@@ -3129,7 +3129,7 @@ select.tool-btn {
     display: block;
 }
 
-.toolbar form {
+.toolbar > form {
     display: contents;
 }
 
@@ -3240,4 +3240,402 @@ select.tool-btn {
     color: var(--text);
     font-size: 12px;
     white-space: nowrap;
+}
+
+/* ---------- Favoritos del menú ---------- */
+
+.item-fila {
+    position: relative;
+}
+
+.item-fila .item {
+    padding-right: 44px;
+}
+
+.fav-btn {
+    position: absolute;
+    top: 50%;
+    right: 18px;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--side-text-2);
+    font-size: 14px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s, color .15s, background .15s;
+}
+
+/* La estrella vacía aparece al pasar el mouse; la de un favorito siempre se ve */
+.item-fila:hover .fav-btn,
+.fav-btn:focus-visible,
+.fav-btn.es-favorito {
+    opacity: 1;
+}
+
+.fav-btn.es-favorito {
+    color: #f5b301;
+}
+
+.fav-btn:hover {
+    background: rgba(255, 255, 255, .1);
+    color: #f5b301;
+}
+
+.fav-btn:disabled {
+    cursor: wait;
+}
+
+/* En los favoritos, al pasar el mouse la estrella sugiere quitar */
+.group-fav .fav-btn:hover i::before {
+    content: "\f00d";
+}
+
+.fav-vacio {
+    margin: 4px 16px 8px 52px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--side-text-2);
+    white-space: normal;
+}
+
+.panel.mini .fav-btn,
+.panel.mini .fav-vacio {
+    display: none;
+}
+
+/* En pantallas táctiles no hay "pasar el mouse": las estrellas se ven siempre, tenues */
+@media (hover: none) {
+    .fav-btn {
+        opacity: .55;
+    }
+}
+
+@media (max-width: 900px) {
+    /* En celular el modo mini no aplica: las estrellas siguen visibles */
+    .panel.mini .fav-btn {
+        display: grid;
+    }
+
+    .panel.mini .fav-vacio:not([hidden]) {
+        display: block;
+    }
+}
+
+/* ---------- Inicio por perfil: accesos directos ---------- */
+
+.accesos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    padding: 0 18px 18px;
+}
+
+.acceso {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text);
+    transition: border-color .15s, background .15s;
+}
+
+.acceso:hover {
+    border-color: var(--accent);
+    background: var(--hover);
+}
+
+.acceso i {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+    font-size: 18px;
+}
+
+.acceso span {
+    display: flex;
+    flex-direction: column;
+}
+
+.acceso small {
+    color: var(--muted);
+}
+
+/* Menú del usuario: nombre, perfil y correo */
+.user-email {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.user-email strong {
+    font-size: 15px;
+    color: var(--text);
+}
+
+/* ---------- Vista general por perfil ---------- */
+
+.saludo {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 2px 2px 12px;
+}
+
+.saludo h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.kpi-detalle {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    opacity: .85;
+}
+
+.kpi .kpi-num {
+    font-size: clamp(22px, 2.2vw, 30px);
+    overflow-wrap: anywhere;
+}
+
+.secciones-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 0 0 10px;
+    padding: 8px 0;
+    background: var(--bg);
+}
+
+.secciones-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+}
+
+.secciones-nav a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.seccion-inicio {
+    scroll-margin-top: 60px;
+    margin-bottom: 26px;
+}
+
+.seccion-titulo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 2px 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--line);
+    font-size: 19px;
+}
+
+.seccion-titulo i {
+    color: var(--accent);
+}
+
+/* Barras por mes */
+.widget-barras,
+.widget-lista {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.widget-barras h2,
+.widget-lista h2 {
+    margin: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 17px;
+    font-weight: 500;
+}
+
+.widget-lista h2 i {
+    color: var(--accent);
+    margin-right: 6px;
+}
+
+.barras {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    height: 170px;
+}
+
+.barra {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.barra-valor {
+    min-height: 16px;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.barra-columna {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    width: 100%;
+    max-width: 42px;
+    border-radius: 6px 6px 0 0;
+    background: var(--surface-2);
+}
+
+.barra-columna span {
+    display: block;
+    width: 100%;
+    border-radius: 6px 6px 0 0;
+    background: linear-gradient(180deg, #3b82f6, #2bb3a3);
+}
+
+.barra-mes {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: capitalize;
+}
+
+.barras-vacio {
+    margin: auto 0;
+    padding: 30px 0;
+    text-align: center;
+}
+
+/* Listas cortas dentro de una tarjeta */
+.fila-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+}
+
+a.fila-lista:hover {
+    background: var(--hover);
+}
+
+.fila-lista .muted-text {
+    font-size: 12px;
+}
+
+.fila-lista.aviso {
+    margin-top: auto;
+    background: color-mix(in srgb, #f59e0b 12%, transparent);
+    color: #b45309;
+}
+
+.widget-lista > p {
+    margin: 8px 10px;
+}
+
+@media (max-width: 1200px) and (min-width: 901px) {
+    .kpis-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ---------- Enviar cotización por correo ---------- */
+
+.btn-correo i {
+    color: #ea4335;
+}
+
+.adjunto {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    background: var(--surface-2);
+}
+
+.adjunto i {
+    font-size: 26px;
+    color: #e5484d;
+}
+
+.adjunto span {
+    display: flex;
+    flex-direction: column;
+}
+
+.adjunto small {
+    color: var(--muted);
+}
+
+#dialogo-enviar .dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#dialogo-enviar .note {
+    margin: 0;
+}
+
+/* Tres precios de venta por producto */
+.precio-nivel {
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.precio-nivel.principal {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.precio-nivel small:first-child {
+    margin-right: 4px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+}
+
+/* Editor de cotizaciones: nivel de precio del producto */
+.cot-items select.cot-nivel {
+    width: 120px;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.cot-bajo-minimo input[aria-label="precio"] {
+    border-color: var(--danger);
 }

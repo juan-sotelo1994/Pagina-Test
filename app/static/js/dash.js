@@ -33,6 +33,75 @@ document.querySelectorAll('.group summary').forEach((s) => {
     });
 });
 
+// Favoritos: la estrella de cada opción la agrega o la quita (se guarda por usuario en el servidor)
+const grupoFav = document.querySelector('[data-favoritos]');
+if (grupoFav) {
+    const listaFav = document.getElementById('lista-favoritos');
+    const vacioFav = grupoFav.querySelector('.fav-vacio');
+
+    const botonFav = (clave, texto, esFav) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'fav-btn' + (esFav ? ' es-favorito' : '');
+        b.dataset.fav = clave;
+        b.title = esFav ? 'Quitar de favoritos' : 'Agregar a favoritos';
+        b.setAttribute('aria-label', `Quitar ${texto} de favoritos`);
+        b.innerHTML = '<i class="fa-solid fa-star"></i>';
+        return b;
+    };
+
+    const pintarFavoritos = (favs) => {
+        const activo = grupoFav.dataset.activo;
+        listaFav.replaceChildren(...favs.map((f) => {
+            const fila = document.createElement('div');
+            fila.className = 'item-fila';
+            const a = document.createElement('a');
+            a.href = f.url;
+            a.className = 'item' + (f.clave === activo ? ' active' : '');
+            a.title = f.texto;
+            const icono = document.createElement('i');
+            icono.className = `fa-solid ${f.icono} item-icon`;
+            const texto = document.createElement('span');
+            texto.className = 'label';
+            texto.textContent = f.texto;
+            a.append(icono, texto);
+            fila.append(a, botonFav(f.clave, f.texto, true));
+            return fila;
+        }));
+        vacioFav.hidden = favs.length > 0;
+        // Estrellas del resto del menú
+        const claves = new Set(favs.map((f) => f.clave));
+        document.querySelectorAll('.group:not(.group-fav) .fav-btn').forEach((b) => {
+            const esFav = claves.has(b.dataset.fav);
+            b.classList.toggle('es-favorito', esFav);
+            b.title = esFav ? 'Quitar de favoritos' : 'Agregar a favoritos';
+            b.setAttribute('aria-pressed', esFav);
+            b.querySelector('i').className = `fa-${esFav ? 'solid' : 'regular'} fa-star`;
+        });
+    };
+
+    document.getElementById('sidebar').addEventListener('click', async (e) => {
+        const boton = e.target.closest('.fav-btn');
+        if (!boton) return;
+        e.preventDefault();
+        boton.disabled = true;
+        try {
+            const r = await fetch(grupoFav.dataset.favoritos, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clave: boton.dataset.fav }),
+            });
+            const datos = await r.json();
+            if (datos.favoritos) pintarFavoritos(datos.favoritos);
+            if (datos.error) alert(datos.error);
+        } catch (err) {
+            alert('No se pudo guardar el favorito. Revisa la conexión.');
+        } finally {
+            boton.disabled = false;
+        }
+    });
+}
+
 // Tema claro / oscuro: se guarda en este navegador
 const botonTema = document.getElementById('tema-btn');
 
@@ -95,6 +164,7 @@ const FORMULARIOS = {
     activo: { form: 'form-activo', titulo: '[data-titulo-activo]', nuevo: 'Registrar equipo', editar: 'Editar equipo' },
     item: { form: 'form-item', titulo: '[data-titulo-item]', nuevo: 'Nuevo registro', editar: 'Editar registro' },
     proveedor: { form: 'form-proveedor', titulo: '[data-titulo-proveedor]', nuevo: 'Nuevo proveedor', editar: 'Editar proveedor' },
+    usuario: { form: 'form-usuario', titulo: '[data-titulo-usuario]', nuevo: 'Nuevo usuario', editar: 'Editar usuario' },
 };
 // Formularios que comparten plantilla (productos / servicios / renta):
 // el título usa la palabra que puso la página
@@ -132,10 +202,13 @@ Object.entries(FORMULARIOS).forEach(([clave, cfg]) => {
                 if (typeof valor === 'boolean') valor = valor ? '1' : '0';
                 // En "nuevo" se conserva la empresa elegida en el filtro de la página
                 if (esNuevo && campo.name === 'cliente_id') valor = new URLSearchParams(location.search).get('cliente') || '';
-                if (campo.tagName === 'SELECT' && valor === '' && !['cliente_id', 'proveedor_id'].includes(campo.name)) return;
+                if (campo.tagName === 'SELECT' && valor === '' && !['cliente_id', 'proveedor_id', 'rol'].includes(campo.name)) return;
                 campo.value = valor;
             });
             form.querySelectorAll('.form-field.invalid').forEach((f) => f.classList.remove('invalid'));
+            // Partes que solo aplican al crear o al editar (ej. el estado y «contraseña opcional» de usuarios)
+            form.querySelectorAll('[data-solo-nuevo]').forEach((n) => { n.hidden = !esNuevo; });
+            form.querySelectorAll('[data-solo-editar]').forEach((n) => { n.hidden = esNuevo; });
             form.querySelector(cfg.titulo).textContent = esNuevo ? cfg.nuevo : cfg.editar;
             const contrato = form.querySelector('[data-contrato-actual]');
             if (contrato) {
@@ -171,6 +244,29 @@ if (estadoRenta) {
     };
     formItem.addEventListener('change', aplicarEstado);
     aplicarEstado();
+}
+
+// Entrada de mercancía: el botón de cada producto lo deja elegido con su proveedor y precio de compra
+const formEntrada = document.getElementById('form-entrada');
+if (formEntrada) {
+    const producto = formEntrada.elements.producto_id;
+    const sugerir = () => {
+        const op = producto.selectedOptions[0];
+        if (!op || !op.value) return;
+        formEntrada.elements.proveedor_id.value = op.dataset.proveedor || '';
+        formEntrada.elements.costo.value = op.dataset.costo || '';
+    };
+    producto.addEventListener('change', sugerir);
+    document.querySelectorAll('[data-entrada]').forEach((boton) => {
+        boton.addEventListener('click', () => {
+            formEntrada.querySelectorAll('input').forEach((i) => { i.value = ''; });
+            producto.value = boton.dataset.entrada;
+            formEntrada.elements.proveedor_id.value = '';
+            sugerir();
+            formEntrada.querySelectorAll('.form-field.invalid').forEach((f) => f.classList.remove('invalid'));
+            (boton.dataset.entrada ? formEntrada.elements.cantidad : producto).focus();
+        });
+    });
 }
 
 // Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar
