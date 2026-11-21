@@ -16,7 +16,7 @@ import threading
 import time
 import uuid
 
-import almacen
+from nucleo import almacen
 
 ARCHIVO = 'comandos.json'
 LARGO_SCRIPT = 20_000        # caracteres

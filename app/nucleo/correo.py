@@ -14,7 +14,7 @@ import smtplib
 from datetime import datetime
 from email.message import EmailMessage
 
-import almacen
+from . import almacen
 
 
 def configurado():

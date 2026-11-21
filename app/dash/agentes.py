@@ -12,7 +12,7 @@ junto con sus tickets abiertos de GLPI.
 import re
 from datetime import date, datetime
 
-import almacen
+from nucleo import almacen
 from auth import usuarios
 from . import glpi
 

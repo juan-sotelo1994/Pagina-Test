@@ -1,0 +1,24 @@
+{# Paginación del lado del servidor. Uso:
+   {% import 'dash/parciales/paginacion.html' as pag %}
+   {{ pag.enlaces(paginado) }}      donde paginado = paginar(lista) en la vista (dash/__init__.py).
+   Los enlaces ya traen los demás filtros de la dirección (?equipo=…&q=…). #}
+
+{% macro enlaces(p) %}
+{% if p.paginas > 1 %}
+<nav class="paginacion" aria-label="Páginas">
+    <span class="pag-resumen">Mostrando {{ p.desde }}–{{ p.hasta }} de {{ p.total }}</span>
+    <div class="pag-botones">
+        {% if p.pagina > 1 %}<a class="pag-btn" href="{{ p.urls[p.pagina - 1] }}" aria-label="Página anterior">‹</a>
+        {% else %}<span class="pag-btn" aria-disabled="true">‹</span>{% endif %}
+        {% set ns = namespace(anterior=0) %}
+        {% for n in p.numeros %}
+        {% if ns.anterior and n - ns.anterior > 1 %}<span class="pag-salto">…</span>{% endif %}
+        <a class="pag-btn {{ 'activo' if n == p.pagina }}" href="{{ p.urls[n] }}" {% if n == p.pagina %}aria-current="page"{% endif %}>{{ n }}</a>
+        {% set ns.anterior = n %}
+        {% endfor %}
+        {% if p.pagina < p.paginas %}<a class="pag-btn" href="{{ p.urls[p.pagina + 1] }}" aria-label="Página siguiente">›</a>
+        {% else %}<span class="pag-btn" aria-disabled="true">›</span>{% endif %}
+    </div>
+</nav>
+{% endif %}
+{% endmacro %}

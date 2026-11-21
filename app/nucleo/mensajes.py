@@ -20,7 +20,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-import almacen
+from . import almacen
 
 TIEMPO_ESPERA = 15
 VERSION_GRAPH = 'v21.0'

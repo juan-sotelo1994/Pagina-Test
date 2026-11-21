@@ -6,9 +6,9 @@ from functools import wraps
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
-import correo as correos
-import db
-import mensajes
+from nucleo import correo as correos
+from nucleo import db
+from nucleo import mensajes
 from web import EMPRESA
 from . import usuarios
 

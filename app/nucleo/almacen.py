@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-CARPETA = Path(__file__).resolve().parent / 'data'
+CARPETA = Path(__file__).resolve().parent.parent / 'data'
 
 
 def leer(nombre, por_defecto):

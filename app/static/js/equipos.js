@@ -315,7 +315,12 @@ if (filas) {
             const lista = destino().filter(afecta);
             if (!script.value.trim()) { error.textContent = 'Escribe un comando o elige una plantilla.'; error.hidden = false; return; }
             if (!lista.length) { error.textContent = 'Ninguno de los equipos elegidos usa ese sistema.'; error.hidden = false; return; }
-            if (!confirm(`¿Ejecutar este comando en ${lista.length} equipos?`)) return;
+            const seguro = await Alertas.confirmar({
+                titulo: `¿Ejecutar este comando en ${lista.length} equipo${lista.length === 1 ? '' : 's'}?`,
+                texto: 'Se ejecuta como administrador (SYSTEM o root) y queda en el historial de comandos.',
+                boton: 'Sí, ejecutar', peligro: true,
+            });
+            if (!seguro) return;
             const p = plantillasDe()[plantilla.value];
             ejecutar.disabled = true;
             try {

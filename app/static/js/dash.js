@@ -93,9 +93,9 @@ if (grupoFav) {
             });
             const datos = await r.json();
             if (datos.favoritos) pintarFavoritos(datos.favoritos);
-            if (datos.error) alert(datos.error);
+            if (datos.error) Alertas.aviso('error', datos.error);
         } catch (err) {
-            alert('No se pudo guardar el favorito. Revisa la conexión.');
+            Alertas.aviso('error', 'No se pudo guardar el favorito. Revisa la conexión.');
         } finally {
             boton.disabled = false;
         }
@@ -269,13 +269,22 @@ if (formEntrada) {
     });
 }
 
-// Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar
-const confirmar = document.getElementById('confirmar');
+// Confirmación antes de eliminar: el botón indica el mensaje y a dónde enviar (con SweetAlert2)
 document.querySelectorAll('[data-confirm]').forEach((boton) => {
-    boton.addEventListener('click', () => {
-        document.getElementById('confirmar-texto').textContent = boton.dataset.confirm;
-        document.getElementById('confirmar-form').action = boton.dataset.action;
-        confirmar.showModal();
+    boton.addEventListener('click', async () => {
+        const ok = await Alertas.confirmar({
+            titulo: boton.dataset.confirm, texto: 'Esta acción no se puede deshacer.',
+            boton: boton.dataset.confirmBoton || 'Sí, eliminar', peligro: true,
+        });
+        if (!ok) return;
+        // Formulario de la página (#confirmar-form) o uno nuevo si la página no lo tiene
+        let form = document.getElementById('confirmar-form');
+        if (!form) {
+            form = Object.assign(document.createElement('form'), { method: 'post' });
+            document.body.append(form);
+        }
+        form.action = boton.dataset.action;
+        form.submit();
     });
 });
 
@@ -371,29 +380,94 @@ const table = document.getElementById('data-table');
 
 document.getElementById('search-focus').addEventListener('click', () => search && search.focus());
 
-if (search && table) {
+if (table && table.tBodies[0]) {
     const filas = [...table.tBodies[0].rows];
     const vacio = document.getElementById('table-empty');
     const contador = document.getElementById('row-count');
 
-    search.addEventListener('input', () => {
-        const texto = search.value.trim().toLowerCase();
-        let visibles = 0;
-        filas.forEach((fila) => {
-            const coincide = fila.textContent.toLowerCase().includes(texto);
-            fila.hidden = !coincide;
-            if (coincide) visibles++;
-        });
-        vacio.hidden = visibles > 0;
-        if (contador) contador.textContent = visibles;
-    });
+    // ---- Paginación: se muestra una página de las filas que coinciden con la búsqueda
+    const TAMANOS = [10, 25, 50, 100];
+    let porPagina = 10;
+    try { porPagina = Number(localStorage.getItem('panel-por-pagina')) || 10; } catch (e) { }
+    if (!TAMANOS.includes(porPagina)) porPagina = 10;
+    let pagina = 1;
+    let coinciden = filas;
 
-    // ?q=texto en la dirección llega con la búsqueda ya escrita
-    const consulta = new URLSearchParams(location.search).get('q');
-    if (consulta) {
-        search.value = consulta;
-        search.dispatchEvent(new Event('input'));
+    const pie = document.createElement('nav');
+    pie.className = 'paginacion';
+    pie.setAttribute('aria-label', 'Páginas de la tabla');
+    (table.closest('.table-wrap') || table).after(pie);
+
+    const boton = (texto, destino, { activo = false, deshabilitado = false, etiqueta = '' } = {}) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pag-btn' + (activo ? ' activo' : '');
+        b.textContent = texto;
+        b.disabled = deshabilitado;
+        if (activo) b.setAttribute('aria-current', 'page');
+        if (etiqueta) b.setAttribute('aria-label', etiqueta);
+        b.addEventListener('click', () => { pagina = destino; pintar(); table.scrollIntoView({ block: 'nearest' }); });
+        return b;
+    };
+
+    const pintar = () => {
+        const total = coinciden.length;
+        const paginas = Math.max(1, Math.ceil(total / porPagina));
+        pagina = Math.min(Math.max(1, pagina), paginas);
+        const inicio = (pagina - 1) * porPagina;
+        const visibles = new Set(coinciden.slice(inicio, inicio + porPagina));
+        filas.forEach((f) => { f.hidden = !visibles.has(f); });
+
+        // Números de página: la primera, la última y dos alrededor de la actual
+        const numeros = [...new Set([1, paginas, pagina - 1, pagina, pagina + 1])]
+            .filter((n) => n >= 1 && n <= paginas).sort((a, b) => a - b);
+        const botones = [boton('‹', pagina - 1, { deshabilitado: pagina === 1, etiqueta: 'Página anterior' })];
+        numeros.forEach((n, i) => {
+            if (i && n - numeros[i - 1] > 1) botones.push(Object.assign(document.createElement('span'), { className: 'pag-salto', textContent: '…' }));
+            botones.push(boton(String(n), n, { activo: n === pagina, etiqueta: `Página ${n}` }));
+        });
+        botones.push(boton('›', pagina + 1, { deshabilitado: pagina === paginas, etiqueta: 'Página siguiente' }));
+
+        const resumen = document.createElement('span');
+        resumen.className = 'pag-resumen';
+        resumen.textContent = total ? `Mostrando ${inicio + 1}–${Math.min(inicio + porPagina, total)} de ${total}` : '';
+
+        const tamano = document.createElement('select');
+        tamano.className = 'pag-tamano';
+        tamano.setAttribute('aria-label', 'Filas por página');
+        TAMANOS.forEach((t) => tamano.append(new Option(`${t} por página`, t, false, t === porPagina)));
+        tamano.addEventListener('change', () => {
+            porPagina = Number(tamano.value);
+            try { localStorage.setItem('panel-por-pagina', porPagina); } catch (e) { }
+            pagina = 1;
+            pintar();
+        });
+
+        const grupo = document.createElement('div');
+        grupo.className = 'pag-botones';
+        grupo.append(...botones);
+        pie.replaceChildren(resumen, tamano, grupo);
+        // Con pocas filas no hace falta paginar
+        pie.hidden = total <= TAMANOS[0];
+    };
+
+    const filtrar = () => {
+        const texto = search ? search.value.trim().toLowerCase() : '';
+        coinciden = filas.filter((fila) => fila.textContent.toLowerCase().includes(texto));
+        pagina = 1;
+        // Si la tabla no tiene filas, se deja el mensaje propio de la página («Todavía no hay…»)
+        if (vacio && filas.length) vacio.hidden = coinciden.length > 0;
+        if (contador) contador.textContent = coinciden.length;
+        pintar();
+    };
+
+    if (search) {
+        search.addEventListener('input', filtrar);
+        // ?q=texto en la dirección llega con la búsqueda ya escrita
+        const consulta = new URLSearchParams(location.search).get('q');
+        if (consulta) search.value = consulta;
     }
+    filtrar();
 
     // Ordenar al hacer clic en el encabezado
     table.querySelectorAll('th').forEach((th, columna) => {
@@ -414,6 +488,11 @@ if (search && table) {
                 return (x > y ? 1 : x < y ? -1 : 0) * (asc ? 1 : -1);
             });
             filas.forEach((fila) => table.tBodies[0].appendChild(fila));
+            // Se mantiene el filtro de la búsqueda con el nuevo orden y se vuelve a la primera página
+            const actuales = new Set(coinciden);
+            coinciden = filas.filter((f) => actuales.has(f));
+            pagina = 1;
+            pintar();
         });
     });
 }

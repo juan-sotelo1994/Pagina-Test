@@ -69,10 +69,12 @@
     </table>
     {% if not comandos %}<p class="empty">No hay comandos registrados{% if filtro_texto or filtro_equipo %} con ese filtro{% endif %}.</p>{% endif %}
 </div>
+{% import 'dash/parciales/paginacion.html' as pag %}
+{{ pag.enlaces(paginado) }}
 
 <p class="note"><i class="fa-solid fa-circle-info"></i>
     "Cuenta en el equipo" es la cuenta con la que corrió el comando (SYSTEM o root); "Sesión abierta" es quién estaba usando el equipo en ese momento.
-    {% if total > comandos | length %}Se muestran los {{ comandos | length }} más recientes de {{ total }}; el CSV los incluye todos.{% endif %}</p>
+    {% if paginado.paginas > 1 %}Los más recientes van primero; el CSV incluye todos los del filtro.{% endif %}</p>
 
 {% endblock %}
 

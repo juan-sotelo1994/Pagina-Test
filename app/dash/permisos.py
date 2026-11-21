@@ -4,7 +4,7 @@ Por ahora los permisos se guardan en app/data/roles.json. Cuando conectemos
 la base de datos, solo hay que cambiar cargar() y guardar() por consultas;
 el resto del panel usa puede() y no necesita cambios.
 """
-import almacen
+from nucleo import almacen
 
 ARCHIVO = 'roles.json'
 

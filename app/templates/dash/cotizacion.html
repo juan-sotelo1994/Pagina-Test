@@ -60,7 +60,7 @@
                 {% for clave, icono in [('enviada', 'fa-paper-plane'), ('aprobada', 'fa-circle-check'), ('rechazada', 'fa-circle-xmark'), ('borrador', 'fa-pen-ruler')] %}
                 {% if cot.estado != clave %}
                 <button type="submit" name="estado" value="{{ clave }}" class="mini-btn {{ 'danger' if clave == 'rechazada' }}"
-                        {% if clave == 'aprobada' %}onclick="return confirm('Al aprobar se genera la orden de compra, se descuentan del inventario los productos, los equipos de renta pasan a rentados y se emite la factura. ¿Continuar?')"{% endif %}>
+                        {% if clave == 'aprobada' %}data-confirmar="¿Aprobar la cotización {{ cot.numero }}?|Se genera la orden de compra, se descuentan del inventario los productos, los equipos de renta pasan a rentados y se emite la factura." data-confirmar-boton="Sí, aprobar"{% elif clave == 'rechazada' %}data-confirmar="¿Marcar {{ cot.numero }} como rechazada?" data-confirmar-boton="Sí, rechazar" data-peligro{% endif %}>
                     <i class="fa-solid {{ icono }}"></i><span>{{ estados[clave] }}</span></button>
                 {% endif %}
                 {% endfor %}

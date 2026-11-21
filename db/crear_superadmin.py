@@ -17,7 +17,7 @@ from dotenv import load_dotenv  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 load_dotenv(RAIZ / '.env')
-import db  # noqa: E402
+from nucleo import db  # noqa: E402
 from auth import usuarios  # noqa: E402
 
 

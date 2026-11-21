@@ -8,8 +8,8 @@ from flask import Blueprint, abort, flash, jsonify, redirect, render_template, r
 from markupsafe import Markup
 
 from auth import correo_admin, login_requerido, nombre_admin, nombre_de, usuarios
-import correo as correos
-import mensajes
+from nucleo import correo as correos
+from nucleo import mensajes
 from web import EMPRESA
 from . import (agentes, catalogo, clientes, comandos, cotizaciones, descargas, equipos, favoritos, glpi, indicadores,
                pdf_cotizacion, permisos, proveedores, ventas)
@@ -563,6 +563,20 @@ def equipo_comandos(equipo_id):
     return jsonify(comandos=comandos.historial(equipo_id, 20))
 
 
+def paginar(lista, por_pagina=25):
+    """Una página de la lista según ?pagina=N, con los enlaces para la plantilla parciales/paginacion.html."""
+    total = len(lista)
+    paginas = max(1, -(-total // por_pagina))
+    pagina = min(max(request.args.get('pagina', 1, type=int), 1), paginas)
+    inicio = (pagina - 1) * por_pagina
+    numeros = sorted({n for n in (1, paginas, pagina - 1, pagina, pagina + 1) if 1 <= n <= paginas})
+    otros = {k: v for k, v in request.args.items() if k != 'pagina'}
+    urls = {n: url_for(request.endpoint, **(request.view_args or {}), **otros, pagina=n)
+            for n in set(numeros) | {pagina - 1, pagina + 1} if 1 <= n <= paginas}
+    return {'items': lista[inicio:inicio + por_pagina], 'pagina': pagina, 'paginas': paginas, 'total': total,
+            'desde': inicio + 1 if total else 0, 'hasta': min(inicio + por_pagina, total), 'numeros': numeros, 'urls': urls}
+
+
 def _filtrar_historial():
     lista = comandos.historial()
     equipo_id = request.args.get('equipo', '')
@@ -580,9 +594,9 @@ def _filtrar_historial():
 def comandos_historial():
     # Auditoría: quién ejecutó qué comando, en qué equipo y con qué cuenta
     _exigir('equipos', 'editar')
-    lista = _filtrar_historial()
-    return render_template('dash/comandos_historial.html', activo='equipos', comandos=lista[:300],
-                           total=len(lista), equipos_lista=equipos.listar(),
+    paginado = paginar(_filtrar_historial())
+    return render_template('dash/comandos_historial.html', activo='equipos', comandos=paginado['items'],
+                           paginado=paginado, total=paginado['total'], equipos_lista=equipos.listar(),
                            filtro_equipo=request.args.get('equipo', ''), filtro_texto=request.args.get('q', ''))
 
 
