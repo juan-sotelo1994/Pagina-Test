@@ -16,7 +16,7 @@
             </p>
 
             {% for categoria, mensaje in get_flashed_messages(with_categories=true) %}
-            <p class="login-aviso" role="status">{{ mensaje }}</p>
+            <p class="login-aviso" role="status" data-flash="{{ categoria }}">{{ mensaje }}</p>
             {% endfor %}
             {% if error %}
             <p class="login-error" role="alert">{{ error }}</p>

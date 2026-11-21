@@ -8,7 +8,7 @@ import threading
 import uuid
 from datetime import datetime
 
-import almacen
+from nucleo import almacen
 from .clientes import PATRON_CORREO, PATRON_NIT, normalizar_nit
 
 ARCHIVO = 'proveedores.json'

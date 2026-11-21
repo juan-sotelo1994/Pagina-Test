@@ -18,7 +18,7 @@ import threading
 import uuid
 from datetime import date, datetime, timedelta
 
-import almacen
+from nucleo import almacen
 from . import catalogo
 
 ORDENES = 'ordenes.json'

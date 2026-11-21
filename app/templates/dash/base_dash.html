@@ -142,7 +142,7 @@
             <main class="content">
                 {% with mensajes = get_flashed_messages(with_categories=true) %}
                 {% for tipo, texto in mensajes %}
-                <div class="flash flash-{{ tipo }}" role="status">
+                <div class="flash flash-{{ tipo }}" role="status" data-flash="{{ tipo }}">
                     <i class="fa-solid {% if tipo == 'ok' %}fa-circle-check{% else %}fa-circle-exclamation{% endif %}"></i>
                     {{ texto }}
                 </div>
@@ -166,6 +166,9 @@
     <!-- Avisos emergentes (tickets nuevos) -->
     <div class="toasts" id="toasts" aria-live="polite"></div>
 
+    <!-- Alertas y confirmaciones con SweetAlert2 (si no carga, se usan las del navegador) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js" defer></script>
+    <script src="{{ url_for('static', filename='js/alertas.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>
     {% block extra_js %}{% endblock %}
 </body>

@@ -12,7 +12,7 @@ import threading
 import uuid
 from datetime import date, datetime
 
-import almacen
+from nucleo import almacen
 
 IVAS = ['19', '5', '0']
 

@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-import almacen
+from nucleo import almacen
 
 ARCHIVO_CLIENTES = 'clientes.json'
 ARCHIVO_ACTIVOS = 'activos.json'

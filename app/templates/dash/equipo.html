@@ -46,7 +46,7 @@
             </button>
             {% if puede('equipos', 'eliminar') %}
             <form method="post" action="{{ url_for('dashboard.equipo_eliminar', equipo_id=equipo.id) }}"
-                  onsubmit="return confirm('¿Quitar este equipo de la lista? Si el agente sigue instalado, volverá a aparecer.')">
+                  data-confirmar="¿Quitar este equipo de la lista?|Si el agente sigue instalado, volverá a aparecer." data-confirmar-boton="Sí, quitar" data-peligro>
                 <button class="tool-btn btn-danger" type="submit"><i class="fa-solid fa-trash"></i> Quitar</button>
             </form>
             {% endif %}
@@ -128,7 +128,7 @@
             </span>
             {% if puede('equipos', 'editar') %}
             <form method="post" action="{{ url_for('dashboard.equipo_ubicacion', equipo_id=equipo.id) }}"
-                  {% if not rastreo.activo %}onsubmit="return confirm('¿Activar la ubicación de este equipo?\n\nEl equipo enviará su posición cada 2 minutos. Úsalo solo en equipos de la empresa y con conocimiento de quien lo usa.')"{% endif %}>
+                  {% if not rastreo.activo %}data-confirmar="¿Activar la ubicación de este equipo?|El equipo enviará su posición cada 2 minutos. Úsalo solo en equipos de la empresa y con conocimiento de quien lo usa." data-confirmar-boton="Sí, activar"{% endif %}>
                 <input type="hidden" name="activo" value="{{ '0' if rastreo.activo else '1' }}">
                 <button class="tool-btn {{ '' if rastreo.activo else 'btn-save' }}" type="submit">
                     <i class="fa-solid {{ 'fa-location-pin-lock' if rastreo.activo else 'fa-location-crosshairs' }}"></i>

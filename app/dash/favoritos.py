@@ -5,7 +5,7 @@ Quien todavía no ha elegido los suyos ve los favoritos iniciales.
 """
 import threading
 
-import almacen
+from nucleo import almacen
 
 ARCHIVO = 'favoritos.json'
 INICIALES = ['inicio', 'cotizaciones']

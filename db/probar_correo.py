@@ -14,7 +14,7 @@ sys.path.insert(0, str(RAIZ / 'app'))
 from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(RAIZ / '.env')
-import correo  # noqa: E402
+from nucleo import correo  # noqa: E402
 
 
 def main():

@@ -12,7 +12,7 @@ import secrets
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-import db
+from nucleo import db
 
 LARGO_MINIMO = 8
 PATRON_CORREO = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
