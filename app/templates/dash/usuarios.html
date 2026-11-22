@@ -53,7 +53,14 @@
                 <td class="mono">{{ u.celular or '—' }}</td>
                 <td><span class="tag {% if u.rol in ('superadmin', 'admin') %}tag-full{% else %}tag-read{% endif %}">{{ nombres_rol.get(u.rol, u.rol) }}</span></td>
                 <td>
-                    <span class="status"><span class="status-dot" style="background: {{ '#4caf6e' if u.activo else '#6b6f75' }}"></span>{{ 'Activo' if u.activo else 'Inactivo' }}</span>
+                    {% if u.activo %}
+                    <span class="status"><span class="status-dot" style="background: #4caf6e"></span>Activo</span>
+                    {% else %}
+                    <span class="status status-bloqueado"><i class="fa-solid fa-lock"></i>Bloqueado</span>
+                    {% if u.bloqueado_en %}
+                    <div class="sub" title="Bloqueado por {{ u.bloqueado_por }}">{{ u.motivo_bloqueo or 'Sin motivo' }} · {{ u.bloqueado_en }}</div>
+                    {% endif %}
+                    {% endif %}
                 </td>
                 <td class="mono">{{ u.creado }}</td>
                 {% if puede_editar %}
@@ -62,6 +69,22 @@
                     <button type="button" class="mini-btn" data-open-dialog="dialogo-usuario" data-usuario='{{ para_formulario(u) | tojson | forceescape }}'>
                         <i class="fa-solid fa-pen"></i><span>Editar</span>
                     </button>
+                    {% if u.correo != usuario %}
+                    {% if u.activo %}
+                    <form method="post" action="{{ url_for('dashboard.usuario_bloqueo', usuario_id=u.id, accion='bloquear') }}"
+                          data-confirmar="¿Bloquear a {{ u.nombre }}?|No podrá entrar al panel ni recuperar la contraseña, y si tiene la sesión abierta se le cierra. Sus cotizaciones y registros se conservan."
+                          data-confirmar-boton="Sí, bloquear" data-peligro data-confirmar-motivo="{{ largo_motivo }}">
+                        <input type="hidden" name="motivo">
+                        <button type="submit" class="mini-btn danger"><i class="fa-solid fa-user-lock"></i><span>Bloquear</span></button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('dashboard.usuario_bloqueo', usuario_id=u.id, accion='desbloquear') }}"
+                          data-confirmar="¿Desbloquear a {{ u.nombre }}?|Podrá volver a entrar al panel con su contraseña y el rol {{ nombres_rol.get(u.rol, u.rol) }}."
+                          data-confirmar-boton="Sí, desbloquear">
+                        <button type="submit" class="mini-btn"><i class="fa-solid fa-lock-open"></i><span>Desbloquear</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
                     {% endif %}
                 </td>
                 {% endif %}
@@ -124,14 +147,6 @@
                     </select>
                     {% if errores.rol %}<small>{{ errores.rol }}</small>{% endif %}
                 </label>
-                <label class="form-field {% if errores.activo %}invalid{% endif %}" data-solo-editar {% if not formulario.id %}hidden{% endif %}>
-                    <span>Estado</span>
-                    <select name="activo">
-                        <option value="1">Activo</option>
-                        <option value="0" {% if formulario.activo == '0' %}selected{% endif %}>Inactivo (no puede entrar)</option>
-                    </select>
-                    {% if errores.activo %}<small>{{ errores.activo }}</small>{% endif %}
-                </label>
             </div>
 
             <div class="form-row">
@@ -160,6 +175,6 @@
 {% endblock %}
 
 {% block status %}
-<span><i class="fa-solid fa-users"></i> {{ lista | length + (1 if admin_correo else 0) }} usuarios</span>
+<span><i class="fa-solid fa-users"></i> {{ lista | length + (1 if admin_correo else 0) }} usuarios{% if bloqueados %} · {{ bloqueados }} bloqueado{{ 's' if bloqueados > 1 }}{% endif %}</span>
 <span class="status-right" id="row-count">{{ lista | length + (1 if admin_correo else 0) }}</span>
 {% endblock %}

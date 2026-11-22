@@ -355,6 +355,122 @@ if (campana) {
     setInterval(revisarTickets, 60000);
 }
 
+// Campana de notificaciones: lista agrupada por área y aviso al iniciar sesión
+const notif = document.getElementById('notif');
+if (notif) {
+    const btn = document.getElementById('notif-btn');
+    const panelNotif = document.getElementById('notif-panel');
+    const listaNotif = document.getElementById('notif-lista');
+    const badge = document.getElementById('notif-badge');
+    let ultimos = null;
+
+    const crear = (etiqueta, clase, texto) => {
+        const el = document.createElement(etiqueta);
+        if (clase) el.className = clase;
+        if (texto !== undefined) el.textContent = texto;
+        return el;
+    };
+
+    // Avisos agrupados por área (Facturas, Soporte, Ventas...) como enlaces
+    const dibujarLista = (avisos, limite = Infinity) => {
+        const cont = crear('div', 'notif-grupos');
+        const grupos = new Map();
+        avisos.slice(0, limite).forEach((a) => {
+            if (!grupos.has(a.area)) grupos.set(a.area, []);
+            grupos.get(a.area).push(a);
+        });
+        grupos.forEach((lista, area) => {
+            cont.append(crear('h3', 'notif-area', area));
+            lista.forEach((a) => {
+                const item = crear('a', `notif-item nivel-${a.nivel}`);
+                item.href = a.url;
+                const icono = crear('i', `fa-solid ${a.icono}`);
+                const texto = crear('span');
+                texto.append(crear('strong', '', a.titulo), crear('small', '', a.detalle));
+                item.append(icono, texto);
+                cont.append(item);
+            });
+        });
+        return cont;
+    };
+
+    const pintar = (datos) => {
+        ultimos = datos;
+        badge.textContent = datos.total > 99 ? '99+' : datos.total;
+        badge.hidden = !datos.total;
+        badge.classList.toggle('badge-info', !datos.alta);
+        btn.title = datos.total ? `${datos.total} notificaciones` : 'Sin notificaciones';
+        document.getElementById('notif-resumen').textContent =
+            datos.alta ? `${datos.alta} urgente${datos.alta > 1 ? 's' : ''}` : '';
+        if (!datos.avisos.length) {
+            const vacio = crear('p', 'notif-vacio');
+            vacio.append(crear('i', 'fa-solid fa-circle-check'), ' Todo al día. No hay nada pendiente.');
+            listaNotif.replaceChildren(vacio);
+        } else {
+            listaNotif.replaceChildren(dibujarLista(datos.avisos));
+        }
+    };
+
+    const cargar = async () => {
+        try {
+            const r = await fetch(notif.dataset.url, { headers: { Accept: 'application/json' } });
+            if (r.ok) pintar(await r.json());
+        } catch (e) { /* sin conexión: se intenta en el siguiente ciclo */ }
+        return ultimos;
+    };
+
+    const abrir = (abierto) => {
+        panelNotif.hidden = !abierto;
+        btn.setAttribute('aria-expanded', String(abierto));
+    };
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const abrirAhora = panelNotif.hidden;
+        abrir(abrirAhora);
+        if (abrirAhora) cargar();
+    });
+    document.addEventListener('click', (e) => { if (!notif.contains(e.target)) abrir(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') abrir(false); });
+
+    // Aviso al iniciar sesión, después de los mensajes que ya esté mostrando la página
+    const esperarAlertas = () => new Promise((listo) => {
+        const revisar = () => (window.Swal && Swal.isVisible() ? setTimeout(revisar, 400) : listo());
+        setTimeout(revisar, 300);
+    });
+    const avisoInicio = async (datos) => {
+        await esperarAlertas();
+        const nombre = notif.dataset.nombre ? `, ${notif.dataset.nombre}` : '';
+        if (!window.Swal) return;
+        if (!datos.total) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `¡Hola${nombre}! Todo al día: no hay pendientes.`,
+                        showConfirmButton: false, timer: 4000, timerProgressBar: true,
+                        background: getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#fff',
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#1f2933' });
+            return;
+        }
+        const LIMITE = 8;
+        const cuerpo = crear('div', 'notif-popup');
+        cuerpo.append(dibujarLista(datos.avisos, LIMITE));
+        if (datos.avisos.length > LIMITE) cuerpo.append(crear('p', 'notif-mas', `y ${datos.avisos.length - LIMITE} más en la campana`));
+        const estilo = getComputedStyle(document.documentElement);
+        const r = await Swal.fire({
+            icon: datos.alta ? 'warning' : 'info',
+            title: `¡Hola${nombre}! Tienes ${datos.total} notificaci${datos.total === 1 ? 'ón' : 'ones'}`,
+            html: cuerpo, width: 560,
+            showCancelButton: true, confirmButtonText: 'Ver en la campana', cancelButtonText: 'Entendido',
+            reverseButtons: true,
+            background: estilo.getPropertyValue('--panel').trim() || '#fff',
+            color: estilo.getPropertyValue('--text').trim() || '#1f2933',
+            confirmButtonColor: estilo.getPropertyValue('--accent').trim() || '#1d6fe8',
+            cancelButtonColor: '#8a94a6',
+        });
+        if (r.isConfirmed) abrir(true);
+    };
+
+    cargar().then((datos) => { if (datos && 'avisoInicio' in notif.dataset) avisoInicio(datos); });
+    setInterval(cargar, 60000);
+}
+
 // Roles y permisos: reglas entre los interruptores de cada fila
 document.querySelectorAll('.perm-table tr[data-row]').forEach((fila) => {
     const switches = [...fila.querySelectorAll('input[data-accion]')];

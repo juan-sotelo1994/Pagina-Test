@@ -274,6 +274,16 @@ def _registrar_movimientos(cambios, motivo, referencia, usuario):
     almacen.escribir(MOVIMIENTOS, movimientos)
 
 
+def actualizar_codigos_movimientos(cambios):
+    """cambios: {producto_id: código nuevo}."""
+    with _lock:
+        movimientos = almacen.leer(MOVIMIENTOS, [])
+        for m in movimientos:
+            if m.get('producto_id') in cambios:
+                m['codigo'] = cambios[m['producto_id']]
+        almacen.escribir(MOVIMIENTOS, movimientos)
+
+
 def registrar_ajuste(producto_id, stock_anterior, stock_nuevo, usuario, nuevo=False):
     """Cuando alguien crea un producto con stock o lo cambia a mano desde el catálogo."""
     if stock_anterior != stock_nuevo:

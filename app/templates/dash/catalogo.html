@@ -104,7 +104,7 @@
                 {% else %}
                 <th data-sort="text">{{ 'Unidad' if es_producto else 'Se cobra por' }}</th>
                 {% if es_producto and ver_costo %}<th data-sort="number" class="num">Precio de compra</th>{% endif %}
-                <th data-sort="number" class="num">{{ 'Precios de venta' if es_producto else 'Precio' }}{% if es_producto and ver_costo %} <small class="muted-text">(margen)</small>{% endif %}</th>
+                <th data-sort="number" class="num">{{ 'Precios de venta' if cfg.tres_precios else 'Precio' }}{% if es_producto and ver_costo %} <small class="muted-text">(margen)</small>{% endif %}</th>
                 {% endif %}
                 <th data-sort="number" class="num">IVA</th>
                 {% if es_renta and ver_costo %}<th data-sort="number" class="num">Se paga en</th>{% endif %}
@@ -117,7 +117,7 @@
             {% for x in lista %}
             {% set bajo = es_producto and x.stock_minimo and x.stock <= x.stock_minimo %}
             <tr>
-                <td class="mono">{{ x.codigo }}</td>
+                <td class="mono">{{ x.codigo }}{% if x.sku %}<div class="sub" title="Referencia del fabricante">{{ x.sku }}</div>{% endif %}</td>
                 <td>
                     <strong>{{ x.nombre }}</strong>
                     {% if x.marca or x.proveedor_id %}<div class="sub">{{ x.marca }}{% if x.marca and x.proveedor_id %} · {% endif %}{% if x.proveedor_id %}<i class="fa-solid fa-truck-field"></i> {{ nombres_proveedor.get(x.proveedor_id, 'Proveedor eliminado') }}{% endif %}</div>{% endif %}
@@ -140,7 +140,7 @@
                 {% if es_producto and ver_costo %}
                 <td class="num" data-value="{{ x.costo or 0 }}">{% if x.costo %}{{ x.costo | pesos }}{% else %}<span class="muted-text">—</span>{% endif %}</td>
                 {% endif %}
-                {% if es_producto %}
+                {% if cfg.tres_precios %}
                 <td class="num" data-value="{{ x.precio }}">
                     {% for nivel, etiqueta, valor in precios_de(x) %}
                     <div class="precio-nivel {{ 'principal' if loop.first }}">
@@ -217,7 +217,7 @@
             {% set valor = formulario.get(nombre, '') %}
             <label class="form-field {{ 'span-2' if clase == 'textarea' or nombre == 'nombre' or clase == 'cliente' }} {{ 'invalid' if errores[nombre] }}"
                    {% if nombre in ('cliente_id', 'renta_inicio', 'renta_fin') %}data-solo-rentado{% endif %}>
-                <span>{{ etiqueta }}{% if not obligatorio %} <small class="hint">(opcional)</small>{% endif %}</span>
+                <span>{{ etiqueta }}{% if not obligatorio and clase != 'auto' %} <small class="hint">(opcional)</small>{% endif %}</span>
                 {% if clase == 'textarea' %}
                 <textarea name="{{ nombre }}" rows="3" maxlength="1000">{{ valor }}</textarea>
                 {% elif clase == 'select' %}
@@ -240,12 +240,17 @@
                 <select name="{{ nombre }}">
                     {% for o in opciones %}<option value="{{ o }}" {% if (valor or '19') == o %}selected{% endif %}>{{ o }}%{{ ' (excluido / exento)' if o == '0' }}</option>{% endfor %}
                 </select>
+                {% elif clase == 'auto' %}
+                {# Solo se muestra: lo asigna el sistema al guardar #}
+                <input type="text" name="{{ nombre }}" value="{{ valor }}" class="mono" readonly disabled
+                       placeholder="{{ siguiente_codigo or 'Se asigna al guardar' }}">
                 {% elif clase in ('money', 'int') %}
                 <input type="text" name="{{ nombre }}" value="{{ valor }}" inputmode="{{ 'numeric' if clase == 'int' else 'decimal' }}"
                        class="num" autocomplete="off" {{ 'required' if obligatorio }} {% if clase == 'money' %}placeholder="0"{% endif %}>
                 {% else %}
                 <input type="text" name="{{ nombre }}" value="{{ valor }}" maxlength="{{ 30 if nombre == 'codigo' else 120 }}"
-                       {{ 'required' if obligatorio }} {% if nombre == 'codigo' %}class="mono" placeholder="{{ cfg.prefijo }}-0001"{% endif %}>
+                       {{ 'required' if obligatorio }} {% if nombre in ('codigo', 'sku') %}class="mono"{% endif %}
+                       {% if nombre == 'codigo' %}placeholder="{{ cfg.prefijo }}-0001"{% endif %}>
                 {% endif %}
                 {% if errores[nombre] %}<small>{{ errores[nombre] }}</small>{% elif ayuda %}<small class="hint">{{ ayuda }}</small>{% endif %}
             </label>

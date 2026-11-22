@@ -58,6 +58,20 @@ def login_requerido(vista):
         if 'usuario' not in session or 'rol' not in session:
             session.clear()
             return redirect(url_for('autenticar.login'))
+        # En cada clic se revisa que la cuenta siga activa: si la bloquearon, la sesión se cierra
+        # y si le cambiaron el rol, se aplica de inmediato
+        if session['usuario'] != correo_admin():
+            try:
+                usuario = usuarios.buscar(session['usuario'])
+            except db.Error:
+                usuario = False  # sin conexión a la base no se puede revisar; se sigue con la sesión
+            if usuario is None or (usuario and not usuario['activo']):
+                session.clear()
+                flash('Tu cuenta está bloqueada. Si crees que es un error, habla con el administrador.'
+                      if usuario else 'Tu sesión terminó. Vuelve a entrar.', 'error')
+                return redirect(url_for('autenticar.login'))
+            if usuario:
+                session['rol'] = usuario['rol']
         return vista(*args, **kwargs)
     return envoltura
 
@@ -87,10 +101,14 @@ def login():
                 usuario = usuarios.autenticar(correo, contrasena)
             except db.Error:
                 usuario, error = None, 'No hay conexión con la base de datos. Intenta de nuevo en un momento.'
+            if usuario and not usuario['activo']:
+                # Solo se dice que está bloqueada si la contraseña era correcta
+                usuario, error = None, 'Tu cuenta está bloqueada. Si crees que es un error, habla con el administrador.'
             if usuario:
                 session.clear()
                 session['usuario'] = usuario['correo']
                 session['rol'] = usuario['rol']
+                session['aviso_inicio'] = True  # la primera página muestra las notificaciones
                 return redirect(url_for('dashboard.dash_view'))
             error = error or 'Correo o contraseña incorrectos.'
 

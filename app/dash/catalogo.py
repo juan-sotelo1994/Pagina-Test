@@ -24,10 +24,11 @@ ESTADOS_RENTA = ['Disponible', 'Rentado', 'En mantenimiento', 'De baja']
 CATALOGOS = {
     'productos': {
         'archivo': 'productos.json', 'titulo': 'Productos', 'singular': 'producto', 'icono': 'fa-box-open',
-        'prefijo': 'PRD', 'grupo': 'Inventario', 'tipo_item': 'producto',
+        'prefijo': 'PROD', 'codigo_auto': True, 'tres_precios': True, 'grupo': 'Inventario', 'tipo_item': 'producto',
         'campos': [
             ('nombre', 'Nombre', 'text', None, True, ''),
-            ('codigo', 'Código (SKU)', 'text', None, False, 'Si lo dejas vacío se genera solo.'),
+            ('codigo', 'Código interno', 'auto', None, False, 'Se asigna solo y no se repite.'),
+            ('sku', 'Referencia del fabricante (SKU)', 'text', None, False, 'El código del fabricante o del proveedor.'),
             ('categoria', 'Categoría', 'select', ['Computadores', 'Servidores', 'Redes', 'Almacenamiento', 'Periféricos',
                                                   'Licencias', 'Seguridad', 'Repuestos', 'Otros'], True, ''),
             ('marca', 'Marca', 'text', None, False, ''),
@@ -46,15 +47,18 @@ CATALOGOS = {
     },
     'servicios': {
         'archivo': 'servicios.json', 'titulo': 'Servicios', 'singular': 'servicio', 'icono': 'fa-layer-group',
-        'prefijo': 'SRV', 'grupo': 'Inventario', 'tipo_item': 'servicio',
+        'prefijo': 'SER', 'codigo_auto': True, 'tres_precios': True, 'grupo': 'Inventario', 'tipo_item': 'servicio',
         'campos': [
-            ('codigo', 'Código', 'text', None, False, 'Si lo dejas vacío se genera solo.'),
+            ('codigo', 'Código interno', 'auto', None, False, 'Se asigna solo y no se repite.'),
             ('nombre', 'Nombre', 'text', None, True, ''),
             ('categoria', 'Categoría', 'select', ['Mesa de ayuda', 'Nube', 'Infraestructura', 'Redes', 'Ciberseguridad',
                                                   'Consultoría', 'Soporte en sitio', 'Licenciamiento', 'Otros'], True, ''),
             ('unidad', 'Se cobra por', 'select', ['Servicio', 'Hora', 'Mes', 'Año', 'Usuario/mes', 'Equipo/mes', 'Visita'], True, ''),
             ('descripcion', 'Descripción y alcance', 'textarea', None, False, 'Aparece en la cotización debajo del nombre.'),
-            ('precio', 'Precio (sin IVA)', 'money', None, True, ''),
+            # Tres precios para negociar, igual que en productos
+            ('precio', 'Precio 1 · Lista (sin IVA)', 'money', None, True, 'El precio normal al público.'),
+            ('precio2', 'Precio 2 · Preferencial (sin IVA)', 'money', None, False, 'Clientes frecuentes o contratos largos. Vacío = igual al de lista.'),
+            ('precio3', 'Precio 3 · Mínimo (sin IVA)', 'money', None, False, 'El piso de negociación. Vacío = igual al preferencial.'),
             ('iva', 'IVA', 'iva', IVAS, True, ''),
         ],
     },
@@ -115,6 +119,8 @@ def validar(tipo, form, item_id=None):
     """Devuelve (datos limpios, errores)."""
     datos, errores = {}, {}
     for nombre, etiqueta, clase, opciones, obligatorio, _ in CATALOGOS[tipo]['campos']:
+        if clase == 'auto':
+            continue  # lo pone guardar(); no se puede escribir desde el formulario
         valor = str(form.get(nombre, '')).strip()
         if clase in ('money', 'int'):
             try:
@@ -143,15 +149,19 @@ def validar(tipo, form, item_id=None):
         datos[nombre] = valor[:1000 if clase == 'textarea' else 120]
     datos['activo'] = form.get('activo', '1') == '1'
 
+    if 'sku' in datos:
+        datos['sku'] = datos['sku'].upper()[:40]
     codigo = datos.get('codigo', '').upper()
     datos['codigo'] = codigo
+    if not codigo:
+        datos.pop('codigo')
     if codigo and not re.fullmatch(r'[A-Z0-9._\-]{2,30}', codigo):
         errores['codigo'] = 'Usa letras, números, guiones o puntos (2 a 30).'
     elif codigo and any(x['codigo'] == codigo and x['id'] != item_id for x in almacen.leer(CATALOGOS[tipo]['archivo'], [])):
         errores['codigo'] = 'Ya existe un registro con ese código.'
     if tipo == 'renta':
         _validar_renta(datos, errores, item_id)
-    if tipo == 'productos':
+    if CATALOGOS[tipo].get('tres_precios'):
         _validar_precios(datos, errores)
     return datos, errores
 
@@ -289,13 +299,78 @@ def rentas_de_cliente(cliente_id):
     return [x for x in almacen.leer(CATALOGOS['renta']['archivo'], []) if x.get('cliente_id') == cliente_id]
 
 
+# ---------------------------------------------------------------- Código interno (PROD-001, SER-001)
+
+CONSECUTIVOS = 'consecutivos.json'  # último número entregado por catálogo: no se reutiliza aunque se borre
+
+
+def _formato_codigo(prefijo, numero):
+    return f'{prefijo}-{numero:03d}'  # PROD-001 … PROD-999, PROD-1000…
+
+
+def _siguiente_codigo(tipo, lista, reservar=False):
+    """El próximo código interno. Con reservar=True lo marca como usado (se llama con _lock tomado)."""
+    prefijo = CATALOGOS[tipo]['prefijo']
+    consecutivos = almacen.leer(CONSECUTIVOS, {})
+    usados = [int(m.group(1)) for x in lista if (m := re.fullmatch(rf'{prefijo}-(\d+)', x.get('codigo', '')))]
+    numero = max([consecutivos.get(tipo, 0)] + usados) + 1
+    if reservar:
+        consecutivos[tipo] = numero
+        almacen.escribir(CONSECUTIVOS, consecutivos)
+    return _formato_codigo(prefijo, numero)
+
+
+def siguiente_codigo(tipo):
+    """Para mostrar en el formulario de «Nuevo» el código que va a recibir."""
+    if not CATALOGOS[tipo].get('codigo_auto'):
+        return ''
+    return _siguiente_codigo(tipo, almacen.leer(CATALOGOS[tipo]['archivo'], []))
+
+
+def asegurar_codigos():
+    """Pasa los productos y servicios que tengan otro código (PRD-0001, SRV-0001 o escrito a mano)
+    al código interno, en orden de creación. El código anterior queda en 'codigo_anterior'
+    (y en productos, si era escrito a mano, como referencia del fabricante).
+    Las cotizaciones y facturas ya hechas conservan el código con el que se emitieron."""
+    cambios = {}
+    with _lock:
+        for tipo, cfg in CATALOGOS.items():
+            if not cfg.get('codigo_auto'):
+                continue
+            lista = almacen.leer(cfg['archivo'], [])
+            patron = rf"{cfg['prefijo']}-\d{{3,}}"
+            pendientes = sorted((x for x in lista if not re.fullmatch(patron, x.get('codigo', ''))),
+                                key=lambda x: x.get('creado', ''))
+            if not pendientes:
+                continue
+            for x in pendientes:
+                anterior = x.get('codigo', '')
+                x['codigo'] = _siguiente_codigo(tipo, lista, reservar=True)
+                if anterior:
+                    x['codigo_anterior'] = anterior
+                    hecho_a_mano = not re.fullmatch(r'(PRD|SRV)-\d+', anterior)
+                    if tipo == 'productos' and hecho_a_mano and not x.get('sku'):
+                        x['sku'] = anterior
+                cambios[x['id']] = x['codigo']
+            almacen.escribir(cfg['archivo'], lista)
+    if cambios:
+        # El historial de movimientos de inventario muestra el código nuevo
+        from . import ventas  # aquí para evitar importaciones circulares
+        ventas.actualizar_codigos_movimientos(cambios)
+    return cambios
+
+
 def guardar(tipo, datos, item_id=None, usuario=''):
     cfg = CATALOGOS[tipo]
     ahora = datetime.now().strftime('%Y-%m-%d %H:%M')
     with _lock:
         lista = almacen.leer(cfg['archivo'], [])
-        if not datos.get('codigo'):
-            # Código automático: PRD-0001, SRV-0001…
+        if cfg.get('codigo_auto'):
+            datos.pop('codigo', None)  # el código interno nunca cambia después de creado
+            if not item_id:
+                datos['codigo'] = _siguiente_codigo(tipo, lista, reservar=True)
+        elif not datos.get('codigo'):
+            # Código automático: REN-0001…
             usados = [int(m.group(1)) for x in lista if (m := re.fullmatch(rf"{cfg['prefijo']}-(\d+)", x['codigo']))]
             datos['codigo'] = f"{cfg['prefijo']}-{max(usados, default=0) + 1:04d}"
         if item_id:
@@ -331,9 +406,9 @@ def para_cotizar():
                 'detalle': (x.get('descripcion', '') + (f"\nSerial: {x['serial']}" if x.get('serial') else '')).strip(), 'unidad': x.get('unidad', ''), 'precio': x.get('precio', 0),
                 'iva': float(x.get('iva') or 0), 'stock': x.get('stock') if tipo == 'productos' else None,
                 'categoria': x.get('categoria', ''),
-                # Solo productos: los tres precios para elegir en el editor
+                # Productos y servicios: los tres precios para elegir en el editor
                 # (sin repetir: si el preferencial o el mínimo no están definidos, no se ofrecen)
-                'precios': _precios_distintos(x) if tipo == 'productos' else [],
+                'precios': _precios_distintos(x) if cfg.get('tres_precios') else [],
             })
     return resultado
 
