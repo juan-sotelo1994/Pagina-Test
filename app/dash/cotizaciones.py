@@ -22,7 +22,7 @@ ESTADOS = {
 }
 EDITABLES = ('borrador', 'enviada')
 
-FORMAS_PAGO = ['Contado', '50% anticipo y 50% contra entrega', 'Crédito 30 días', 'Crédito 60 días', 'Mensualidad anticipada']
+FORMAS_PAGO = ['Contado', 'Transferencia', 'Efectivo', '50% anticipo y 50% contra entrega', 'Crédito 30 días', 'Crédito 60 días', 'Mensualidad anticipada']
 
 CONDICIONES_INICIALES = {
     'forma_pago': 'Contado',

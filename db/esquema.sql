@@ -32,6 +32,11 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- Bloqueo de la cuenta (por ejemplo, cuando la persona sale de la empresa). Bloqueado = activo false.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_en   timestamptz;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_por  varchar(120) NOT NULL DEFAULT '';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS motivo_bloqueo varchar(200) NOT NULL DEFAULT '';
+
 -- ------------------------------------------------------------ Recuperación de contraseña
 
 -- Códigos de 6 dígitos para renovar la contraseña. Solo se guarda el código cifrado

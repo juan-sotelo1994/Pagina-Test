@@ -23,8 +23,10 @@ def _formato(fila):
     # Mismo formato que usa el resto del panel
     if fila is None:
         return None
+    bloqueado = fila.get('bloqueado_en')
     return {**fila, 'nombre': f"{fila['nombres']} {fila['apellidos']}".strip(),
-            'creado': fila['creado'].strftime('%Y-%m-%d %H:%M')}
+            'creado': fila['creado'].strftime('%Y-%m-%d %H:%M'),
+            'bloqueado_en': bloqueado.astimezone().strftime('%Y-%m-%d %H:%M') if bloqueado else ''}
 
 
 def listar():
@@ -116,26 +118,49 @@ def crear(datos, contrasena):
     return _formato(fila)
 
 
-def actualizar(usuario_id, datos, activo=True, contrasena=''):
-    """Cambia los datos del usuario; la contraseña solo si se escribió una nueva."""
+def actualizar(usuario_id, datos, contrasena=''):
+    """Cambia los datos del usuario; la contraseña solo si se escribió una nueva.
+    El estado (activo o bloqueado) se cambia con bloquear() y desbloquear()."""
     with db.conectar() as cx:
         fila = cx.execute(
-            'UPDATE usuarios SET nombres = %s, apellidos = %s, correo = %s, celular = %s, rol = %s, activo = %s'
+            'UPDATE usuarios SET nombres = %s, apellidos = %s, correo = %s, celular = %s, rol = %s'
             + (', hash = %s' if contrasena else '') + ' WHERE id = %s RETURNING *',
-            (datos['nombres'], datos['apellidos'], datos['correo'], datos['celular'], datos['rol'], activo,
+            (datos['nombres'], datos['apellidos'], datos['correo'], datos['celular'], datos['rol'],
              *([generate_password_hash(contrasena)] if contrasena else []), usuario_id)).fetchone()
+    return _formato(fila)
+
+
+LARGO_MOTIVO = 200
+
+
+def bloquear(usuario_id, motivo, por):
+    """Bloquea la cuenta: no puede entrar, su sesión abierta se cierra en el siguiente clic
+    y se anulan los códigos de recuperación pendientes."""
+    with db.conectar() as cx:
+        fila = cx.execute(
+            'UPDATE usuarios SET activo = false, bloqueado_en = now(), bloqueado_por = %s, motivo_bloqueo = %s '
+            'WHERE id = %s RETURNING *', (por, motivo[:LARGO_MOTIVO], usuario_id)).fetchone()
+        cx.execute('UPDATE recuperacion_clave SET usado = now() WHERE usuario_id = %s AND usado IS NULL', (usuario_id,))
+    return _formato(fila)
+
+
+def desbloquear(usuario_id):
+    with db.conectar() as cx:
+        fila = cx.execute(
+            "UPDATE usuarios SET activo = true, bloqueado_en = NULL, bloqueado_por = '', motivo_bloqueo = '' "
+            'WHERE id = %s RETURNING *', (usuario_id,)).fetchone()
     return _formato(fila)
 
 
 def para_formulario(usuario):
     """Datos para precargar el formulario de edición (sin la contraseña cifrada)."""
-    return {k: usuario[k] for k in ('id', 'nombres', 'apellidos', 'correo', 'celular', 'rol')} | {
-        'activo': '1' if usuario['activo'] else '0'}
+    return {k: usuario[k] for k in ('id', 'nombres', 'apellidos', 'correo', 'celular', 'rol')}
 
 
 def autenticar(correo, contrasena):
+    """El usuario si la contraseña es correcta (aunque esté bloqueado: quien llama revisa 'activo')."""
     usuario = buscar(correo)
-    if usuario and usuario['activo'] and check_password_hash(usuario['hash'], contrasena):
+    if usuario and check_password_hash(usuario['hash'], contrasena):
         return usuario
     return None
 

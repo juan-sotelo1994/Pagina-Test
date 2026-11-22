@@ -87,7 +87,8 @@
             {% if not catalogo_items %}
             <p class="note"><i class="fa-solid fa-circle-info"></i> El catálogo está vacío. Crea productos en Inventario › Productos y servicios en Inventario › Servicios, o usa «Línea libre».</p>
             {% endif %}
-            {% if errores['items'] %}<div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i> {{ errores['items'] }}</div>{% endif %}
+            {# .get(): con errores['items'] Jinja devuelve el método dict.items cuando no hay error #}
+            {% if errores.get('items') %}<div class="flash flash-error"><i class="fa-solid fa-triangle-exclamation"></i> {{ errores.get('items') }}</div>{% endif %}
         </div>
         <div class="table-wrap">
             <table class="plain-table cot-items">
@@ -115,8 +116,12 @@
         <div class="card-body form-grid">
             <label class="form-field">
                 <span>Forma de pago</span>
-                <input type="text" name="forma_pago" value="{{ formulario.forma_pago }}" list="formas-pago" maxlength="120">
-                <datalist id="formas-pago">{% for f in formas_pago %}<option value="{{ f }}">{% endfor %}</datalist>
+                <select name="forma_pago">
+                    {% for f in formas_pago %}<option {{ 'selected' if formulario.forma_pago == f }}>{{ f }}</option>{% endfor %}
+                    {% if formulario.forma_pago and formulario.forma_pago not in formas_pago %}
+                    <option selected>{{ formulario.forma_pago }}</option>{# cotizaciones antiguas con otra forma escrita a mano #}
+                    {% endif %}
+                </select>
             </label>
             <label class="form-field {{ 'invalid' if errores.validez_dias }}">
                 <span>Validez de la oferta (días)</span>

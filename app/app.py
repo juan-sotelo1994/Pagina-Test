@@ -24,6 +24,10 @@ app.register_blueprint(autenticar)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(api_bp)
 
+# Productos y servicios con el código interno PROD-001 / SER-001 (pasa los antiguos una sola vez)
+from dash import catalogo
+catalogo.asegurar_codigos()
+
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', '1') == '1',

@@ -110,13 +110,29 @@
                         <i class="fa-solid fa-globe"></i>
                     </a>
                     {% if puede('tickets') %}
-                    <a href="{{ url_for('dashboard.tickets') }}" class="icon-btn" title="Tickets nuevos y pendientes"
-                       id="tickets-bell" data-resumen="{{ url_for('dashboard.tickets_resumen') }}"
-                       data-ver="{{ url_for('dashboard.tickets', estado='nuevos') }}">
-                        <i class="fa-regular fa-bell"></i>
-                        <span class="badge badge-top" data-tickets-badge {% if not alertas_tickets %}hidden{% endif %}>{{ alertas_tickets }}</span>
-                    </a>
+                    <!-- Revisa cada minuto si llegaron tickets nuevos (aviso en la esquina) -->
+                    <span id="tickets-bell" hidden data-resumen="{{ url_for('dashboard.tickets_resumen') }}"
+                          data-ver="{{ url_for('dashboard.tickets', estado='nuevos') }}"></span>
                     {% endif %}
+
+                    <!-- Notificaciones: facturas, tickets, cotizaciones, inventario, rentas... -->
+                    <div class="notif-menu" id="notif" data-url="{{ url_for('dashboard.notificaciones_json') }}"
+                         {% if aviso_inicio %}data-aviso-inicio data-nombre="{{ nombre_corto.split()[0] if nombre_corto else '' }}"{% endif %}>
+                        <button type="button" class="icon-btn" id="notif-btn" title="Notificaciones" aria-label="Notificaciones"
+                                aria-expanded="false" aria-controls="notif-panel">
+                            <i class="fa-regular fa-bell"></i>
+                            <span class="badge badge-top" id="notif-badge" hidden></span>
+                        </button>
+                        <div class="notif-panel" id="notif-panel" hidden>
+                            <header class="notif-head">
+                                <strong>Notificaciones</strong>
+                                <span class="muted-text" id="notif-resumen"></span>
+                            </header>
+                            <div class="notif-lista" id="notif-lista">
+                                <p class="notif-vacio"><i class="fa-solid fa-spinner fa-spin"></i> Cargando…</p>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="user-menu">
                         <button class="user-btn" id="user-btn" aria-expanded="false" aria-controls="user-dropdown">

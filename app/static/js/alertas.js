@@ -48,6 +48,22 @@
                 confirmButtonColor: peligro ? color('--danger', '#e5484d') : color('--accent', '#1d6fe8'),
             }).then((r) => r.isConfirmed);
         },
+
+        // Confirmación que además pide un texto (motivo). Devuelve el texto, o null si canceló
+        pedirMotivo({ titulo, texto = '', boton = 'Sí, continuar', peligro = false, largo = 200 } = {}) {
+            if (!hay()) {
+                const r = window.prompt([titulo, texto, 'Motivo:'].filter(Boolean).join('\n\n'));
+                return Promise.resolve(r && r.trim() ? r.trim().slice(0, largo) : null);
+            }
+            return Swal.fire({
+                ...base(), icon: peligro ? 'warning' : 'question', title: titulo, text: texto,
+                input: 'textarea', inputLabel: 'Motivo', inputPlaceholder: 'Ejemplo: Terminó su contrato el 30 de noviembre',
+                inputAttributes: { maxlength: String(largo) },
+                inputValidator: (v) => (!v || !v.trim() ? 'Escribe el motivo.' : undefined),
+                showCancelButton: true, confirmButtonText: boton, cancelButtonText: 'Cancelar',
+                confirmButtonColor: peligro ? color('--danger', '#e5484d') : color('--accent', '#1d6fe8'),
+            }).then((r) => (r.isConfirmed ? r.value.trim() : null));
+        },
     };
     window.Alertas = Alertas;
 
@@ -67,10 +83,17 @@
         }
 
         // Formularios y botones con data-confirmar="Pregunta|Detalle opcional"
-        // (data-confirmar-boton cambia el texto del botón y data-peligro lo pone en rojo)
+        // (data-confirmar-boton cambia el texto del botón y data-peligro lo pone en rojo;
+        // data-confirmar-motivo="largo" pide además un motivo y lo pone en el campo name="motivo")
         const pedir = (el) => {
             const [titulo, texto] = el.dataset.confirmar.split('|');
-            return Alertas.confirmar({ titulo, texto, boton: el.dataset.confirmarBoton || 'Sí, continuar', peligro: 'peligro' in el.dataset });
+            const opciones = { titulo, texto, boton: el.dataset.confirmarBoton || 'Sí, continuar', peligro: 'peligro' in el.dataset };
+            if (!('confirmarMotivo' in el.dataset)) return Alertas.confirmar(opciones);
+            return Alertas.pedirMotivo({ ...opciones, largo: Number(el.dataset.confirmarMotivo) || 200 }).then((motivo) => {
+                const campo = (el.form || el).querySelector('[name="motivo"]');
+                if (motivo !== null && campo) campo.value = motivo;
+                return motivo !== null;
+            });
         };
         document.addEventListener('submit', (e) => {
             const form = e.target;

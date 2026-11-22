@@ -12,7 +12,7 @@ from nucleo import correo as correos
 from nucleo import mensajes
 from web import EMPRESA
 from . import (agentes, catalogo, clientes, comandos, cotizaciones, descargas, equipos, favoritos, glpi, indicadores,
-               pdf_cotizacion, permisos, proveedores, ventas)
+               notificaciones, pdf_cotizacion, permisos, proveedores, ventas)
 
 # Blueprint del panel administrativo
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -139,6 +139,8 @@ def datos_panel():
         'puede': lambda modulo, accion='ver': permisos.puede(rol, modulo, accion),
         'alertas': sum(1 for f in facturas_panel()[0] if f['estado'] == 'Vencida'),
         'alertas_tickets': alertas_tickets,
+        # Recién inició sesión: la página muestra el aviso con las notificaciones (una sola vez)
+        'aviso_inicio': session.pop('aviso_inicio', False),
         'documento_de': clientes.documento_de,  # "NIT 900123456-7" / "CC 1020304050"
     }
 
@@ -279,17 +281,14 @@ def usuarios_view():
         datos, errores = usuarios.validar(
             request.form, {r[0] for r in roles_asignables}, usuario_id,
             contrasena, request.form.get('confirmacion', ''), exigir_clave=not usuario_id)
-        activo = request.form.get('activo', '1') == '1'
         # Nadie se quita a sí mismo el acceso por error
         if actual and actual['correo'] == session['usuario']:
-            if not activo:
-                errores['activo'] = 'No puedes desactivar tu propia cuenta.'
             if actual['rol'] == 'superadmin' and datos['rol'] != 'superadmin':
                 errores['rol'] = 'No puedes quitarte el rol de Superadministrador.'
-        formulario = {**datos, 'id': usuario_id or '', 'activo': '1' if activo else '0'}
+        formulario = {**datos, 'id': usuario_id or ''}
         if not errores:
             if usuario_id:
-                guardado = usuarios.actualizar(usuario_id, datos, activo, contrasena)
+                guardado = usuarios.actualizar(usuario_id, datos, contrasena)
                 if actual['correo'] == session['usuario']:
                     session['usuario'] = guardado['correo']  # si cambió su propio correo
                 flash(f"Usuario {guardado['nombre']} actualizado"
@@ -305,7 +304,40 @@ def usuarios_view():
                            nombres_rol=permisos.NOMBRES_ROL, para_formulario=usuarios.para_formulario,
                            roles_asignables=roles_asignables, puede_crear=puede_crear, puede_editar=puede_editar,
                            rol_actual=rol_actual, errores=errores, formulario=formulario,
-                           largo_minimo=usuarios.LARGO_MINIMO, canal_mensajes=mensajes.proveedor())
+                           largo_minimo=usuarios.LARGO_MINIMO, canal_mensajes=mensajes.proveedor(),
+                           largo_motivo=usuarios.LARGO_MOTIVO,
+                           bloqueados=sum(1 for u in lista if not u['activo']))
+
+
+@dashboard_bp.route('/usuarios/<int:usuario_id>/<any(bloquear, desbloquear):accion>', methods=['POST'])
+@login_requerido
+def usuario_bloqueo(usuario_id, accion):
+    """Bloquea la cuenta de quien sale de la empresa (o la vuelve a activar)."""
+    rol_actual = session['rol']
+    if not permisos.puede(rol_actual, 'usuarios', 'editar'):
+        abort(403)
+    actual = usuarios.obtener(usuario_id)
+    if actual is None:
+        flash('Ese usuario ya no existe.', 'error')
+        return redirect(url_for('dashboard.usuarios_view'))
+    # Solo el superadministrador bloquea a otro superadministrador
+    if actual['rol'] == 'superadmin' and rol_actual != 'superadmin':
+        abort(403)
+    if actual['correo'] == session['usuario']:
+        flash('No puedes bloquear tu propia cuenta.', 'error')
+        return redirect(url_for('dashboard.usuarios_view'))
+
+    if accion == 'bloquear':
+        motivo = ' '.join(request.form.get('motivo', '').split())
+        if not motivo:
+            flash(f"Escribe el motivo para bloquear a {actual['nombre']}.", 'error')
+            return redirect(url_for('dashboard.usuarios_view'))
+        usuarios.bloquear(usuario_id, motivo, session['usuario'])
+        flash(f"{actual['nombre']} quedó bloqueado: ya no puede entrar al panel y su sesión abierta se cerró.", 'ok')
+    else:
+        usuarios.desbloquear(usuario_id)
+        flash(f"{actual['nombre']} quedó activo de nuevo y puede entrar con su contraseña.", 'ok')
+    return redirect(url_for('dashboard.usuarios_view'))
 
 
 @dashboard_bp.route('/tickets', methods=['GET', 'POST'])
@@ -442,6 +474,13 @@ def tareas_eliminar(tarea_id):
     tarea = agentes.eliminar_tarea(tarea_id)
     flash(f"Tarea “{tarea['titulo']}” eliminada." if tarea else 'Esa tarea ya no existe.', 'ok' if tarea else 'error')
     return redirect(url_for('dashboard.agentes_view'))
+
+
+@dashboard_bp.route('/notificaciones.json')
+@login_requerido
+def notificaciones_json():
+    """Lo que el usuario debe atender, para la campana y el aviso al iniciar sesión."""
+    return jsonify(notificaciones.para(session['rol'], session['usuario']))
 
 
 @dashboard_bp.route('/tickets/resumen.json')
@@ -897,6 +936,7 @@ def _pagina_catalogo(tipo, **extra):
         'puede_eliminar': permisos.puede(rol, tipo, 'eliminar'),
         'errores': {}, 'formulario': {}, 'errores_entrada': {}, 'entrada': {},
         'todos_productos': todos if tipo == 'productos' else [], 'precios_de': catalogo.precios_de,
+        'siguiente_codigo': catalogo.siguiente_codigo(tipo),
     }
     datos.update(extra)
     return render_template('dash/catalogo.html', **datos)
